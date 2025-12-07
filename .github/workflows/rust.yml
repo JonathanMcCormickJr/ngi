@@ -23,5 +23,6 @@ jobs:
     - name: Clippy
       run: cargo clippy
     - name: Tarpaulin
-      run: cargo install cargo-tarpaulin
-      run: cargo tarpaulin --fail-under 90
+      run: |
+        cargo install cargo-tarpaulin
+        cargo tarpaulin --fail-under 90
