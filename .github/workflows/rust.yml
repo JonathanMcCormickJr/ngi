@@ -26,3 +26,7 @@ jobs:
       run: |
         cargo install cargo-tarpaulin
         cargo tarpaulin --fail-under 90
+    - name: Dependency Audit
+      run: |
+        cargo install cargo-audit
+        cargo audit
