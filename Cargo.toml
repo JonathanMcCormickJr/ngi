@@ -1,0 +1,12 @@
+[workspace]
+
+members = [
+    "admin",
+    "auth",
+    "chaos",
+    "custodian",
+    "db",
+    "lbrp",
+    "tests",
+]
+resolver = "3"
