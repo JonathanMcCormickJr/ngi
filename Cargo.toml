@@ -10,3 +10,10 @@ members = [
     "tests",
 ]
 resolver = "3"
+
+[workspace.package]
+version = "0.1.0-mvp.1"
+authors = ["Jonathan A. McCormick, Jr. <jamccormick@dsrglobal.com>"]
+edition = "2024"
+license = "Proprietary"
+repository = "https://github.com/JonathanMcCormickJr/ngi"
