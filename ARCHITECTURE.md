@@ -1,11 +1,5 @@
 # NGI Architecture Documentation
 
-**Version:** 0.1.0-mvp  
-**Date:** December 7, 2025  
-**Author:** Jonathan A. McCormick, Jr.
-
----
-
 ## Table of Contents
 
 1. [Overview](#overview)
