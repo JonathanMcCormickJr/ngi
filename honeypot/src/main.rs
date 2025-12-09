@@ -8,7 +8,7 @@ use reporter::IntrusionEvent;
 
 fn main() {
     println!("CriticalBackups service initialized (honeypot mode)");
-    
+
     // Example: log a fake intrusion attempt
     let event = IntrusionEvent::new(
         "192.168.1.100".to_string(),
