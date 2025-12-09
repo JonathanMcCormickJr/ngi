@@ -7,6 +7,7 @@ use std::time::SystemTime;
 
 /// Intrusion event captured by honeypot
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub struct IntrusionEvent {
     pub timestamp: SystemTime,
     pub source_ip: String,

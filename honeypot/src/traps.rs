@@ -7,11 +7,13 @@
 #![warn(clippy::all, clippy::pedantic)]
 
 /// Generate fake Bitcoin wallet data
+#[allow(dead_code)]
 pub fn generate_fake_wallet() -> String {
     "bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh".to_string()
 }
 
 /// Generate fake backup archive metadata
+#[allow(dead_code)]
 pub fn generate_fake_backup_list() -> Vec<String> {
     vec![
         "production_db_2025-12-08.tar.gz".to_string(),
@@ -22,6 +24,7 @@ pub fn generate_fake_backup_list() -> Vec<String> {
 }
 
 /// Generate endless junk data stream (tarpit)
+#[allow(dead_code)]
 pub fn generate_junk_data(size_mb: usize) -> Vec<u8> {
     vec![0x42; size_mb * 1024 * 1024]
 }

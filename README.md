@@ -14,6 +14,10 @@ NGI aims to solve the pain points experienced by users of the current generation
 - RESTful API for Integration with Other Systems
 - Fault Injection for Resilience Testing
 - Intrusion Detection via Honeypot Service
+- Auto-save Drafts to Browser Cookies (recovery from interruptions)
+- Test-Driven Development (TDD) for all backend code
+- Dynamic Schema Evolution (add/remove fields and workflow steps without downtime)
+- Zero-redundancy data entry. If a field is already filled in from another source, it will not be requested again.
 
 ## Ticket Structure
 Each ticket in NGI contains the following fields:
@@ -41,16 +45,16 @@ Each ticket in NGI contains the following fields:
 
 ## Design Goals
 - **Modular**: NGI is built using a collection of smaller components, allowing for easy addition and removal of features as needed.
-- **Extensible**: The system is designed to accommodate future enhancements and integrations with other tools and platforms.
+- **Extensible**: The system is designed to accommodate future enhancements and integrations with other tools and platforms. Management can add custom fields, enum options, and workflow states without code changes—schema versioning and lazy migrations enable live evolution of data models.
 - **Scalable**: NGI can handle increasing loads and user demands without compromising performance.
 - **Fault-Tolerant**: The system is resilient to failures, ensuring continuous operation and minimal downtime. It even includes its own fault-injection system (inspired by Netflix's Chaos Monkey) to help identify and fix potential points of failure.
-- **User-Friendly**: NGI features an intuitive interface that simplifies ticket management for users of all technical levels.
+- **User-Friendly**: NGI features an intuitive interface that simplifies ticket management for users of all technical levels. The frontend automatically saves drafts to browser cookies, so users never lose their work due to interruptions, crashes, or accidental navigation.
 - **Blazingly Fast**: Optimized for speed, NGI ensures quick response times and efficient ticket processing. It takes advantage of the Rust programming language's support for both parallelism and asynchronous programming in order to push performance to the limit. With DSR's ambitions for growth, this system is designed to handle thousands of concurrent users without breaking a sweat.
 - **Ultra Secure**: NGI incorporates robust security measures to protect sensitive information and maintain user privacy. All network communications are doubly-encrypted: first using TLS 1.3 and secondly with a NIST-vetted postquantum algorithm named CRYSTALS-Kyber. User authentication is handled with mandatory MFA using several methods, including password-based authentication, WebAuthn, U2F, TOTP, and Active Directory (where the user's underlying OS login status counts toward authentication).
-- **Easily Maintainable**: The system is designed for straightforward maintenance and updates, reducing the burden on IT and development teams. Automated checks for dependencies (`cargo audit`), code quality (`cargo clippy` & `cargo fmt`), test coverage, documentation, and security vulnerabilities are integrated into the development workflow to ensure the system remains robust and up-to-date.
+- **Easily Maintainable**: The system is designed for straightforward maintenance and updates, reducing the burden on IT and development teams. Strict **Test-Driven Development (TDD)** ensures high code quality from day one—tests are written before implementation, documenting intended behavior and catching regressions early. Automated checks for dependencies (`cargo audit`), code quality (`cargo clippy` & `cargo fmt`), test coverage, documentation, and security vulnerabilities are integrated into the development workflow to ensure the system remains robust and up-to-date.
 
 ## Architecture
-NGI is built using a microservices architecture, with each service responsible for a specific function within the ticketing system. Services communicate internally using gRPC over HTTP/2 for maximum performance, while the load balancer (LBRP) exposes a RESTful JSON API to browsers and external partners. This ensures loose coupling and high cohesion while squeezing every bit of practical performance from inter-service communication. Each service can be developed, deployed, and scaled independently, allowing for greater flexibility and agility in responding to changing requirements. Each service (including the load balancer itself) is also capable of running multiple instances for load balancing and high availability.
+NGI is built using a microservices architecture, with each service responsible for a specific function within the ticketing system. Services communicate internally using gRPC over HTTP/2 with mutual TLS for maximum performance and security, while the load balancer (LBRP) exposes a RESTful JSON API to browsers and external partners. Internal components within each service use Tokio channels for asynchronous message passing. This ensures loose coupling and high cohesion while squeezing every bit of practical performance from inter-service communication. Each service can be developed, deployed, and scaled independently, allowing for greater flexibility and agility in responding to changing requirements. Each service (including the load balancer itself) is also capable of running multiple instances for load balancing and high availability.
 
 ### Key Components
 - [**Admin:**](./admin/) Manages user accounts, roles, and permissions within the NGI system.
