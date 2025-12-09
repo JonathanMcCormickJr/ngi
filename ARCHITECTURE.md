@@ -37,15 +37,16 @@ NGI (Next-Gen Infoman) is a distributed, microservices-based tech support ticket
 
 | Component | Crate | Version | Purpose |
 |-----------|-------|---------|---------|
-| **Web Framework** | `axum` | latest | HTTP routing, handlers, middleware |
+| **Web Framework** | `axum` | latest | REST surface for browsers (LBRP) |
 | **Async Runtime** | `tokio` | latest | Async I/O, task scheduling |
 | **Database** | `sled` | latest | Embedded key-value store |
 | **Consensus** | `openraft` | latest | Raft protocol for distributed consensus |
 | **TLS** | `rustls` | latest | Pure Rust TLS 1.3 implementation |
 | **Post-Quantum Crypto** | `pqc_kyber` | latest | CRYSTALS-Kyber KEM |
+| **gRPC Framework** | `tonic` + `prost` | latest | Service-to-service RPC over HTTP/2 |
 | **Serialization** | `serde` + `bincode` | latest | Efficient binary serialization |
-| **Message Passing** | `tokio::sync::mpsc` | (built-in) | Inter-component communication |
-| **HTTP Client** | `reqwest` | latest | Inter-service HTTP requests |
+| **Message Passing** | `tokio::sync::mpsc` | (built-in) | Internal component pipelines |
+| **HTTP Client** | `reqwest` | latest | Outbound REST integrations |
 
 ### Development Tools
 
@@ -96,7 +97,7 @@ ngi/
 │       ├── main.rs
 │       ├── storage.rs      # Sled wrapper
 │       ├── raft_sm.rs      # Raft state machine
-│       └── api.rs          # HTTP API handlers
+│       └── api.rs          # gRPC service handlers (tonic)
 │
 ├── custodian/              # Ticket management service (binary)
 │   ├── Cargo.toml
@@ -104,7 +105,7 @@ ngi/
 │       ├── main.rs
 │       ├── locks.rs        # Distributed lock management
 │       ├── raft_sm.rs      # Raft state machine
-│       └── api.rs          # HTTP API handlers
+│       └── api.rs          # gRPC service handlers (tonic)
 │
 ├── auth/                   # Authentication service (binary)
 │   ├── Cargo.toml
@@ -112,7 +113,7 @@ ngi/
 │       ├── main.rs
 │       ├── mfa.rs          # Multi-factor auth logic
 │       ├── session.rs      # Session management
-│       └── api.rs          # HTTP API handlers
+│       └── api.rs          # gRPC service handlers (tonic)
 │
 ├── admin/                  # Admin & monitoring service (binary)
 │   ├── Cargo.toml
@@ -120,7 +121,7 @@ ngi/
 │       ├── main.rs
 │       ├── monitoring.rs   # Metrics collection
 │       ├── users.rs        # User/role management
-│       └── api.rs          # HTTP API handlers
+│       └── api.rs          # gRPC service handlers (tonic)
 │
 ├── lbrp/                   # Load Balancer & Reverse Proxy (binary)
 │   ├── Cargo.toml
@@ -135,6 +136,13 @@ ngi/
 │   └── src/
 │       ├── main.rs
 │       └── injector.rs     # Chaos scenarios
+│
+├── honeypot/               # Intrusion detection honeypot (binary)
+│   ├── Cargo.toml
+│   └── src/
+│       ├── main.rs
+│       ├── traps.rs        # Fake endpoints and data
+│       └── reporter.rs     # Alert reporting to admin
 │
 └── tests/                  # Integration tests
     ├── Cargo.toml
@@ -335,16 +343,16 @@ Services only accept connections from other services with valid certificates.
 
 **Purpose**: Centralized data persistence with distributed consensus
 
-**Port**: `8080` (configurable)
+**Port**: `8080` (gRPC over HTTP/2, configurable)
 
 > **Note on Port Numbers**: The 808x port range is used for memorability and to avoid common port conflicts. Real security comes from mTLS authentication and network isolation, not port obscurity. Attackers scan all ports regardless of number.
 
-**API Endpoints**:
-- `POST /ticket` - Create ticket
-- `GET /ticket/:id` - Get ticket by ID
-- `PUT /ticket/:id` - Update ticket
-- `DELETE /ticket/:id` - Delete ticket (soft delete: marks as deleted but retains data)
-- `GET /tickets/query` - Query tickets with filters
+**gRPC Methods**:
+- `CreateTicket(TicketWrite)` → `Ticket` (persists ticket, assigns ID)
+- `GetTicket(TicketLookup)` → `Ticket`
+- `UpdateTicket(TicketWrite)` → `Ticket`
+- `SoftDeleteTicket(TicketLookup)` → `DeleteAck`
+- `QueryTickets(QueryRequest)` → `stream Ticket`
 
 > **Soft Delete vs Hard Delete**: NGI uses **soft deletes** exclusively for tickets and users. Records are marked `deleted: true` with a `deleted_at` timestamp but remain in the database. This enables:
 > - Audit trails (who deleted what, when)
@@ -352,15 +360,15 @@ Services only accept connections from other services with valid certificates.
 > - Regulatory compliance (data retention policies)
 > - Historical reporting and analytics
 > Hard deletes (permanent removal) are never exposed via API and only performed during database maintenance with explicit approval.
-- `POST /user` - Create user
-- `GET /user/:id` - Get user by ID
-- `PUT /user/:id` - Update user
-- `DELETE /user/:id` - Delete user (soft delete)
+- `CreateUser(UserWrite)` → `User`
+- `GetUser(UserLookup)` → `User`
+- `UpdateUser(UserWrite)` → `User`
+- `SoftDeleteUser(UserLookup)` → `DeleteAck`
 
 **Dependencies**:
 - `sled` for storage
 - `openraft` for consensus
-- `axum` for HTTP API
+- `tonic` for gRPC server/client plumbing
 
 **Clustering**:
 - **3 instances minimum** (recommended for Raft quorum)
@@ -374,13 +382,13 @@ Services only accept connections from other services with valid certificates.
 
 **Purpose**: Ticket lifecycle management with distributed locking
 
-**Port**: `8081` (configurable)
+**Port**: `8081` (gRPC over HTTP/2, configurable)
 
-**API Endpoints**:
-- `POST /ticket` - Create new ticket (delegates to DB)
-- `POST /ticket/:id/lock` - Acquire exclusive lock
-- `DELETE /ticket/:id/lock` - Release lock
-- `PUT /ticket/:id` - Update ticket information (requires lock)
+**gRPC Methods**:
+- `CreateTicket(CreateTicketRequest)` → `Ticket`
+- `AcquireLock(LockRequest)` → `LockResponse`
+- `ReleaseLock(LockRelease)` → `LockResponse`
+- `UpdateTicket(UpdateTicketRequest)` → `Ticket`
 
 **Key Features**:
 - **Distributed locks**: Raft consensus prevents race conditions
@@ -389,7 +397,8 @@ Services only accept connections from other services with valid certificates.
 
 **Dependencies**:
 - `openraft` for lock coordination
-- `db` service for persistence
+- `db` service gRPC client for persistence
+- `tonic` for gRPC server/client plumbing
 
 **Clustering**:
 - **3 instances minimum** (recommended for Raft quorum)
@@ -402,17 +411,17 @@ Services only accept connections from other services with valid certificates.
 
 **Purpose**: User authentication and session management
 
-**Port**: `8082` (configurable)
+**Port**: `8082` (gRPC over HTTP/2, configurable)
 
-**API Endpoints**:
-- `POST /login/creds` - Username + password
-- `POST /login/totp` - TOTP verification
-- `POST /login/webauthn` - WebAuthn challenge/response
-- `POST /logout` - Invalidate session
-- `GET /session/verify` - Verify session token
-- `POST /:user/enroll/:method` - Enroll a new MFA method
-- `DELETE /:user/mfa/:method` - Remove specified MFA method
-- `PUT /:user/password` - Change user password
+**gRPC Methods**:
+- `AuthenticatePassword(PasswordLogin)` → `LoginResponse`
+- `AuthenticateTotp(TotpChallenge)` → `LoginResponse`
+- `AuthenticateWebauthn(WebauthnChallenge)` → `LoginResponse`
+- `Logout(SessionToken)` → `LogoutAck`
+- `VerifySession(SessionToken)` → `SessionState`
+- `EnrollMfa(EnrollRequest)` → `MfaEnrollment`
+- `RemoveMfa(RemoveRequest)` → `RemoveAck`
+- `ChangePassword(ChangePasswordRequest)` → `ChangePasswordAck`
 
 **Session Storage**:
 - Sessions stored in DB service
@@ -420,7 +429,8 @@ Services only accept connections from other services with valid certificates.
 - Refresh tokens (7 days)
 
 **Dependencies**:
-- `db` service for user data and sessions
+- `db` service gRPC client for user data and sessions
+- `tonic` for gRPC server/client plumbing
 
 **Clustering**:
 - Stateless, can run 1+ instances
@@ -432,16 +442,16 @@ Services only accept connections from other services with valid certificates.
 
 **Purpose**: User management, roles, permissions, monitoring, and metrics
 
-**Port**: `8083` (configurable)
+**Port**: `8083` (gRPC over HTTP/2, configurable)
 
-**API Endpoints**:
-- `POST /user` - Create user
-- `PUT /user/:id` - Update user
-- `DELETE /user/:id` - Delete user (soft delete)
-- `POST /role` - Create role
-- `PUT /user/:id/role` - Assign role
-- `GET /metrics` - System metrics
-- `GET /health` - Service health checks
+**gRPC Methods**:
+- `CreateUser(AdminUserWrite)` → `User`
+- `UpdateUser(AdminUserWrite)` → `User`
+- `SoftDeleteUser(AdminUserLookup)` → `DeleteAck`
+- `CreateRole(RoleWrite)` → `Role`
+- `AssignRole(RoleAssignment)` → `RoleAssignmentAck`
+- `GetMetrics(MetricsRequest)` → `MetricsSnapshot`
+- `GetHealth(HealthRequest)` → `HealthStatus`
 
 **Monitoring Features**:
 - Service health aggregation
@@ -451,8 +461,9 @@ Services only accept connections from other services with valid certificates.
 - Data export in CSV, XLSX, JSON, & Prometheus formats
 
 **Dependencies**:
-- `db` service for user/role data
-- All services for health checks
+- `db` service gRPC client for user/role data
+- gRPC clients to each service for health checks
+- `tonic` for gRPC server/client plumbing
 
 **Clustering**:
 - Stateless, single instance for MVP
@@ -466,10 +477,10 @@ Services only accept connections from other services with valid certificates.
 **Port**: `443` (HTTPS) / `80` (HTTP redirect)
 
 **Routes**:
-- `/api/ticket/*` → `custodian` service
-- `/api/auth/*` → `auth` service
-- `/api/admin/*` → `admin` service
-- `/api/db/*` → `db` service (internal only)
+- `/api/ticket/*` → gRPC `CustodianService`
+- `/api/auth/*` → gRPC `AuthService`
+- `/api/admin/*` → gRPC `AdminService`
+- `/api/db/*` → gRPC `DbService` (internal only)
 - `/*` → Static frontend files
 
 **Load Balancing Algorithm**:
@@ -481,9 +492,11 @@ Services only accept connections from other services with valid certificates.
 - Request rate limiting
 - CORS handling
 - Compression (gzip, brotli)
+- gRPC client pool with leader-aware routing
 
 **Dependencies**:
 - `config` crate for service discovery
+- `tonic` for gRPC client connections
 
 **Clustering**:
 - Single instance for MVP
@@ -495,7 +508,7 @@ Services only accept connections from other services with valid certificates.
 
 **Purpose**: Fault injection for resilience testing
 
-**Port**: `8084` (configurable)
+**Port**: `8084` (gRPC over HTTP/2, configurable)
 
 **Injection Types**:
 - Network latency injection
@@ -504,17 +517,68 @@ Services only accept connections from other services with valid certificates.
 - CPU/memory pressure
 - Raft leader failure
 
-**API Endpoints**:
-- `POST /chaos/inject` - Start chaos scenario
-- `DELETE /chaos/stop` - Stop active scenario
-- `GET /chaos/scenarios` - List available scenarios
+**gRPC Methods**:
+- `InjectScenario(ChaosRequest)` → `ChaosAck`
+- `StopScenario(StopRequest)` → `ChaosAck`
+- `ListScenarios(ListRequest)` → `ScenarioCatalog`
 
 **Safety**:
 - Only enabled in test environments
 - Requires admin authentication
 
+**Dependencies**:
+- `tonic` for gRPC server/client plumbing
+
 **Clustering**:
 - Single instance (chaos doesn't need HA!)
+
+---
+
+### Honeypot Service (`honeypot`)
+
+**Purpose**: Intrusion detection via deceptive high-value targets
+
+**Port**: `8085` (gRPC over HTTP/2, configurable)
+
+**Advertised As**: `CriticalBackups` in service discovery to attract attackers
+
+**Trap Types**:
+- Fake wallet endpoints (Bitcoin, Ethereum addresses)
+- Simulated backup archives (tar.gz, zip with believable names)
+- Mock credential stores (JSON, encrypted blobs)
+- Synthetic admin panels (login forms, dashboards)
+- Honeytokens (canary values embedded in responses)
+
+**gRPC Methods**:
+- `RecordIntrusion(IntrusionEvent)` → `IntrusionAck` (internal, logs to admin)
+- `GetWalletBalance(WalletRequest)` → `WalletResponse` (fake data)
+- `ListBackups(BackupListRequest)` → `stream BackupMetadata` (fake archives)
+- `DownloadBackup(BackupDownloadRequest)` → `stream BackupChunk` (endless junk data)
+
+**Behavior**:
+- **Mimics real service**: Responds with plausible data to avoid detection
+- **Tarpit mode**: Slows responses to waste attacker time
+- **Fingerprinting**: Captures IP, user-agent, TLS fingerprints, request patterns
+- **Alert pipeline**: Sends structured events to `admin` service for logging in `db`
+- **Rate limiting bypass**: Intentionally lenient to encourage interaction
+
+**Security Isolation**:
+- Runs in separate network segment (DMZ)
+- No access to real data or services
+- All responses are synthetic
+- Readonly mode for actual service discovery (cannot modify other services)
+
+**Reporting**:
+- Real-time alerts to `admin` service via gRPC
+- Metrics: intrusion attempts, session duration, endpoints accessed
+- Export formats: JSON, CSV, SIEM-compatible logs
+
+**Dependencies**:
+- `admin` service gRPC client for alert delivery
+- `tonic` for gRPC server/client plumbing
+
+**Clustering**:
+- Single instance (honeypots don't need HA; simpler to monitor)
 
 ---
 
@@ -522,35 +586,51 @@ Services only accept connections from other services with valid certificates.
 
 ### Communication Patterns
 
-#### 1. HTTP/REST (Primary)
+#### 1. REST/JSON (Browser → LBRP)
 
-Services expose RESTful APIs over HTTPS (mTLS).
+Only the `lbrp` service exposes REST endpoints. It terminates TLS, serves the frontend, and accepts browser-originating requests over HTTPS (mTLS optional for partners). Requests are validated and transformed into internal RPC invocations.
 
-**Example: Create Ticket Flow**
+**Create Ticket Flow (Edge Perspective)**
 ```
-Client → LBRP → Custodian → DB
-```
-
-1. Client sends `POST /api/ticket` to LBRP
-2. LBRP routes to Custodian instance
-3. Custodian validates request and assigns lock if needed
-4. Custodian sends `POST /ticket` to DB leader
-5. DB writes to Raft log, replicates
-6. DB returns ticket ID
-7. Custodian returns response to LBRP
-8. LBRP returns response to Client. User is now able to see the ticket in their UI and manually enter data into it and submit updates.
+Browser → LBRP (POST /api/ticket)
 ```
 
-#### 2. Internal Message Passing (tokio::mpsc)
+1. Browser calls `POST /api/ticket` on LBRP.
+2. LBRP authenticates the session, enriches metadata, and opens a gRPC client.
+
+#### 2. gRPC (Service-to-Service)
+
+Every interaction between runtime services uses gRPC/HTTP2 via `tonic`, secured with mutual TLS and protobuf messages generated by `prost`. This provides bi-directional streaming, flow control, header compression, and lower serialization overhead compared to JSON.
+
+**Create Ticket Flow (Internal Perspective)**
+```
+LBRP gRPC → Custodian → DB
+```
+
+1. LBRP issues `CreateTicket` to the custodian cluster leader.
+2. Custodian validates/locks and issues `AppendTicket` gRPC call to the DB leader.
+3. DB replicates via Raft and returns the persisted ticket ID.
+4. Custodian responds over gRPC; LBRP maps the protobuf response back to REST JSON for the browser.
+
+_Excerpt from `custodian.proto`_
+```proto
+service CustodianService {
+  rpc CreateTicket(CreateTicketRequest) returns (CreateTicketResponse);
+  rpc AcquireLock(AcquireLockRequest) returns (LockResponse);
+  rpc StreamTicketUpdates(StreamTicketUpdatesRequest) returns (stream TicketUpdate);
+}
+```
+
+#### 3. Internal Message Passing (tokio::mpsc)
 
 Within a service, components use `tokio::sync::mpsc` channels.
 
 **Example: DB Service Internal**
 ```
-HTTP Handler → Channel → Raft Module → Sled
+gRPC Handler → Channel → Raft Module → Sled
 ```
 
-Channels decouple the HTTP layer from the storage layer.
+Channels decouple the gRPC surface from the storage/consensus layers.
 
 ### Service Discovery
 
@@ -559,29 +639,34 @@ Services discover each other via **static configuration file** (`services.toml`)
 ```toml
 [services.db]
 instances = [
-  { id = "db1", url = "https://db1.internal:8080", role = "leader" },
-  { id = "db2", url = "https://db2.internal:8080", role = "follower" },
+  { id = "db1", grpc_endpoint = "https://db1.internal:8080", role = "leader" },
+  { id = "db2", grpc_endpoint = "https://db2.internal:8080", role = "follower" },
 ]
 
 [services.custodian]
 instances = [
-  { id = "custodian1", url = "https://custodian1.internal:8081", role = "leader" },
-  { id = "custodian2", url = "https://custodian2.internal:8081", role = "follower" },
+  { id = "custodian1", grpc_endpoint = "https://custodian1.internal:8081", role = "leader" },
+  { id = "custodian2", grpc_endpoint = "https://custodian2.internal:8081", role = "follower" },
 ]
 
 [services.auth]
 instances = [
-  { id = "auth1", url = "https://auth1.internal:8082" },
+  { id = "auth1", grpc_endpoint = "https://auth1.internal:8082" },
 ]
 
 [services.admin]
 instances = [
-  { id = "admin1", url = "https://admin1.internal:8083" },
+  { id = "admin1", grpc_endpoint = "https://admin1.internal:8083" },
 ]
 
 [services.lbrp]
 instances = [
-  { id = "lbrp1", url = "https://lbrp1.internal:443" },
+  { id = "lbrp1", rest_endpoint = "https://lbrp1.internal:443" },
+]
+
+[services.CriticalBackups]  # Honeypot (real name: honeypot)
+instances = [
+  { id = "honeypot1", grpc_endpoint = "https://backups.internal:8085" },
 ]
 ```
 
@@ -591,10 +676,10 @@ Services reload `services.toml` periodically (every 30 seconds) to detect change
 
 1. New leader updates its `role` in config file (atomic write)
 2. All services detect the change on next reload
-3. Clients automatically redirect requests to new leader
+3. gRPC clients automatically redirect requests to new leader
 4. No manual intervention required
 
-**Implementation**: Use file watching (via `notify` crate) to detect config changes immediately rather than waiting for 30s poll. Leader election triggers config file update via consensus - only the leader writes its status.
+**Implementation**: Use file watching (via `notify` crate) to detect config changes immediately rather than waiting for 30s poll. Leader election triggers config file update via consensus - only the leader writes its status. Shared client factories (`tonic::transport::Channel`) rebuild connections when metadata shifts.
 
 **Config file ownership**: 
 - Shared filesystem (NFS, Ceph) OR
@@ -676,6 +761,10 @@ graph TD
     DBFollower2["DB<br/>Follower<br/>(8080)"]
   end
 
+  subgraph "Security"
+    Honeypot["CriticalBackups<br/>(Honeypot)<br/>(8085)"]
+  end
+
   LBRP --- Auth
   LBRP --- Admin
   LBRP --- CustLeader
@@ -719,6 +808,16 @@ graph TD
   DBLeader --- DBFollower2
 
   DBFollower1 --- DBFollower2
+
+  Honeypot --- LBRP
+  Honeypot --- Auth
+  Honeypot --- Admin
+  Honeypot --- CustLeader
+  Honeypot --- CustFollower1
+  Honeypot --- CustFollower2
+  Honeypot --- DBLeader
+  Honeypot --- DBFollower1
+  Honeypot --- DBFollower2
 ```
 
 ### Unikernel Deployment (OPS)
@@ -914,31 +1013,29 @@ pub struct LockInfo {
 
 ## API Specifications
 
-### REST API Conventions
+### External REST API (via LBRP)
 
-**Base URL**: `https://{lbrp-host}/api`
+LBRP remains the sole REST surface. It validates sessions, performs request shaping, and forwards calls to internal services over gRPC. All browser and partner traffic hits the REST endpoints below.
 
-**Authentication**: Bearer token in `Authorization` header
-```
-Authorization: Bearer <jwt-token>
-```
+#### Conventions
 
-**Request/Response Format**: JSON
-
-**Error Response**:
-```json
-{
-  "error": {
-    "code": "TICKET_NOT_FOUND",
-    "message": "Ticket with ID 12345 does not exist",
-    "details": {}
+- **Base URL**: `https://{lbrp-host}/api`
+- **Authentication**: Bearer token in `Authorization` header (`Authorization: Bearer <jwt-token>`)
+- **Format**: JSON requests/responses, snake_case fields, RFC3339 timestamps
+- **Error Envelope**:
+  ```json
+  {
+    "error": {
+      "code": "TICKET_NOT_FOUND",
+      "message": "Ticket with ID 12345 does not exist",
+      "details": {}
+    }
   }
-}
-```
+  ```
 
-### Custodian API
+#### Ticket Routes
 
-#### Create Ticket
+`POST /api/ticket`
 ```http
 POST /api/ticket
 Content-Type: application/json
@@ -958,7 +1055,7 @@ Response 201:
 }
 ```
 
-#### Acquire Lock
+`POST /api/ticket/{id}/lock`
 ```http
 POST /api/ticket/12345/lock
 
@@ -981,7 +1078,7 @@ Response 409 (already locked):
 }
 ```
 
-#### Update Status
+`PUT /api/ticket/{id}/status`
 ```http
 PUT /api/ticket/12345/status
 Content-Type: application/json
@@ -999,9 +1096,9 @@ Response 200:
 }
 ```
 
-### Auth API
+#### Auth Routes
 
-#### Login (Step 1: Password)
+`POST /api/auth/login`
 ```http
 POST /api/auth/login
 Content-Type: application/json
@@ -1011,7 +1108,7 @@ Content-Type: application/json
   "password": "SecurePass123!"
 }
 
-Response 200 (MFA required):
+Response 200:
 {
   "mfa_required": true,
   "mfa_methods": ["totp", "webauthn"],
@@ -1019,7 +1116,7 @@ Response 200 (MFA required):
 }
 ```
 
-#### Login (Step 2: TOTP)
+`POST /api/auth/login/totp`
 ```http
 POST /api/auth/login/totp
 Content-Type: application/json
@@ -1037,6 +1134,48 @@ Response 200:
 }
 ```
 
+### Internal gRPC APIs
+
+All internal RPCs are defined in protobuf files under `proto/` and compiled with `prost-build`. Services speak HTTP/2 with mutual TLS using `tonic::transport`. Unary calls are the default; streaming is used for long-lived operations (e.g., ticket update feeds, metrics streaming).
+
+Common conventions:
+- Metadata headers carry tracing IDs (`x-ngi-trace`), auth claims, and leadership hints.
+- Every service implements `grpc.health.v1.Health` plus a `Version` unary RPC returning semantic version + git SHA.
+- Request/response types use snake_case field names to align with Rust struct naming via `prost` attributes.
+
+#### CustodianService
+- `rpc CreateTicket(CreateTicketRequest) returns (CreateTicketResponse)`
+- `rpc AcquireLock(LockRequest) returns (LockResponse)`
+- `rpc ReleaseLock(LockRelease) returns (LockResponse)`
+- `rpc UpdateTicket(UpdateTicketRequest) returns (UpdateTicketResponse)`
+- `rpc StreamTicketUpdates(StreamTicketUpdatesRequest) returns (stream TicketUpdate)`
+
+#### DbService
+- `rpc AppendTicket(DbTicketWrite) returns (DbTicketRecord)`
+- `rpc GetTicket(DbTicketLookup) returns (DbTicketRecord)`
+- `rpc SoftDeleteTicket(DbTicketLookup) returns (DeleteAck)`
+- `rpc QueryTickets(DbQuery) returns (stream DbTicketRecord)`
+- `rpc ManageUser(DbUserCommand) returns (DbUserRecord)`
+
+#### AuthService
+- `rpc AuthenticatePassword(PasswordLogin) returns (LoginResponse)`
+- `rpc AuthenticateTotp(TotpChallenge) returns (LoginResponse)`
+- `rpc AuthenticateWebauthn(WebauthnChallenge) returns (LoginResponse)`
+- `rpc VerifySession(SessionToken) returns (SessionState)`
+- `rpc Logout(SessionToken) returns (LogoutAck)`
+- `rpc ManageMfa(MfaCommand) returns (MfaState)`
+
+#### AdminService
+- `rpc ManageUser(AdminUserCommand) returns (AdminUserSnapshot)`
+- `rpc ManageRole(RoleCommand) returns (RoleSnapshot)`
+- `rpc GetMetrics(MetricsRequest) returns (stream MetricsSnapshot)`
+- `rpc GetHealth(HealthRequest) returns (HealthStatus)`
+
+#### ChaosService
+- `rpc InjectScenario(ChaosRequest) returns (ChaosAck)`
+- `rpc StopScenario(StopRequest) returns (ChaosAck)`
+- `rpc ListScenarios(ListRequest) returns (ScenarioCatalog)`
+
 ---
 
 ## Performance Architecture
@@ -1047,7 +1186,7 @@ NGI leverages Rust's powerful concurrency primitives to maximize throughput and 
 
 #### Asynchronous I/O with Tokio
 
-**All services use async/await** with Tokio runtime for I/O-bound operations:
+**All services use async/await** with Tokio runtime for I/O-bound operations. LBRP runs on `axum`, while internal services host `tonic` gRPC servers:
 
 ```rust
 #[tokio::main]
@@ -1068,10 +1207,17 @@ async fn main() {
 - **Efficient resource usage**: One thread can manage many concurrent tasks
 - **Backpressure handling**: Tokio's channels provide natural flow control
 
+```rust
+tonic::transport::Server::builder()
+  .add_service(CustodianServer::new(custodian_service))
+  .serve(grpc_addr)
+  .await?;
+```
+
 **Async Use Cases in NGI:**
-- HTTP request handling (Axum handlers are async)
+- HTTP request handling (Axum handlers for LBRP are async)
 - Database operations (Sled operations wrapped in async)
-- Inter-service communication (async HTTP clients)
+- Inter-service communication (async gRPC clients via tonic)
 - Raft consensus operations (async state machine)
 - Message passing (tokio::sync::mpsc channels)
 
@@ -1138,7 +1284,7 @@ thread_keep_alive = 10    # Seconds to keep idle threads alive
 
 1. **Zero-copy where possible**: Use `Bytes` instead of `Vec<u8>` for network data
 2. **Efficient serialization**: `bincode` for internal data, JSON only at API boundaries
-3. **Connection reuse**: HTTP/2 multiplexing for inter-service communication
+3. **Connection reuse**: HTTP/2 (gRPC) multiplexing for inter-service communication
 4. **Lazy evaluation**: Stream large result sets instead of loading into memory
 5. **Smart caching**: In-memory LRU cache for frequently accessed tickets (future)
 
@@ -1238,8 +1384,10 @@ thread_keep_alive = 10    # Seconds to keep idle threads alive
 ### Monitoring
 
 All services expose:
-- `GET /health` - Health check endpoint
-- `GET /metrics` - Prometheus-compatible metrics
+- `grpc.health.v1.Health/Check` - Standard gRPC health check service
+- `GetMetrics` gRPC method (streaming snapshot) for the admin aggregator
+
+The `admin` service republishes a consolidated `GET /metrics` endpoint for Prometheus and provides a JSON dashboard feed.
 
 Metrics collected:
 - Request count, latency (histogram)

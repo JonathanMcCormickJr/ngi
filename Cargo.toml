@@ -6,6 +6,7 @@ members = [
     "chaos",
     "custodian",
     "db",
+    "honeypot",
     "lbrp",
     "tests",
 ]

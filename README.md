@@ -13,6 +13,7 @@ NGI aims to solve the pain points experienced by users of the current generation
 - Audit Logging & Reporting
 - RESTful API for Integration with Other Systems
 - Fault Injection for Resilience Testing
+- Intrusion Detection via Honeypot Service
 
 ## Ticket Structure
 Each ticket in NGI contains the following fields:
@@ -49,7 +50,7 @@ Each ticket in NGI contains the following fields:
 - **Easily Maintainable**: The system is designed for straightforward maintenance and updates, reducing the burden on IT and development teams. Automated checks for dependencies (`cargo audit`), code quality (`cargo clippy` & `cargo fmt`), test coverage, documentation, and security vulnerabilities are integrated into the development workflow to ensure the system remains robust and up-to-date.
 
 ## Architecture
-NGI is built using a microservices architecture, with each service responsible for a specific function within the ticketing system. The services communicate with each other using RESTful APIs and message queues, ensuring loose coupling and high cohesion. Each service can be developed, deployed, and scaled independently, allowing for greater flexibility and agility in responding to changing requirements. Each service (including the load balancer itself) is also capable of running multiple instances for load balancing and high availability.
+NGI is built using a microservices architecture, with each service responsible for a specific function within the ticketing system. Services communicate internally using gRPC over HTTP/2 for maximum performance, while the load balancer (LBRP) exposes a RESTful JSON API to browsers and external partners. This ensures loose coupling and high cohesion while squeezing every bit of practical performance from inter-service communication. Each service can be developed, deployed, and scaled independently, allowing for greater flexibility and agility in responding to changing requirements. Each service (including the load balancer itself) is also capable of running multiple instances for load balancing and high availability.
 
 ### Key Components
 - [**Admin:**](./admin/) Manages user accounts, roles, and permissions within the NGI system.
@@ -57,11 +58,12 @@ NGI is built using a microservices architecture, with each service responsible f
 - [**Chaos:**](./chaos/) Injects faults into the system to test resilience and fault-tolerance capabilities
 - [**Custodian:**](./custodian/) Controls tickets, including creation, updates, assignments (including ticket locks), and status changes.
 - [**DB: Database Service:**](./db/) Manages data storage and retrieval, ensuring data integrity and consistency across the system.
+- [**Honeypot (CriticalBackups):**](./honeypot/) Deceptive high-value target service for intrusion detection. Captures attacker behavior and reports to admin for logging.
 - [**LBRP: Load Balancer & Reverse Proxy:**](./lbrp/) Distributes incoming requests across multiple instances of each service to ensure optimal performance and reliability. Also serves static files for the web frontend.
 - [**Tests:**](./tests/) Contains integration and end-to-end tests for the entire NGI system, ensuring that all components work together seamlessly.
 
 ### Inter-Service Communication
-All inter-service communication is secured using mutual TLS (mTLS) to ensure that only authorized services can communicate with each other. Each service has its own unique certificate and private key, which are used to establish secure connections with other services. This approach helps to prevent unauthorized access and ensures the integrity of data exchanged between services.
+All inter-service communication uses gRPC (via `tonic`) over HTTP/2, secured with mutual TLS (mTLS) to ensure that only authorized services can communicate with each other. Each service has its own unique certificate and private key, which are used to establish secure connections. This approach helps to prevent unauthorized access and ensures the integrity of data exchanged between services. The LBRP service translates incoming REST/JSON requests from browsers into gRPC calls and returns JSON responses.
 
 ### Consistency Model
 NGI employs a flexible consistency model. Operations that critically rely on data consistency, such as setting/clearing ticket locks, utilize strong consistency to ensure data integrity. Operations that have no such requirement, such as UI format, maintain flexibility. For example, the UI can have A/B testing enabled, allowing different users to experience different UI layouts without impacting the underlying data consistency.
