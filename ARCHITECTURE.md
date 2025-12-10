@@ -643,12 +643,14 @@ Services discover each other via **static configuration file** (`services.toml`)
 instances = [
   { id = "db1", grpc_endpoint = "https://db1.internal:8080", role = "leader" },
   { id = "db2", grpc_endpoint = "https://db2.internal:8080", role = "follower" },
+  { id = "db3", grpc_endpoint = "https://db3.internal:8080", role = "follower" },
 ]
 
 [services.custodian]
 instances = [
   { id = "custodian1", grpc_endpoint = "https://custodian1.internal:8081", role = "leader" },
   { id = "custodian2", grpc_endpoint = "https://custodian2.internal:8081", role = "follower" },
+  { id = "custodian3", grpc_endpoint = "https://custodian3.internal:8081", role = "follower" },
 ]
 
 [services.auth]
@@ -877,6 +879,12 @@ pub struct Ticket {
     pub history: Vec<TicketHistoryEntry>,
     pub ebond: Option<String>,
     
+    // DSR Broadband Provisioning integration
+    pub tracking_url: Option<String>,     // URL to provisioning portal tracking record
+    
+    // Network equipment at customer site
+    pub network_devices: Vec<NetworkDevice>,
+    
     // Billable hours tracking
     pub billable_hours: Vec<BillableSession>,
     pub total_billable_time: Duration,    // Sum of all sessions
@@ -954,8 +962,10 @@ pub enum Resolution {
     Resolved = 1,
     Workaround = 2,
     CannotReproduce = 3,
-    WontFix = 4,
+    UnsupportedIssue = 4,
     Duplicate = 5,
+    ServiceOutage = 6,
+    UserError = 7,
 }
 
 pub enum NextAction {
@@ -1049,6 +1059,103 @@ pub struct LockInfo {
     pub expires_at: DateTime<Utc>,
     pub instance_id: Uuid,  // Which custodian instance granted the lock
 }
+```
+
+### Network Device
+
+```rust
+/// RFC-compliant MAC address with validation
+pub struct MacAddress(String);
+
+impl MacAddress {
+    pub fn new(mac: String) -> Result<Self, ValidationError>;
+    pub fn as_str(&self) -> &str;
+}
+
+/// Network equipment supported by DSR at customer sites
+#[non_exhaustive]
+pub enum NetworkDevice {
+    DslModem {
+        make: String,
+        model: String,
+        mac_address: Option<MacAddress>,
+        serial_number: Option<String>,
+    },
+    CoaxModem {
+        make: String,
+        model: String,
+        mac_address: Option<MacAddress>,
+        serial_number: Option<String>,
+    },
+    Ont {
+        make: String,
+        model: String,
+        mac_address: Option<MacAddress>,
+        serial_number: Option<String>,
+    },
+    FixedWirelessAntenna {
+        make: String,
+        model: String,
+        mac_address: Option<MacAddress>,
+        serial_number: Option<String>,
+    },
+    VpnGw {
+        make: String,
+        model: String,
+        mac_address: Option<MacAddress>,
+        serial_number: Option<String>,
+    },
+    Switch {
+        make: String,
+        model: String,
+        mac_address: Option<MacAddress>,
+        serial_number: Option<String>,
+    },
+    Router {
+        make: String,
+        model: String,
+        mac_address: Option<MacAddress>,
+        serial_number: Option<String>,
+    },
+    Firewall {
+        make: String,
+        model: String,
+        mac_address: Option<MacAddress>,
+        serial_number: Option<String>,
+    },
+}
+
+impl NetworkDevice {
+    pub fn device_type(&self) -> &'static str;
+    pub fn make_model(&self) -> String;
+    pub fn mac_address(&self) -> Option<&MacAddress>;
+}
+```
+
+**Tracking Update Integration**:
+When ticket updates occur, the system automatically posts formatted summaries to the DSR Broadband Provisioning portal via the `tracking_url`. The format includes:
+- DSR ticket number
+- Customer and 3rd-party ticket references
+- Modem/ONT equipment details (make, model, MAC address)
+- Customer name, site ID, and address
+- Technician notes
+
+Example output:
+```text
+DSR: 12345
+CUSTOMER: CUST-999
+3RD_PARTY: ISP-777
+
+Arris SB8200
+AA:BB:CC:DD:EE:FF
+
+John Doe
+SITE-001
+123 Main St, Anytown, USA
+
+***
+
+Replaced faulty modem. Service restored.
 ```
 
 ---

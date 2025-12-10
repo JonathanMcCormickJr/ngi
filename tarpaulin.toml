@@ -1,0 +1,10 @@
+[report]
+# Require 90% coverage for code that matters
+# Skeleton main() functions are placeholders and will be replaced
+
+[exclude]
+# Exclude skeleton service main functions from coverage
+# These are "Hello, world!" placeholders
+exclude = [
+    "*/main.rs:main",
+]

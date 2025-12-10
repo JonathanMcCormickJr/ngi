@@ -8,6 +8,7 @@ members = [
     "db",
     "honeypot",
     "lbrp",
+    "shared",
     "tests",
 ]
 resolver = "3"

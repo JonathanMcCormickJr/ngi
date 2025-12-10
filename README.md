@@ -15,7 +15,7 @@ NGI aims to solve the pain points experienced by users of the current generation
 - Fault Injection for Resilience Testing
 - Intrusion Detection via Honeypot Service
 - Auto-save Drafts to Browser Cookies (recovery from interruptions)
-- Test-Driven Development (TDD) for all backend code
+- Thorough Automated Test Coverage
 - Dynamic Schema Evolution (add/remove fields and workflow steps without downtime)
 - Zero-redundancy data entry. If a field is already filled in from another source, it will not be requested again.
 
@@ -41,7 +41,9 @@ Each ticket in NGI contains the following fields:
 - Updated By: user who last updated the ticket
 - Updated At: timestamp of last ticket update
 - History: a log of all changes made to the ticket, including timestamps and user information
-- Ebond: optional field for ebonding information.
+- Ebond: optional field for ebonding information
+- Tracking URL: optional URL for DSR Broadband Provisioning portal tracking record (auto-updated with ticket summaries)
+- Network Devices: collection of DSR-supported equipment at the site (modems, ONTs, routers, switches, firewalls, VPN gateways, antennas) with make, model, MAC address, and serial number
 
 ## Design Goals
 - **Modular**: NGI is built using a collection of smaller components, allowing for easy addition and removal of features as needed.
@@ -55,6 +57,8 @@ Each ticket in NGI contains the following fields:
 
 ## Architecture
 NGI is built using a microservices architecture, with each service responsible for a specific function within the ticketing system. Services communicate internally using gRPC over HTTP/2 with mutual TLS for maximum performance and security, while the load balancer (LBRP) exposes a RESTful JSON API to browsers and external partners. Internal components within each service use Tokio channels for asynchronous message passing. This ensures loose coupling and high cohesion while squeezing every bit of practical performance from inter-service communication. Each service can be developed, deployed, and scaled independently, allowing for greater flexibility and agility in responding to changing requirements. Each service (including the load balancer itself) is also capable of running multiple instances for load balancing and high availability.
+
+See [ARCHITECTURE.md](./ARCHITECTURE.md) for detailed diagrams and explanations of the system architecture.
 
 ### Key Components
 - [**Admin:**](./admin/) Manages user accounts, roles, and permissions within the NGI system.

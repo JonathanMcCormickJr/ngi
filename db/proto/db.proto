@@ -1,0 +1,108 @@
+syntax = "proto3";
+
+package db;
+
+// Database service for distributed key-value storage with Raft consensus
+service Database {
+  // Store a key-value pair (goes through Raft leader)
+  rpc Put(PutRequest) returns (PutResponse);
+  
+  // Retrieve a value by key (can read from any node)
+  rpc Get(GetRequest) returns (GetResponse);
+  
+  // Delete a key (goes through Raft leader)
+  rpc Delete(DeleteRequest) returns (DeleteResponse);
+  
+  // List keys with optional prefix filter
+  rpc List(ListRequest) returns (ListResponse);
+  
+  // Check if key exists
+  rpc Exists(ExistsRequest) returns (ExistsResponse);
+  
+  // Batch operations
+  rpc BatchPut(BatchPutRequest) returns (BatchPutResponse);
+  
+  // Health check
+  rpc Health(HealthRequest) returns (HealthResponse);
+  
+  // Get cluster status (leader, followers, etc.)
+  rpc ClusterStatus(ClusterStatusRequest) returns (ClusterStatusResponse);
+}
+
+message PutRequest {
+  bytes key = 1;
+  bytes value = 2;
+}
+
+message PutResponse {
+  bool success = 1;
+  string error = 2;
+}
+
+message GetRequest {
+  bytes key = 1;
+}
+
+message GetResponse {
+  bool found = 1;
+  bytes value = 2;
+  string error = 3;
+}
+
+message DeleteRequest {
+  bytes key = 1;
+}
+
+message DeleteResponse {
+  bool success = 1;
+  string error = 2;
+}
+
+message ListRequest {
+  bytes prefix = 1;
+  uint32 limit = 2;
+}
+
+message ListResponse {
+  repeated KeyValue items = 1;
+}
+
+message ExistsRequest {
+  bytes key = 1;
+}
+
+message ExistsResponse {
+  bool exists = 1;
+}
+
+message BatchPutRequest {
+  repeated KeyValue items = 1;
+}
+
+message KeyValue {
+  bytes key = 1;
+  bytes value = 2;
+}
+
+message BatchPutResponse {
+  bool success = 1;
+  uint32 written = 2;
+  string error = 3;
+}
+
+message HealthRequest {}
+
+message HealthResponse {
+  bool healthy = 1;
+  string node_id = 2;
+  string role = 3;  // "leader", "follower", "candidate"
+}
+
+message ClusterStatusRequest {}
+
+message ClusterStatusResponse {
+  string leader_id = 1;
+  repeated string member_ids = 2;
+  uint64 term = 3;
+  uint64 commit_index = 4;
+}
