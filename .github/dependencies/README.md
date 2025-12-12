@@ -1,78 +1,112 @@
 # NGI Dependencies Reference
 
-> Comprehensive documentation for all 11 major dependencies used in NGI, sourced from official docs.rs.
+> Comprehensive documentation for all 13 major dependencies used in NGI, organized by dependency with cross-cutting concepts.
 
-**Phase 2 Status:** ✅ Complete - All 11 README.md files created with official documentation
 **Last Updated:** December 2025
 **Quality:** Production-ready for implementor agent training
 
 ## What's Here
 
-This directory contains **~4,000+ lines** of high-quality, official dependency documentation organized by module and dependency. All documentation is sourced directly from the latest docs.rs pages.
+This directory contains **~5,100+ lines** of high-quality, official dependency documentation organized by dependency folder. All documentation is sourced directly from the latest docs.rs pages and organized for easy navigation.
 
 ### Directory Structure
 
 ```
 .github/dependencies/
 ├── README.md (This file - quick navigation)
-├── STRUCTURE.md (Master documentation index - 284 lines)
-├── COMPLETION_STATUS.md (Progress tracking)
+├── INDEX.md (Detailed index of all documentation)
 │
-├── tokio/README.md ✅ (Async runtime - 476 lines)
-├── sled/README.md ✅ (Embedded database - 382 lines)
-├── bincode/README.md ✅ (Binary serialization - 437 lines)
-├── serde/README.md ✅ (Serialization framework - 378 lines)
-├── tonic/README.md ✅ (gRPC framework - 391 lines)
-├── axum/README.md ✅ (REST framework - 416 lines)
-├── openraft/README.md ✅ (Consensus - 468 lines)
-├── rustls/README.md ✅ (TLS 1.3 security - 412 lines)
-├── pqc_kyber/README.md ✅ (Post-quantum crypto - 468 lines)
-├── thiserror/README.md ✅ (Error types - 234 lines)
-└── anyhow/README.md ✅ (Error context - 309 lines)
+├── _concepts/ (Cross-cutting concepts)
+│   ├── README.md
+│   ├── error-handling.md (thiserror & anyhow)
+│   ├── security.md (rustls & pqc_kyber)
+│   └── serialization.md (serde & bincode)
+│
+├── tokio/ (Async runtime)
+│   ├── README.md
+│   └── core-concepts.md
+├── sled/ (Embedded database)
+│   ├── README.md
+│   └── architecture.md
+├── bincode/ (Binary serialization)
+│   └── README.md
+├── serde/ (Serialization framework)
+│   └── README.md
+├── tonic/ (gRPC framework)
+│   ├── README.md
+│   └── framework.md
+├── axum/ (REST framework)
+│   ├── README.md
+│   └── framework.md
+├── openraft/ (Consensus)
+│   ├── README.md
+│   └── consensus.md
+├── rustls/ (TLS 1.3 security)
+│   └── README.md
+├── pqc_kyber/ (Post-quantum crypto)
+│   └── README.md
+├── thiserror/ (Error types)
+│   └── README.md
+├── anyhow/ (Error context)
+│   └── README.md
+├── ops/ (Unikernel deployment)
+│   └── README.md
+└── nanos/ (Unikernel OS)
+    └── README.md
 ```
 
-### Each README Includes
+## Related Documentation
 
-1. **Official Overview** - Direct from docs.rs
-2. **NGI Integration** - How it's used in the architecture
-3. **Core Components** - Key types, traits, and functions
-4. **API Reference** - Complete with examples
-5. **NGI Patterns** - Real usage from the codebase
-6. **Configuration** - Setup and tuning guidance
-7. **Best Practices** - Do's and don'ts
-8. **Testing** - Common test patterns
-9. **Performance** - Tuning and optimization
-10. **References** - Links to official documentation
+### Agent Guidance
+- **[Implementor Agent](../agents/implementor.agent.md)** - Code implementation patterns and TDD workflow
+- **[Tester Agent](../agents/tester.agent.md)** - Testing strategies and quality assurance
+- **[Operator Agent](../agents/operator.agent.md)** - Deployment, monitoring, and operations
+
+### Development Resources
+- **[Main README](../../README.md)** - Project overview, setup, and operations
+- **[Architecture](../../ARCHITECTURE.md)** - System design and service interactions
+
+### Each Dependency Folder Includes
+
+1. **README.md** - Overview, NGI integration, and documentation index
+2. **Detailed section files** - Complete implementation guides
+3. **Official API documentation** - Links and examples
+4. **NGI-specific patterns** - Real usage from the codebase
+5. **Best practices** - Do's and don'ts for NGI
 
 ## Quick Navigation
 
 ### Runtime & Concurrency
-- [Tokio](tokio.md) - Async runtime with channels and synchronization
-- See also: Tokio documentation, Rust async book
+- [Tokio](tokio/) - Async runtime with channels and synchronization
+- See also: [Tokio core concepts](tokio/core-concepts.md)
 
 ### Data Persistence
-- [Sled](sled.md) - Embedded ACID key-value database
+- [Sled](sled/) - Embedded ACID key-value database
 - Patterns: Prefixed keys, transactions, secondary indexes
 
 ### Consensus & Distribution
-- [OpenRaft](openraft.md) - Raft consensus for DB and Custodian services
+- [OpenRaft](openraft/) - Raft consensus for DB and Custodian services
 - Key concepts: State machines, log replication, leader election
 
 ### Service Communication
-- [Tonic](tonic.md) - gRPC framework for inter-service communication
-- [Axum](axum.md) - REST API framework for LBRP service only
+- [Tonic](tonic/) - gRPC framework for inter-service communication
+- [Axum](axum/) - REST API framework for LBRP service only
 
 ### Data Handling
-- [Serialization: serde & bincode](serialization.md) - Type-safe serialization
+- [Serialization](_concepts/serialization.md) - Type-safe serialization (serde & bincode)
 - Patterns: Derive macros, custom serialization, storage
 
 ### Error Management
-- [Error Handling: thiserror & anyhow](error-handling.md) - Typed errors and context
+- [Error Handling](_concepts/error-handling.md) - Typed errors and context (thiserror & anyhow)
 - Pattern: Domain errors with thiserror, context with anyhow
 
 ### Security
-- [Security: rustls & pqc_kyber](security.md) - TLS 1.3 and post-quantum crypto
+- [Security](_concepts/security.md) - TLS 1.3 and post-quantum cryptography (rustls & pqc_kyber)
 - Pattern: Double-layer encryption (transport + application)
+
+### Deployment
+- [OPS](ops/) - Unikernel build and deployment tool
+- [Nanos](nanos/) - Unikernel operating system
 
 ## NGI-Specific Patterns
 
@@ -111,47 +145,50 @@ JSON Response to Client
 
 All versions are from the workspace defined in `/Cargo.toml`:
 
-| Crate | Version | Service(s) |
-|-------|---------|-----------|
-| tokio | 1.43 | All services |
-| tonic | 0.14 | All services |
-| prost | 0.14 | All services |
-| openraft | 0.9 | DB, Custodian |
-| sled | 0.34 | DB, Custodian |
-| serde | 1.0 | All services |
-| bincode | 2 | All services |
-| thiserror | 2.0 | All services |
-| anyhow | 1.0 | All services |
-| tracing | 0.1 | All services |
-| chrono | 0.4 | All services |
-| uuid | 1.10 | Shared types |
+| Crate | Version | Status | Service(s) |
+|-------|---------|--------|-----------|
+| tokio | 1.48 | ✅ Implemented | All services |
+| tonic | 0.14 | ✅ Implemented | DB service |
+| prost | 0.14 | ✅ Implemented | DB service |
+| openraft | 0.9 | ✅ Implemented | DB service |
+| sled | 0.34 | ✅ Implemented | DB service |
+| serde | 1.0 | ✅ Implemented | Shared, DB services |
+| bincode | 2 | ✅ Implemented | DB service |
+| thiserror | 2.0 | ✅ Implemented | Shared, DB services |
+| anyhow | 1.0 | ✅ Implemented | DB service |
+| tracing | 0.1 | ✅ Implemented | DB service |
+| chrono | 0.4 | ✅ Implemented | Shared, DB services |
+| uuid | 1.10 | ✅ Implemented | Shared service |
+| axum | 0.7 | 📋 Planned | LBRP service |
+| rustls | 0.23 | 📋 Planned | All services |
+| pqc_kyber | 0.7 | 📋 Planned | All services |
 
 ## Common Implementation Patterns
 
 ### Writing a New gRPC Endpoint
 1. Define service in `.proto` file
 2. Run `cargo build` to generate Rust types
-3. Implement handler using Tonic (see [tonic.md](tonic.md))
+3. Implement handler using Tonic (see [tonic/framework.md](tonic/framework.md))
 4. Use gRPC client to call upstream services
 5. Convert errors to Status codes
 6. Add unit tests with ≥90% coverage
 
 ### Storing Data in Sled
 1. Define data types with `#[derive(Serialize, Deserialize)]`
-2. Use prefixed keys for tables (see [sled.md](sled.md))
+2. Use prefixed keys for tables (see [sled/architecture.md](sled/architecture.md))
 3. Create secondary indexes for queries
 4. Use transactions for multi-key operations
 5. Implement soft deletes (set `deleted` flag, never hard-delete)
 
 ### Adding REST Endpoint to LBRP
-1. Add route to Axum router (see [axum.md](axum.md))
+1. Add route to Axum router (see [axum/framework.md](axum/framework.md))
 2. Create handler that calls gRPC backend
 3. Convert gRPC response to JSON
 4. Add error handling for all failure cases
 5. Document endpoint with examples
 
 ### Distributing with Raft
-1. Implement state machine (see [openraft.md](openraft.md))
+1. Implement state machine (see [openraft/consensus.md](openraft/consensus.md))
 2. Define command types (enum)
 3. Implement `apply()` method
 4. Route write operations through leader (LBRP)
@@ -198,15 +235,16 @@ All versions are from the workspace defined in `/Cargo.toml`:
 ## Next Steps
 
 1. Pick a dependency from above
-2. Read its guide document
-3. Review NGI-specific patterns
-4. Check example code in the services
-5. Implement with tests
-6. Verify coverage with `cargo tarpaulin`
+2. Read its README.md for overview
+3. Follow links to detailed section files
+4. Review NGI-specific patterns
+5. Check example code in the services
+6. Implement with tests
+7. Verify coverage with `cargo tarpaulin`
 
 ## Questions?
 
-- Check the relevant dependency guide first
+- Check the relevant dependency README first
 - Look at existing code in similar services
 - Review ARCHITECTURE.md for service responsibilities
 - Ask clarifying questions rather than guessing

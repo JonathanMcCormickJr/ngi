@@ -168,7 +168,7 @@ During development, the following tech debt was paid down:
 
 ## Dependencies
 
-- `tokio` 1.43 - Async runtime
+- `tokio` 1.48 - Async runtime
 - `tonic` 0.14 / `prost` 0.14 - gRPC framework
 - `openraft` 0.9 - Raft consensus library
 - `sled` 0.34 - Embedded database

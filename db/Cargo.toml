@@ -8,7 +8,7 @@ repository.workspace = true
 
 [dependencies]
 # Core async runtime
-tokio = { version = "1.43", features = ["full"] }
+tokio = { version = "1.48", features = ["full"] }
 
 # gRPC framework
 tonic = "0.14"

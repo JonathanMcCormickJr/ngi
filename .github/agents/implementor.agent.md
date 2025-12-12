@@ -53,7 +53,7 @@ The Implementor Agent is responsible for:
 Below are comprehensive guides for each major dependency used in NGI. Each document includes version information from your workspace, API patterns, best practices, and common use cases.
 
 ### Runtime & Async
-- [Tokio 1.43](../dependencies/tokio.md) - Async runtime, task spawning, channels, synchronization primitives
+- [Tokio 1.48](../dependencies/tokio/) - Async runtime, task spawning, channels, synchronization primitives
 
 ### Data Storage
 - [Sled 0.34](../dependencies/sled.md) - Embedded key-value storage with ACID transactions, prefix scanning, secondary indexes
@@ -80,7 +80,7 @@ Below are comprehensive guides for each major dependency used in NGI. Each docum
 
 | Dependency | Version | Purpose | Docs |
 |---|---|---|---|
-| tokio | 1.43 | Async runtime, task scheduling | [Tokio Docs](https://docs.rs/tokio/) |
+| tokio | 1.48 | Async runtime, task scheduling | [Tokio Docs](https://docs.rs/tokio/) |
 | tonic | 0.14 | gRPC framework | [Tonic Docs](https://docs.rs/tonic/) |
 | prost | 0.14 | Protocol buffers codegen | [Prost Docs](https://docs.rs/prost/) |
 | openraft | 0.9 | Raft consensus | [OpenRaft Docs](https://docs.rs/openraft/) |

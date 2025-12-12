@@ -1,4 +1,4 @@
-# Tokio 1.43
+# Tokio 1.48
 
 **Repository:** https://github.com/tokio-rs/tokio  
 **Documentation:** https://docs.rs/tokio/  
@@ -6,7 +6,7 @@
 
 ## Version in NGI
 ```toml
-tokio = { version = "1.43", features = ["full"] }
+tokio = { version = "1.48", features = ["full"] }
 ```
 
 ## Overview

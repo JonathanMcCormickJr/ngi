@@ -47,7 +47,7 @@ async fn main() -> Result<()> {
             let peer_id: u64 = parts[0].parse().unwrap_or(0);
             let peer_addr = parts[1..].join(":");
             if peer_id > 0 {
-                network_factory.add_node(peer_id, peer_addr).await;
+                network_factory.add_node(peer_id, peer_addr);
                 all_peers.push(peer_id);
                 info!("Configured peer: node_id={}, addr={}", peer_id, parts[1]);
             }

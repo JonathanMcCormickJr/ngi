@@ -87,5 +87,161 @@ Continuous integration and deployment (CI/CD) pipelines are set up using GitHub 
 - Code coverage must meet or exceed the 90% as specified by `cargo tarpaulin`.
 - No security vulnerabilities detected by `cargo audit`.
 - Code adheres to style guidelines enforced by `cargo fmt` and `cargo clippy`.
-- Documentation is up-to-date and complete. 
+- Documentation is up-to-date and complete.
+
+## Development Environment
+
+### Local Setup
+```bash
+# Clone the repository
+git clone https://github.com/JonathanMcCormickJr/ngi.git
+cd ngi
+
+# Install Rust toolchain (if not already installed)
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+source ~/.cargo/env
+
+# Install development tools
+cargo install cargo-watch
+cargo install cargo-tarpaulin
+cargo install cargo-audit
+cargo install cargo-fuzz
+
+# Build the project
+cargo build
+
+# Run tests
+cargo test
+```
+
+### Running Services Locally
+```bash
+# Terminal 1: Start database service
+cargo run --bin db -- --dev-mode --raft-node-id 1
+
+# Terminal 2: Start auth service
+cargo run --bin auth -- --dev-mode
+
+# Terminal 3: Start LBRP service
+cargo run --bin lbrp -- --dev-mode
+
+# Terminal 4: Run tests against local services
+cargo test --test integration_test
+```
+
+### Development Workflow
+```bash
+# Watch mode for continuous testing
+cargo watch -x test
+
+# Run specific service tests
+cargo test -p db
+cargo test -p auth
+
+# Check coverage
+cargo tarpaulin --out Html --output-dir coverage
+open coverage/index.html
+
+# Security audit
+cargo audit
+
+# Format and lint
+cargo fmt
+cargo clippy -- -D warnings
+```
+
+### Debugging
+```bash
+# Enable debug logging
+RUST_LOG=debug cargo run --bin db
+
+# Run with backtrace on panic
+RUST_BACKTRACE=1 cargo test
+
+# Debug specific test
+cargo test test_name -- --nocapture
+```
+
+### Multi-Node Development Testing
+```bash
+# Terminal 1: First database node
+cargo run --bin db -- --dev-mode --raft-node-id 1 --port 8080
+
+# Terminal 2: Second database node
+cargo run --bin db -- --dev-mode --raft-node-id 2 --port 8081
+
+# Terminal 3: Third database node
+cargo run --bin db -- --dev-mode --raft-node-id 3 --port 8082
+```
+
+### Code Quality Checks
+```bash
+# All quality checks (run before commit)
+cargo fmt --check
+cargo clippy -- -D warnings
+cargo test
+cargo tarpaulin --fail-under 90
+cargo audit
+```
+
+### IDE Setup
+- **VS Code:** Install Rust Analyzer extension
+- **IntelliJ/CLion:** Built-in Rust support
+- **Vim/Neovim:** rust.vim or coc-rust-analyzer
+- **GitHub Copilot:** Use `.github/copilot-instructions.md` for context
+
+## Production Operations
+
+### Service Health Checks
+```bash
+# Check service health
+curl -k https://service.ngi.internal:808x/health
+
+# Check cluster status
+curl -k https://admin.ngi.internal:8083/cluster/status
+
+# View metrics
+curl -k https://admin.ngi.internal:8083/metrics
+```
+
+### Log Access
+```bash
+# View recent logs
+curl -k https://admin.ngi.internal:8083/logs?service=db&lines=100
+
+# Search logs
+curl -k "https://admin.ngi.internal:8083/logs/search?query=error&since=1h"
+```
+
+### Certificate Management
+```bash
+# Check certificate expiry
+curl -k https://admin.ngi.internal:8083/certs/expiry
+
+# Rotate certificates (automated)
+curl -X POST -k https://admin.ngi.internal:8083/certs/rotate
+```
+
+### Backup & Recovery
+```bash
+# Create database snapshot
+curl -X POST -k https://db-leader.ngi.internal:8080/admin/snapshot
+
+# List available backups
+curl -k https://admin.ngi.internal:8083/backups
+
+# Restore from backup
+curl -X POST -k https://db-leader.ngi.internal:8080/admin/restore \
+  -H "Content-Type: application/json" \
+  -d '{"backup_id": "backup-2025-12-11"}'
+```
+
+### Troubleshooting
+```bash
+# Common issues and solutions
+curl -k https://admin.ngi.internal:8083/docs/troubleshooting
+
+# Generate diagnostic report
+curl -k https://admin.ngi.internal:8083/diagnostics > diagnostics.json
+```
 
