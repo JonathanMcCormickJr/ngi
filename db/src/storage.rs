@@ -1,4 +1,23 @@
 //! Storage backend using Sled embedded database
+//!
+//! This module provides a persistent key-value store wrapper around Sled,
+//! a high-performance embedded database written in Rust.
+//!
+//! # Operations
+//!
+//! - Single-key: `put`, `get`, `delete`, `exists`
+//! - Multi-key: `list` (with prefix filtering), `batch_put`
+//! - Testing: `new_temp` (creates temporary in-memory store)
+//!
+//! # Persistence
+//!
+//! All write operations are automatically flushed to disk, ensuring durability.
+//! Data persists across process restarts.
+//!
+//! # Raft Integration
+//!
+//! The `LogEntry` enum represents all database operations that can be replicated
+//! through Raft consensus. Each entry type can be applied to storage independently.
 
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
@@ -22,6 +41,11 @@ impl Storage {
     pub fn new_temp() -> Result<Self> {
         let db = sled::Config::new().temporary(true).open()?;
         Ok(Self { db })
+    }
+
+    /// Get the underlying Sled database for metadata access
+    pub fn inner(&self) -> &Db {
+        &self.db
     }
 
     /// Store a key-value pair

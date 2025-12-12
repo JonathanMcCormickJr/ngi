@@ -26,7 +26,7 @@ mod helpers {
     use std::sync::Arc;
 
     pub async fn create_test_raft_node(node_id: u64) -> anyhow::Result<DbRaft> {
-        let store = DbStore::new_temp()?;
+        let store = DbStore::new_temp().await?;
         let config = Arc::new(Config {
             heartbeat_interval: 100,
             election_timeout_min: 300,
@@ -62,7 +62,7 @@ async fn test_single_node_initialization() {
 
 #[tokio::test]
 async fn test_raft_state_machine_operations() {
-    let store = DbStore::new_temp().unwrap();
+    let store = DbStore::new_temp().await.unwrap();
     let config = Arc::new(
         Config {
             heartbeat_interval: 100,
@@ -111,7 +111,7 @@ async fn test_storage_persistence() {
 
     {
         // Create store and write data
-        let store = DbStore::new(storage_path.to_str().unwrap()).unwrap();
+        let store = DbStore::new(storage_path.to_str().unwrap()).await.unwrap();
         let storage = store.state_machine().read().await.storage.clone();
 
         storage.put(b"key1", b"value1").unwrap();
@@ -120,7 +120,7 @@ async fn test_storage_persistence() {
 
     {
         // Reopen store and verify data persisted
-        let store = DbStore::new(storage_path.to_str().unwrap()).unwrap();
+        let store = DbStore::new(storage_path.to_str().unwrap()).await.unwrap();
         let storage = store.state_machine().read().await.storage.clone();
 
         assert_eq!(storage.get(b"key1").unwrap(), Some(b"value1".to_vec()));
@@ -130,7 +130,7 @@ async fn test_storage_persistence() {
 
 #[tokio::test]
 async fn test_batch_operations() {
-    let store = DbStore::new_temp().unwrap();
+    let store = DbStore::new_temp().await.unwrap();
     let storage = store.state_machine().read().await.storage.clone();
 
     // Test batch put
@@ -150,7 +150,7 @@ async fn test_batch_operations() {
 
 #[tokio::test]
 async fn test_list_operations() {
-    let store = DbStore::new_temp().unwrap();
+    let store = DbStore::new_temp().await.unwrap();
     let storage = store.state_machine().read().await.storage.clone();
 
     // Store data with common prefix
@@ -174,7 +174,7 @@ async fn test_list_operations() {
 
 #[tokio::test]
 async fn test_delete_operations() {
-    let store = DbStore::new_temp().unwrap();
+    let store = DbStore::new_temp().await.unwrap();
     let storage = store.state_machine().read().await.storage.clone();
 
     // Store and delete
@@ -190,7 +190,7 @@ async fn test_delete_operations() {
 async fn test_log_entry_application() {
     use db::storage::LogEntry;
 
-    let store = DbStore::new_temp().unwrap();
+    let store = DbStore::new_temp().await.unwrap();
     let storage = store.state_machine().read().await.storage.clone();
 
     // Test Put
@@ -253,7 +253,7 @@ async fn test_raft_metrics() {
 
 #[tokio::test]
 async fn test_concurrent_operations() {
-    let store = DbStore::new_temp().unwrap();
+    let store = DbStore::new_temp().await.unwrap();
     let storage = store.state_machine().read().await.storage.clone();
 
     // Spawn multiple concurrent writes
@@ -288,7 +288,7 @@ async fn test_concurrent_operations() {
 async fn test_snapshot_builder() {
     use openraft::{RaftSnapshotBuilder, RaftStorage};
 
-    let mut store = DbStore::new_temp().unwrap();
+    let mut store = DbStore::new_temp().await.unwrap();
     let storage = store.state_machine().read().await.storage.clone();
 
     // Add some data
@@ -308,7 +308,7 @@ async fn test_snapshot_builder() {
 
 #[tokio::test]
 async fn test_error_handling() {
-    let store = DbStore::new_temp().unwrap();
+    let store = DbStore::new_temp().await.unwrap();
     let storage = store.state_machine().read().await.storage.clone();
 
     // Test getting non-existent key

@@ -1,4 +1,27 @@
 //! Raft state machine implementation for distributed consensus
+//!
+//! This module implements the core Raft consensus engine integration, including:
+//!
+//! - `DbTypeConfig` - Type configuration for OpenRaft
+//! - `DbStore` - Combined storage backend implementing RaftStorage trait
+//! - `DbStateMachine` - State machine that applies log entries
+//! - `RaftMetadata` - Raft-specific metadata (votes, logs)
+//! - `DbLogReader` - Iterator for reading log entries
+//! - `DbSnapshotBuilder` - Snapshot creation for log compaction
+//!
+//! # Architecture
+//!
+//! The Raft implementation separates concerns:
+//!
+//! - **Application Data**: Stored in Sled database via `Storage`
+//! - **Raft Metadata**: Stored in-memory in `RaftMetadata` (votes, logs)
+//! - **State Machine**: Applies log entries to storage (via `DbStateMachine`)
+//! - **Network**: Skeleton for inter-node communication (see `network.rs`)
+//!
+//! # Single vs Multi-Node
+//!
+//! - **Single-node clusters**: Fully functional, works perfectly
+//! - **Multi-node clusters**: Requires network layer implementation (see `network.rs`)
 
 use crate::storage::{LogEntry, Storage};
 use anyhow::Result;
@@ -8,6 +31,7 @@ use openraft::{
     StoredMembership, SnapshotMeta, EntryPayload, LogState,
 };
 use serde::{Deserialize, Serialize};
+use sled::Db;
 use std::collections::BTreeMap;
 use std::io::Cursor;
 use std::ops::RangeBounds;
@@ -21,7 +45,7 @@ pub struct DbResponse {
     pub value: Option<Vec<u8>>,
 }
 
-/// Declare Raft types using the openraft macro
+// Declare Raft types using the openraft macro
 openraft::declare_raft_types!(
     pub DbTypeConfig:
         D = LogEntry,
@@ -94,23 +118,88 @@ pub struct RaftMetadata {
     log: BTreeMap<u64, <DbTypeConfig as openraft::RaftTypeConfig>::Entry>,
     /// Last purged log index
     last_purged: Option<LogId<u64>>,
+    /// Reference to Sled metadata tree for persistence
+    db: Arc<sled::Tree>,
 }
 
 impl RaftMetadata {
-    fn new() -> Self {
-        Self {
-            vote: None,
-            log: BTreeMap::new(),
-            last_purged: None,
+    /// Create a new RaftMetadata instance, loading persisted data from Sled
+    async fn new(db: &Db) -> Result<Self> {
+        // Get or create metadata tree
+        let meta_tree = db.open_tree("raft_metadata")?;
+        
+        // Load vote from persistent storage
+        let vote = if let Some(vote_bytes) = meta_tree.get("vote")? {
+            Some(serde_json::from_slice(&vote_bytes.to_vec())?)
+        } else {
+            None
+        };
+        
+        // Load log entries from persistent storage
+        let mut log = BTreeMap::new();
+        if let Some(log_bytes) = meta_tree.get("log")? {
+            let entries: Vec<(u64, <DbTypeConfig as openraft::RaftTypeConfig>::Entry)> = 
+                serde_json::from_slice(&log_bytes.to_vec())?;
+            for (index, entry) in entries {
+                log.insert(index, entry);
+            }
         }
+        
+        // Load last purged log id
+        let last_purged = if let Some(purged_bytes) = meta_tree.get("last_purged")? {
+            Some(serde_json::from_slice(&purged_bytes.to_vec())?)
+        } else {
+            None
+        };
+        
+        Ok(Self {
+            vote,
+            log,
+            last_purged,
+            db: Arc::new(meta_tree),
+        })
+    }
+    
+    /// Persist vote to disk
+    async fn persist_vote(&mut self, vote: &Option<Vote<u64>>) -> Result<()> {
+        if let Some(v) = vote {
+            let bytes = serde_json::to_vec(v)?;
+            self.db.insert("vote", bytes)?;
+        } else {
+            self.db.remove("vote")?;
+        }
+        self.db.flush_async().await?;
+        Ok(())
+    }
+    
+    /// Persist log entries to disk
+    async fn persist_log(&self) -> Result<()> {
+        let entries: Vec<_> = self.log.iter().map(|(k, v)| (*k, v.clone())).collect();
+        let bytes = serde_json::to_vec(&entries)?;
+        self.db.insert("log", bytes)?;
+        self.db.flush_async().await?;
+        Ok(())
+    }
+    
+    /// Persist last purged log id to disk
+    async fn persist_last_purged(&self) -> Result<()> {
+        if let Some(purged) = &self.last_purged {
+            let bytes = serde_json::to_vec(purged)?;
+            self.db.insert("last_purged", bytes)?;
+        } else {
+            self.db.remove("last_purged")?;
+        }
+        self.db.flush_async().await?;
+        Ok(())
     }
 }
 
 impl DbStore {
-    pub fn new(storage_path: &str) -> Result<Self> {
+    pub async fn new(storage_path: &str) -> Result<Self> {
         let storage = Storage::new(storage_path)?;
         let state_machine = Arc::new(RwLock::new(DbStateMachine::new(storage.clone())));
-        let raft_storage = Arc::new(RwLock::new(RaftMetadata::new()));
+        let raft_metadata = RaftMetadata::new(storage.inner()).await?;
+        let raft_storage = Arc::new(RwLock::new(raft_metadata));
         
         Ok(Self {
             storage,
@@ -120,10 +209,11 @@ impl DbStore {
     }
 
     /// Create a temporary store for testing
-    pub fn new_temp() -> Result<Self> {
+    pub async fn new_temp() -> Result<Self> {
         let storage = Storage::new_temp()?;
         let state_machine = Arc::new(RwLock::new(DbStateMachine::new(storage.clone())));
-        let raft_storage = Arc::new(RwLock::new(RaftMetadata::new()));
+        let raft_metadata = RaftMetadata::new(storage.inner()).await?;
+        let raft_storage = Arc::new(RwLock::new(raft_metadata));
         
         Ok(Self {
             storage,
@@ -183,6 +273,14 @@ impl RaftStorage<DbTypeConfig> for DbStore {
     async fn save_vote(&mut self, vote: &Vote<u64>) -> Result<(), StorageError<u64>> {
         let mut meta = self.raft_storage.write().await;
         meta.vote = Some(vote.clone());
+        meta.persist_vote(&Some(vote.clone())).await
+            .map_err(|e| {
+                openraft::StorageIOError::new(
+                    openraft::ErrorSubject::Vote,
+                    openraft::ErrorVerb::Write,
+                    openraft::AnyError::error(e.to_string())
+                )
+            })?;
         Ok(())
     }
 
@@ -197,9 +295,20 @@ impl RaftStorage<DbTypeConfig> for DbStore {
     {
         let mut meta = self.raft_storage.write().await;
         
+        let mut last_log_id = None;
         for entry in entries {
+            last_log_id = Some(entry.log_id);
             meta.log.insert(entry.log_id.index, entry);
         }
+        
+        meta.persist_log().await
+            .map_err(|e| {
+                openraft::StorageIOError::new(
+                    openraft::ErrorSubject::Log(last_log_id.unwrap_or_default()),
+                    openraft::ErrorVerb::Write,
+                    openraft::AnyError::error(e.to_string())
+                )
+            })?;
         
         Ok(())
     }
@@ -216,6 +325,15 @@ impl RaftStorage<DbTypeConfig> for DbStore {
         for key in keys_to_remove {
             meta.log.remove(&key);
         }
+        
+        meta.persist_log().await
+            .map_err(|e| {
+                openraft::StorageIOError::new(
+                    openraft::ErrorSubject::Log(log_id),
+                    openraft::ErrorVerb::Write,
+                    openraft::AnyError::error(e.to_string())
+                )
+            })?;
         
         Ok(())
     }
@@ -234,6 +352,25 @@ impl RaftStorage<DbTypeConfig> for DbStore {
         }
         
         meta.last_purged = Some(log_id);
+        
+        meta.persist_log().await
+            .map_err(|e| {
+                openraft::StorageIOError::new(
+                    openraft::ErrorSubject::Log(log_id),
+                    openraft::ErrorVerb::Write,
+                    openraft::AnyError::error(e.to_string())
+                )
+            })?;
+        
+        meta.persist_last_purged().await
+            .map_err(|e| {
+                openraft::StorageIOError::new(
+                    openraft::ErrorSubject::Log(log_id),
+                    openraft::ErrorVerb::Write,
+                    openraft::AnyError::error(e.to_string())
+                )
+            })?;
+        
         Ok(())
     }
 
@@ -443,7 +580,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_store_creation() {
-        let store = DbStore::new_temp().unwrap();
+        let store = DbStore::new_temp().await.unwrap();
         let sm = store.state_machine.read().await;
         assert_eq!(sm.last_applied_log, None);
     }

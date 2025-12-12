@@ -11,5 +11,6 @@
 
 pub mod network;
 pub mod raft;
+pub mod raft_service;
 pub mod server;
 pub mod storage;

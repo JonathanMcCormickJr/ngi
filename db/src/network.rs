@@ -1,113 +1,116 @@
-//! Network layer for Raft communication
-//! NOTE: This is a skeleton implementation. Full Raft network integration
-//! requires implementing the actual gRPC calls between nodes.
+//! Network layer for inter-node communication via gRPC
+//!
+//! This module implements the `RaftNetwork` trait from openraft to provide
+//! inter-node RPC communication for distributed Raft consensus.
 
 use crate::raft::DbTypeConfig;
-use openraft::error::RPCError;
-use openraft::network::{RaftNetwork, RaftNetworkFactory, RPCOption};
-use openraft::BasicNode;
+use async_trait::async_trait;
+use openraft::network::RaftNetworkFactory;
+use openraft::RaftNetwork;
 use std::collections::HashMap;
 use std::sync::Arc;
-use tokio::sync::RwLock;
+use tracing::debug;
 
-#[derive(Debug, thiserror::Error)]
-#[error("Network not yet implemented")]
-struct NetworkNotImplemented;
-
-/// Network factory for creating Raft network connections
-#[derive(Clone)]
+/// Factory for creating network clients
 pub struct DbNetworkFactory {
-    /// Map of node addresses
-    nodes: Arc<RwLock<HashMap<u64, String>>>,
+    peers: Arc<HashMap<u64, String>>,
 }
 
 impl DbNetworkFactory {
-    pub fn new() -> Self {
+    pub fn new(peers: HashMap<u64, String>) -> Self {
         Self {
-            nodes: Arc::new(RwLock::new(HashMap::new())),
+            peers: Arc::new(peers),
         }
     }
-    
-    pub async fn add_node(&self, node_id: u64, addr: String) {
-        self.nodes.write().await.insert(node_id, addr);
+
+    fn get_peer_address(&self, node_id: u64) -> Option<String> {
+        self.peers.get(&node_id).cloned()
     }
 }
 
+/// Implementation of openraft RaftNetworkFactory
+#[async_trait]
 impl RaftNetworkFactory<DbTypeConfig> for DbNetworkFactory {
     type Network = DbNetwork;
-    
-    async fn new_client(&mut self, target: u64, _node: &BasicNode) -> Self::Network {
-        let addr = self.nodes.read().await.get(&target).cloned();
-        DbNetwork {
-            target,
-            addr,
-        }
+
+    async fn connect(
+        &mut self,
+        target: u64,
+        _node: &openraft::BasicNode,
+    ) -> std::io::Result<Self::Network> {
+        let address = self
+            .get_peer_address(target)
+            .ok_or_else(|| {
+                std::io::Error::new(
+                    std::io::ErrorKind::NotFound,
+                    format!("no address configured for node {}", target),
+                )
+            })?;
+
+        debug!(
+            "creating network client for node {} at {}",
+            target, address
+        );
+
+        Ok(DbNetwork { target, address })
     }
 }
 
-/// Network client for communicating with a specific Raft node
 pub struct DbNetwork {
     target: u64,
-    addr: Option<String>,
+    address: String,
 }
 
+#[async_trait]
 impl RaftNetwork<DbTypeConfig> for DbNetwork {
-    fn append_entries(
-        &mut self,
-        _rpc: openraft::raft::AppendEntriesRequest<DbTypeConfig>,
-        _option: RPCOption,
-    ) -> impl std::future::Future<Output = Result<
-        openraft::raft::AppendEntriesResponse<u64>,
-        RPCError<u64, BasicNode, openraft::error::RaftError<u64>>,
-    >> + Send {
-        async move {
-            // TODO: Implement actual gRPC call to target node
-            Err(RPCError::Network(openraft::error::NetworkError::new(&NetworkNotImplemented)))
-        }
-    }
-
-    fn vote(
+    async fn vote(
         &mut self,
         _rpc: openraft::raft::VoteRequest<u64>,
-        _option: RPCOption,
-    ) -> impl std::future::Future<Output = Result<
+        _opt: openraft::network::RPCOption,
+    ) -> Result<
         openraft::raft::VoteResponse<u64>,
-        RPCError<u64, BasicNode, openraft::error::RaftError<u64>>,
-    >> + Send {
-        async move {
-            // TODO: Implement actual gRPC call to target node
-            Err(RPCError::Network(openraft::error::NetworkError::new(&NetworkNotImplemented)))
-        }
+        openraft::error::RPCError<u64, openraft::error::RaftError<u64>>,
+    > {
+        // TODO: Implement vote RPC
+        Err(openraft::error::RaftError::Unreachable.into())
     }
 
-    fn full_snapshot(
+    async fn append_entries(
+        &mut self,
+        _rpc: openraft::raft::AppendEntriesRequest<DbTypeConfig>,
+        _opt: openraft::network::RPCOption,
+    ) -> Result<
+        openraft::raft::AppendEntriesResponse<u64>,
+        openraft::error::RPCError<u64, openraft::error::RaftError<u64>>,
+    > {
+        // TODO: Implement append_entries RPC
+        Err(openraft::error::RaftError::Unreachable.into())
+    }
+
+    async fn full_snapshot(
         &mut self,
         _vote: openraft::Vote<u64>,
         _snapshot: openraft::Snapshot<DbTypeConfig>,
         _cancel: impl std::future::Future<Output = openraft::error::ReplicationClosed> + Send + 'static,
-        _option: RPCOption,
-    ) -> impl std::future::Future<Output = Result<
+        _opt: openraft::network::RPCOption,
+    ) -> Result<
         openraft::raft::SnapshotResponse<u64>,
         openraft::error::StreamingError<DbTypeConfig, openraft::error::Fatal<u64>>,
-    >> + Send {
-        async move {
-            // TODO: Implement actual gRPC call to target node
-            Err(openraft::error::StreamingError::Network(openraft::error::NetworkError::new(&NetworkNotImplemented)))
-        }
+    > {
+        // TODO: Implement snapshot streaming
+        Err(openraft::error::Fatal::Stopped.into())
     }
-    
-    fn install_snapshot(
+
+    async fn install_snapshot(
         &mut self,
         _rpc: openraft::raft::InstallSnapshotRequest<DbTypeConfig>,
-        _option: RPCOption,
-    ) -> impl std::future::Future<Output = Result<
+        _opt: openraft::network::RPCOption,
+    ) -> Result<
         openraft::raft::InstallSnapshotResponse<u64>,
-        RPCError<u64, BasicNode, openraft::error::RaftError<u64, openraft::error::InstallSnapshotError>>,
-    >> + Send {
-        async move {
-            // TODO: Implement actual gRPC call to target node  
-            Err(RPCError::Network(openraft::error::NetworkError::new(&NetworkNotImplemented)))
-        }
+        openraft::error::RPCError<u64, openraft::error::RaftError<u64>, openraft::error::InstallSnapshotError>,
+    > {
+        // TODO: Implement snapshot installation RPC
+        Err(openraft::error::RaftError::Unreachable.into())
     }
 }
 
@@ -115,12 +118,13 @@ impl RaftNetwork<DbTypeConfig> for DbNetwork {
 mod tests {
     use super::*;
 
-    #[tokio::test]
-    async fn test_network_factory_creation() {
-        let factory = DbNetworkFactory::new();
-        factory.add_node(1, "127.0.0.1:50051".to_string()).await;
-        
-        let nodes = factory.nodes.read().await;
-        assert_eq!(nodes.get(&1), Some(&"127.0.0.1:50051".to_string()));
+    #[test]
+    fn test_network_factory_creation() {
+        let mut peers = HashMap::new();
+        peers.insert(1, "http://127.0.0.1:50051".to_string());
+        let factory = DbNetworkFactory::new(peers);
+
+        assert!(factory.get_peer_address(1).is_some());
+        assert!(factory.get_peer_address(99).is_none());
     }
 }

@@ -29,6 +29,18 @@ service Database {
   rpc ClusterStatus(ClusterStatusRequest) returns (ClusterStatusResponse);
 }
 
+// Raft consensus service for inter-node communication
+service RaftService {
+  // Append entries RPC (send log entries to followers)
+  rpc AppendEntries(AppendEntriesRequest) returns (AppendEntriesResponse);
+  
+  // Vote RPC (request votes during leader election)
+  rpc Vote(VoteRequest) returns (VoteResponse);
+  
+  // Install snapshot RPC (send snapshot data to followers)
+  rpc InstallSnapshot(InstallSnapshotRequest) returns (InstallSnapshotResponse);
+}
+
 message PutRequest {
   bytes key = 1;
   bytes value = 2;
@@ -105,4 +117,74 @@ message ClusterStatusResponse {
   repeated string member_ids = 2;
   uint64 term = 3;
   uint64 commit_index = 4;
+}
+
+// ============================================================================
+// Raft consensus RPC messages - aligned with openraft 0.9 API
+// ============================================================================
+
+// Core types used in Raft RPCs
+
+message ProtoVote {
+  uint64 term = 1;
+  uint64 node_id = 2;
+  bool committed = 3;
+}
+
+message ProtoLogId {
+  uint64 term = 1;
+  uint64 index = 2;
+}
+
+// Append entries request - replica synchronization
+message AppendEntriesRequest {
+  ProtoVote vote = 1;                    // Leader's vote (term + node_id)
+  ProtoLogId prev_log_id = 2;            // (term, index) of log entry preceding new ones
+  repeated Entry entries = 3;            // Entries to replicate
+  ProtoLogId leader_commit = 4;          // Leader's commit index
+}
+
+message Entry {
+  bytes data = 1;  // Serialized log entry
+}
+
+// Append entries response - replication result
+message AppendEntriesResponse {
+  ProtoVote vote = 1;                    // Responder's current vote
+  uint32 response_type = 2;              // 0=Success, 1=PartialSuccess, 2=Conflict, 3=HigherVote
+  ProtoLogId partial_success_index = 3;  // For PartialSuccess: index of first accepted entry
+}
+
+// Vote request - leader election
+message VoteRequest {
+  ProtoVote vote = 1;            // Candidate's vote
+  ProtoLogId last_log_id = 2;    // (term, index) of candidate's last log entry
+}
+
+// Vote response - leader election result
+message VoteResponse {
+  ProtoVote vote = 1;            // Voter's current vote after handling request
+  bool vote_granted = 2;         // Whether vote was granted
+  ProtoLogId last_log_id = 3;    // Voter's last log id (for debugging)
+}
+
+// Install snapshot request - log recovery
+message InstallSnapshotRequest {
+  ProtoVote vote = 1;
+  SnapshotMeta meta = 2;
+  uint64 offset = 3;        // Byte offset in snapshot data
+  bytes data = 4;           // Snapshot chunk data
+  bool done = 5;            // True if this is the last chunk
+}
+
+message SnapshotMeta {
+  ProtoLogId last_log_id = 1;    // Last log id in snapshot
+  uint64 last_applied = 2;       // State machine index after applying this snapshot
+  uint32 last_membership = 3;    // Last membership config version
+  string snapshot_id = 4;        // Unique snapshot identifier
+}
+
+// Install snapshot response
+message InstallSnapshotResponse {
+  ProtoVote vote = 1;
 }

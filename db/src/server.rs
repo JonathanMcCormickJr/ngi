@@ -1,8 +1,11 @@
 //! gRPC server implementation for the Database service
+//!
+//! This module implements the gRPC endpoint handlers for the Database service,
+//! routing requests appropriately through either Raft consensus (writes) or
+//! direct storage access (reads).
 
-use crate::raft::{DbRaft, DbResponse, DbTypeConfig};
+use crate::raft::DbRaft;
 use crate::storage::{LogEntry, Storage};
-use anyhow::Result;
 use tonic::{Request, Response, Status};
 
 // Include generated protobuf code
@@ -10,10 +13,15 @@ pub mod db {
     tonic::include_proto!("db");
 }
 
-use db::database_server::{Database, DatabaseServer};
+use db::database_server::Database;
 use db::*;
 
 /// Database service implementation
+///
+/// Implements the gRPC Database service with the following behavior:
+/// - Write operations (Put, Delete, BatchPut) are submitted to Raft for consensus
+/// - Read operations (Get, List, Exists) are read directly from local storage
+/// - Meta operations (Health, ClusterStatus) report Raft cluster state
 pub struct DatabaseService {
     raft: DbRaft,
     storage: Storage,
@@ -186,8 +194,6 @@ impl Database for DatabaseService {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     #[tokio::test]
     async fn test_database_service_creation() {
         // This is a placeholder test - actual testing requires setting up a full Raft node
