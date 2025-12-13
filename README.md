@@ -18,6 +18,9 @@ NGI aims to solve the pain points experienced by users of the current generation
 - Thorough Automated Test Coverage
 - Dynamic Schema Evolution (add/remove fields and workflow steps without downtime)
 - Zero-redundancy data entry. If a field is already filled in from another source, it will not be requested again.
+- Only one user may possess a ticket's lock at a time, preventing edit conflicts. Multiple tickets may be simultaneously locked by the same user.
+
+For a list of user-generated feature requests, please see [FEATURE_REQUESTS.md](./FEATURE_REQUESTS.md).
 
 ## Ticket Structure
 Each ticket in NGI contains the following fields:

@@ -1,0 +1,38 @@
+syntax = "proto3";
+
+package chaos;
+
+service ChaosService {
+  // Inject a chaos scenario
+  rpc InjectScenario(ChaosRequest) returns (ChaosAck);
+
+  // Stop a running chaos scenario
+  rpc StopScenario(StopRequest) returns (ChaosAck);
+
+  // List active and available scenarios
+  rpc ListScenarios(ListRequest) returns (ScenarioCatalog);
+}
+
+message ChaosRequest {
+  string scenario_type = 1;
+  map<string, string> parameters = 2;
+}
+
+message ChaosAck {
+  string scenario_id = 1;
+  string status = 2;
+  string message = 3;
+}
+
+message StopRequest {
+  string scenario_id = 1;
+}
+
+message ListRequest {
+  // Empty request
+}
+
+message ScenarioCatalog {
+  repeated string scenario_ids = 1;
+  repeated string available_types = 2;
+}

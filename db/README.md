@@ -1,55 +1,117 @@
 # DB Service
 
-Distributed key-value database service with Raft consensus for the NGI ticketing system.
+Distributed, consistent data storage service for the NGI system.
 
 ## Overview
 
-The DB service provides a consistent, distributed key-value store using:
-- **Sled** for local storage backend
-- **OpenRaft** for distributed consensus
-- **gRPC** (tonic) for inter-node communication
-- **Protobuf** for efficient serialization
+The DB service provides a distributed, strongly consistent storage layer using **Raft consensus**. It is built on top of **Sled**, an embedded high-performance key-value database.
+
+Unlike a simple key-value store, the DB service is architected to support complex domain data (Tickets, Users) through the use of **Namespaced Storage (Sled Trees)** and **Secondary Indexes**.
 
 ## Architecture
 
+### Storage Engine: Sled with Namespaces
+
+The system utilizes Sled's "Tree" feature to isolate different types of data into separate logical keyspaces. This improves query performance (smaller scan ranges) and allows for tailored caching strategies.
+
+#### 1. Raft Internal Storage (System Critical)
+These trees store the consensus state. They are critical for the consistency of the cluster.
+
+| Tree Name | Key Format | Value Format | Description |
+|-----------|------------|--------------|-------------|
+| `raft_metadata` | `vote` | `Vote` (JSON) | Current term and voted-for candidate. |
+| `raft_metadata` | `last_purged` | `LogId` (JSON) | Index of the last garbage-collected log. |
+| `raft_state` | `last_applied` | `LogId` (JSON) | The last log index applied to the state machine. |
+| `raft_state` | `membership` | `Membership` (JSON) | Current cluster membership config. |
+| `raft_log` | `log:{u64_be}` | `Entry` (JSON) | The Raft log entries. Keys are Big-Endian `u64` for sorting. |
+
+> **Note:** Storing logs as individual keys (`log:{index}`) solves scalability issues compared to storing the entire log in a single value.
+
+#### 2. Domain Data (Application State)
+These trees store the actual business objects.
+
+| Tree Name | Key Format | Value Format | Description |
+|-----------|------------|--------------|-------------|
+| `tickets` | `ticket:{u64_be}` | `Ticket` (Bincode) | Full ticket data blob. |
+| `users` | `user:{u64_be}` | `User` (Bincode) | Full user profile and settings. |
+| `sessions` | `sess:{uuid}` | `Session` (Bincode) | Ephemeral session data with expiry. |
+| `audit` | `evt:{timestamp}:{uuid}` | `AuditEvent` (JSON) | Immutable security/action logs. |
+
+#### 3. Secondary Indexes (Query Optimization)
+To support efficient querying without full table scans, we maintain index trees.
+
+| Tree Name | Key Format | Value Format | Usage |
+|-----------|------------|--------------|-------|
+| `idx_ticket_status` | `st:{status}:{ticket_id}` | `null` | List tickets by status (e.g., "Open"). |
+| `idx_ticket_assignee` | `usr:{user_id}:{ticket_id}` | `null` | List tickets assigned to a user. |
+| `idx_ticket_project` | `prj:{project}:{ticket_id}` | `null` | List tickets by project/customer. |
+| `idx_ticket_account` | `acct:{account_uuid}:{ticket_id}` | `null` | List tickets by account UUID. |
+| `idx_ticket_created` | `created:{timestamp}:{ticket_id}` | `null` | List tickets by creation date. |
+| `idx_ticket_updated` | `updated:{timestamp}:{ticket_id}` | `null` | List tickets by last update. |
+| `idx_ticket_tracking` | `track:{tracking_url}:{ticket_id}` | `null` | Lookup ticket by tracking URL. |
+| `idx_user_name` | `name:{username}` | `user_id` | Lookup user ID by username. |
+| `idx_user_email` | `email:{email}` | `user_id` | Lookup user ID by email. |
+| `idx_user_role` | `role:{role}:{user_id}` | `null` | List users by role. |
+
+## Data Access Patterns
+
+### 1. Primary Key Lookup (Technician View)
+*   **Operation:** `Get(tree="tickets", key=ticket_id)`
+*   **Efficiency:** O(1). Direct hash/tree lookup.
+*   **Use Case:** Loading a specific ticket to work on it.
+
+### 2. Aggregate/Filtered Queries (Manager View)
+*   **Operation:** `Scan(tree="idx_ticket_status", prefix="st:Open")`
+*   **Efficiency:** O(log N). Sled supports efficient prefix scanning.
+*   **Flow:**
+    1. Scan the index tree to get a list of `ticket_id`s.
+    2. (Optional) Batch fetch the full ticket data from the `tickets` tree if details are needed.
+    3. (Optional) If only counting, just count the index keys.
+
+## API Structure (Planned)
+
+The gRPC API will be updated to support namespaced operations:
+
+```protobuf
+message PutRequest {
+  string collection = 1; // e.g., "tickets", "users"
+  bytes key = 2;
+  bytes value = 3;
+}
+
+message GetRequest {
+  string collection = 1;
+  bytes key = 2;
+}
+
+message ScanRequest {
+  string collection = 1;
+  bytes prefix = 2;
+}
 ```
-┌─────────────────┐
-│  gRPC Server    │  ← Database service (8 RPCs)
-├─────────────────┤
-│  Raft Layer     │  ← Consensus (leader election, log replication)
-├─────────────────┤
-│  State Machine  │  ← Applies committed log entries
-├─────────────────┤
-│  Storage (Sled) │  ← Persistent key-value store
-└─────────────────┘
-```
 
-## Features
+## Extensibility & Evolution
 
-### gRPC API (8 Methods)
+### Adding New Fields
+1.  **Ad-hoc Fields:** Use the `custom_fields` map on `Ticket` for dynamic data without schema changes.
+2.  **Schema Changes:**
+    *   The `Ticket` struct includes a `schema_version` field.
+    *   Major changes should introduce a new version constant.
+    *   The application layer handles migration (read old version -> convert -> write new version).
 
-1. **Put** - Store key-value pair (consensus write)
-2. **Get** - Retrieve value by key (local read)
-3. **Delete** - Remove key (consensus write)
-4. **List** - List key-value pairs with prefix filter
-5. **Exists** - Check if key exists
-6. **BatchPut** - Bulk write operation
-7. **Health** - Node health check (returns role: leader/follower/candidate)
-8. **ClusterStatus** - Cluster state (leader, members, term, commit index)
+### Adding New Indexes
+1.  **Define Tree:** Add a new tree constant (e.g., `idx_ticket_priority`).
+2.  **Update Logic:** Add the indexing logic to `DbStateMachine::apply`.
+3.  **Migration:** For existing data, a background task can iterate the main `tickets` tree and populate the new index.
 
-### Storage Layer
+## Raft Consensus Implementation
 
-- **Backend**: Sled embedded database
-- **Operations**: put, get, delete, list, exists, batch_put
-- **Durability**: All writes flushed to disk
-- **Testing**: 5 comprehensive unit tests
+The service implements the `OpenRaft` v0.9 specification.
 
-### Raft Integration
-
-- **Type Configuration**: Using `declare_raft_types!` macro
-- **State Machine**: Applies log entries (Put, Get, Delete, BatchPut) to storage
-- **Network Layer**: Skeleton for gRPC-based node communication
-- **Consensus**: Ready for multi-node cluster deployment
+*   **Leader Election:** Handles split votes and node failures.
+*   **Log Replication:** Ensures data is replicated to a quorum before acknowledging writes.
+*   **Snapshotting:** Periodically compacts the log to prevent unbounded growth.
+*   **Client Interaction:** Automatically forwards write requests to the current leader.
 
 ## Configuration
 

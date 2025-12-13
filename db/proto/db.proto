@@ -42,8 +42,9 @@ service RaftService {
 }
 
 message PutRequest {
-  bytes key = 1;
-  bytes value = 2;
+  string collection = 1;
+  bytes key = 2;
+  bytes value = 3;
 }
 
 message PutResponse {
@@ -52,7 +53,8 @@ message PutResponse {
 }
 
 message GetRequest {
-  bytes key = 1;
+  string collection = 1;
+  bytes key = 2;
 }
 
 message GetResponse {
@@ -62,7 +64,8 @@ message GetResponse {
 }
 
 message DeleteRequest {
-  bytes key = 1;
+  string collection = 1;
+  bytes key = 2;
 }
 
 message DeleteResponse {
@@ -71,8 +74,9 @@ message DeleteResponse {
 }
 
 message ListRequest {
-  bytes prefix = 1;
-  uint32 limit = 2;
+  string collection = 1;
+  bytes prefix = 2;
+  uint32 limit = 3;
 }
 
 message ListResponse {
@@ -80,7 +84,8 @@ message ListResponse {
 }
 
 message ExistsRequest {
-  bytes key = 1;
+  string collection = 1;
+  bytes key = 2;
 }
 
 message ExistsResponse {
@@ -88,7 +93,8 @@ message ExistsResponse {
 }
 
 message BatchPutRequest {
-  repeated KeyValue items = 1;
+  string collection = 1;
+  repeated KeyValue items = 2;
 }
 
 message KeyValue {

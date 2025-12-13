@@ -15,21 +15,21 @@ impl MacAddress {
     /// # Errors
     ///
     /// Returns an error if the MAC address format is invalid
-    pub fn new(mac: String) -> Result<Self, crate::error::NgiError> {
+    pub fn new(mac: &str) -> Result<Self, crate::error::NgiError> {
         // Validate RFC-compliant MAC address format (XX:XX:XX:XX:XX:XX or XX-XX-XX-XX-XX-XX)
         let normalized = mac.replace('-', ":");
         let parts: Vec<&str> = normalized.split(':').collect();
         
         if parts.len() != 6 {
             return Err(crate::error::NgiError::ValidationError(
-                format!("Invalid MAC address format: {}", mac),
+                format!("Invalid MAC address format: {mac}"),
             ));
         }
         
         for part in parts {
             if part.len() != 2 || !part.chars().all(|c| c.is_ascii_hexdigit()) {
                 return Err(crate::error::NgiError::ValidationError(
-                    format!("Invalid MAC address format: {}", mac),
+                    format!("Invalid MAC address format: {mac}"),
                 ));
             }
         }
@@ -132,7 +132,7 @@ impl NetworkDevice {
             | Self::VpnGw { make, model, .. }
             | Self::Switch { make, model, .. }
             | Self::Router { make, model, .. }
-            | Self::Firewall { make, model, .. } => format!("{} {}", make, model),
+            | Self::Firewall { make, model, .. } => format!("{make} {model}"),
         }
     }
     
@@ -251,6 +251,10 @@ pub enum AutoCloseSchedule {
 
 impl AutoCloseSchedule {
     /// Calculate the auto-close timestamp from now
+    ///
+    /// # Panics
+    ///
+    /// Panics if the end-of-day time calculation fails (should never happen with valid dates).
     #[must_use]
     pub fn calculate_close_time(self) -> DateTime<Utc> {
         let now = Utc::now();
@@ -529,21 +533,21 @@ mod tests {
     #[test]
     fn test_mac_address_validation() {
         // Valid MAC addresses
-        assert!(MacAddress::new("00:1A:2B:3C:4D:5E".to_string()).is_ok());
-        assert!(MacAddress::new("00-1A-2B-3C-4D-5E".to_string()).is_ok());
-        assert!(MacAddress::new("aa:bb:cc:dd:ee:ff".to_string()).is_ok());
+        assert!(MacAddress::new("00:1A:2B:3C:4D:5E").is_ok());
+        assert!(MacAddress::new("00-1A-2B-3C-4D-5E").is_ok());
+        assert!(MacAddress::new("aa:bb:cc:dd:ee:ff").is_ok());
 
         // Invalid MAC addresses
-        assert!(MacAddress::new("invalid".to_string()).is_err());
-        assert!(MacAddress::new("00:1A:2B:3C:4D".to_string()).is_err()); // Too short
-        assert!(MacAddress::new("00:1A:2B:3C:4D:5E:6F".to_string()).is_err()); // Too long
-        assert!(MacAddress::new("ZZ:1A:2B:3C:4D:5E".to_string()).is_err()); // Invalid hex
+        assert!(MacAddress::new("invalid").is_err());
+        assert!(MacAddress::new("00:1A:2B:3C:4D").is_err()); // Too short
+        assert!(MacAddress::new("00:1A:2B:3C:4D:5E:6F").is_err()); // Too long
+        assert!(MacAddress::new("ZZ:1A:2B:3C:4D:5E").is_err()); // Invalid hex
     }
 
     #[test]
     fn test_mac_address_normalization() {
-        let mac1 = MacAddress::new("aa-bb-cc-dd-ee-ff".to_string()).unwrap();
-        let mac2 = MacAddress::new("AA:BB:CC:DD:EE:FF".to_string()).unwrap();
+        let mac1 = MacAddress::new("aa-bb-cc-dd-ee-ff").unwrap();
+        let mac2 = MacAddress::new("AA:BB:CC:DD:EE:FF").unwrap();
 
         // Should normalize to uppercase with colons
         assert_eq!(mac1.as_str(), "AA:BB:CC:DD:EE:FF");
@@ -553,7 +557,7 @@ mod tests {
 
     #[test]
     fn test_network_device_creation() {
-        let mac = MacAddress::new("00:11:22:33:44:55".to_string()).unwrap();
+        let mac = MacAddress::new("00:11:22:33:44:55").unwrap();
         let device = NetworkDevice::CoaxModem {
             make: "Motorola".to_string(),
             model: "MB8600".to_string(),
@@ -581,7 +585,7 @@ mod tests {
         ticket.other_ticket_number = Some("ISP-777".to_string());
 
         // Add a modem
-        let mac = MacAddress::new("AA:BB:CC:DD:EE:FF".to_string()).unwrap();
+        let mac = MacAddress::new("AA:BB:CC:DD:EE:FF").unwrap();
         ticket.network_devices.push(NetworkDevice::CoaxModem {
             make: "Arris".to_string(),
             model: "SB8200".to_string(),
@@ -649,14 +653,14 @@ mod tests {
         ticket.network_devices.push(NetworkDevice::Ont {
             make: "Nokia".to_string(),
             model: "G-010S-A".to_string(),
-            mac_address: Some(MacAddress::new("11:22:33:44:55:66".to_string()).unwrap()),
+            mac_address: Some(MacAddress::new("11:22:33:44:55:66").unwrap()),
             serial_number: Some("ONT123".to_string()),
         });
 
         ticket.network_devices.push(NetworkDevice::Router {
             make: "Ubiquiti".to_string(),
             model: "EdgeRouter X".to_string(),
-            mac_address: Some(MacAddress::new("AA:BB:CC:DD:EE:FF".to_string()).unwrap()),
+            mac_address: Some(MacAddress::new("AA:BB:CC:DD:EE:FF").unwrap()),
             serial_number: None,
         });
 
@@ -680,7 +684,7 @@ mod tests {
 
     #[test]
     fn test_mac_address_display() {
-        let mac = MacAddress::new("aa:bb:cc:dd:ee:ff".to_string()).unwrap();
+        let mac = MacAddress::new("aa:bb:cc:dd:ee:ff").unwrap();
         assert_eq!(format!("{}", mac), "AA:BB:CC:DD:EE:FF");
     }
 
@@ -864,7 +868,7 @@ mod tests {
         let firewall = NetworkDevice::Firewall {
             make: "Fortinet".to_string(),
             model: "FortiGate 60E".to_string(),
-            mac_address: Some(MacAddress::new("12:34:56:78:9A:BC".to_string()).unwrap()),
+            mac_address: Some(MacAddress::new("12:34:56:78:9A:BC").unwrap()),
             serial_number: Some("FG-123".to_string()),
         };
 

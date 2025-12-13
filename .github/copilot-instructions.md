@@ -23,6 +23,15 @@ NGI (Next-Gen Infoman) is a distributed, microservices-based tech support ticket
 - KISS (Keep It Simple, Stupid) - avoid unnecessary complexity
 - Correctness over cleverness - prioritize clear, maintainable code over "clever" solutions
 - Extensibility - design with future features and integrations in mind, allowing for easy addition of new functionality without major refactoring (e.g. for enums use attributes like `#[repr(u8)]` and `#[non_exhaustive]`).
+- Don't panic - handle errors gracefully and provide meaningful error messages. The only acceptable use of panic-causing uses like `assert!`, `panic!`, `unwrap`, or `expect` is in unrecoverable situations during initialization (e.g., configuration errors), in which case the panic-able conditions must be clearly and exhaustively documented, or within tests.
+  - **Rationale**: In a distributed system like NGI, panics can crash services, disrupt consensus (e.g., Raft leader election), or cause cascading failures. Graceful error handling enables the system to degrade rather than fail completely, aligning with the Rugged Manifesto.
+  - **Unrecoverable Situations**: Limited to startup failures where the service cannot safely operate (e.g., invalid TLS certificates, missing critical dependencies, or corrupted Raft state that prevents initialization). These must be documented with clear failure modes and recovery steps.
+  - **Testing Exceptions**: Panics are acceptable in tests to assert invariants and fail fast on unexpected conditions. Use `assert!`, `panic!`, or `unwrap()` in test code, but ensure error paths are also tested via `Result` handling.
+  - **Alternatives**: Always prefer `Result<T, E>` with proper error propagation using `?`. Use `anyhow::Context` for debugging context. For fallible operations, return errors to callers rather than panicking.
+  - **Examples**:
+    - **Good**: `env::var("REQUIRED_CONFIG").context("missing REQUIRED_CONFIG")?;`
+    - **Bad**: `env::var("REQUIRED_CONFIG").unwrap();` (unless in startup with documentation)
+    - **Test-Only**: `assert_eq!(result.unwrap(), expected);` (in `#[test]` functions)
 
 ---
 

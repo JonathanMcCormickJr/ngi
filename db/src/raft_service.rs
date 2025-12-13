@@ -1,6 +1,6 @@
 //! gRPC service implementation for Raft consensus RPCs
 //!
-//! This module provides the server-side implementation of the RaftService gRPC service,
+//! This module provides the server-side implementation of the `RaftService` gRPC service,
 //! handling incoming RPC calls from peer nodes in the Raft cluster.
 
 use crate::raft::{DbRaft, DbTypeConfig};
@@ -10,9 +10,8 @@ use tonic::{Request, Response, Status};
 use tracing::debug;
 
 use crate::server::db::{
-    raft_service_server::RaftService, AppendEntriesRequest, AppendEntriesResponse,
-    InstallSnapshotRequest, InstallSnapshotResponse, ProtoLogId, ProtoVote,
-    VoteRequest, VoteResponse,
+    AppendEntriesRequest, AppendEntriesResponse, InstallSnapshotRequest, InstallSnapshotResponse,
+    ProtoLogId, ProtoVote, VoteRequest, VoteResponse, raft_service_server::RaftService,
 };
 
 /// Implementation of the Raft service
@@ -22,6 +21,7 @@ pub struct RaftServiceImpl {
 }
 
 impl RaftServiceImpl {
+    #[must_use]
     pub fn new(raft: Arc<DbRaft>) -> Self {
         Self { raft }
     }
@@ -29,16 +29,15 @@ impl RaftServiceImpl {
 
 #[tonic::async_trait]
 impl RaftService for RaftServiceImpl {
-    async fn vote(
-        &self,
-        request: Request<VoteRequest>,
-    ) -> Result<Response<VoteResponse>, Status> {
+    async fn vote(&self, request: Request<VoteRequest>) -> Result<Response<VoteResponse>, Status> {
         let req = request.into_inner();
 
         debug!("received vote request: {:?}", req);
 
         // Convert proto to openraft types
-        let proto_vote = req.vote.ok_or_else(|| Status::invalid_argument("missing vote"))?;
+        let proto_vote = req
+            .vote
+            .ok_or_else(|| Status::invalid_argument("missing vote"))?;
 
         let vote_req = openraft::raft::VoteRequest {
             vote: Vote {
@@ -62,7 +61,7 @@ impl RaftService for RaftServiceImpl {
             .raft
             .vote(vote_req)
             .await
-            .map_err(|e| Status::internal(format!("vote failed: {}", e)))?;
+            .map_err(|e| Status::internal(format!("vote failed: {e}")))?;
 
         // Convert back to proto
         let proto_response = VoteResponse {
@@ -87,17 +86,23 @@ impl RaftService for RaftServiceImpl {
     ) -> Result<Response<AppendEntriesResponse>, Status> {
         let req = request.into_inner();
 
-        debug!("received append_entries request: entries={}", req.entries.len());
+        debug!(
+            "received append_entries request: entries={}",
+            req.entries.len()
+        );
 
         // Convert proto to openraft types
-        let proto_vote = req.vote.ok_or_else(|| Status::invalid_argument("missing vote"))?;
+        let proto_vote = req
+            .vote
+            .ok_or_else(|| Status::invalid_argument("missing vote"))?;
 
         // Deserialize entries
-        let entries: Vec<openraft::Entry<DbTypeConfig>> = req.entries
+        let entries: Vec<openraft::Entry<DbTypeConfig>> = req
+            .entries
             .into_iter()
             .map(|entry| serde_json::from_slice(&entry.data))
             .collect::<Result<Vec<_>, _>>()
-            .map_err(|e| Status::invalid_argument(format!("invalid entry data: {}", e)))?;
+            .map_err(|e| Status::invalid_argument(format!("invalid entry data: {e}")))?;
 
         let append_req = openraft::raft::AppendEntriesRequest {
             vote: openraft::Vote {
@@ -125,11 +130,11 @@ impl RaftService for RaftServiceImpl {
         };
 
         // Forward to Raft
-        let raft_response = self
+        let _raft_response = self
             .raft
             .append_entries(append_req)
             .await
-            .map_err(|e| Status::internal(format!("append_entries failed: {}", e)))?;
+            .map_err(|e| Status::internal(format!("append_entries failed: {e}")))?;
 
         // Convert back to proto
         let proto_response = AppendEntriesResponse {
@@ -151,11 +156,18 @@ impl RaftService for RaftServiceImpl {
     ) -> Result<Response<InstallSnapshotResponse>, Status> {
         let req = request.into_inner();
 
-        debug!("received install_snapshot request: offset={}, done={}", req.offset, req.done);
+        debug!(
+            "received install_snapshot request: offset={}, done={}",
+            req.offset, req.done
+        );
 
         // Convert proto to openraft types
-        let proto_vote = req.vote.ok_or_else(|| Status::invalid_argument("missing vote"))?;
-        let proto_meta = req.meta.ok_or_else(|| Status::invalid_argument("missing snapshot meta"))?;
+        let proto_vote = req
+            .vote
+            .ok_or_else(|| Status::invalid_argument("missing vote"))?;
+        let proto_meta = req
+            .meta
+            .ok_or_else(|| Status::invalid_argument("missing snapshot meta"))?;
 
         let install_req = openraft::raft::InstallSnapshotRequest {
             vote: openraft::Vote {
@@ -176,10 +188,10 @@ impl RaftService for RaftServiceImpl {
                 last_membership: openraft::StoredMembership::new(
                     Some(openraft::LogId {
                         leader_id: openraft::LeaderId {
-                            term: proto_meta.last_log_id.as_ref().map(|l| l.term).unwrap_or(0),
+                            term: proto_meta.last_log_id.as_ref().map_or(0, |l| l.term),
                             node_id: proto_vote.node_id,
                         },
-                        index: proto_meta.last_membership as u64,
+                        index: u64::from(proto_meta.last_membership),
                     }),
                     openraft::Membership::new(vec![], ()),
                 ),
@@ -195,7 +207,7 @@ impl RaftService for RaftServiceImpl {
             .raft
             .install_snapshot(install_req)
             .await
-            .map_err(|e| Status::internal(format!("install_snapshot failed: {}", e)))?;
+            .map_err(|e| Status::internal(format!("install_snapshot failed: {e}")))?;
 
         // Convert back to proto
         let proto_response = InstallSnapshotResponse {

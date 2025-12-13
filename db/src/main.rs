@@ -5,14 +5,14 @@ use anyhow::Result;
 use db::network::DbNetworkFactory;
 use db::raft::{DbRaft, DbStore};
 use db::raft_service::RaftServiceImpl;
-use db::server::db::{database_server::DatabaseServer, raft_service_server::RaftServiceServer};
 use db::server::DatabaseService;
-use openraft::storage::Adaptor;
+use db::server::db::{database_server::DatabaseServer, raft_service_server::RaftServiceServer};
 use openraft::Config;
+use openraft::storage::Adaptor;
 use std::env;
 use std::sync::Arc;
 use tonic::transport::Server;
-use tracing::{info, Level};
+use tracing::{Level, info};
 use tracing_subscriber::FmtSubscriber;
 
 #[tokio::main]
@@ -28,14 +28,14 @@ async fn main() -> Result<()> {
         .unwrap_or_else(|_| "1".to_string())
         .parse()?;
     let listen_addr = env::var("LISTEN_ADDR").unwrap_or_else(|_| "[::1]:50051".to_string());
-    let storage_path = env::var("STORAGE_PATH")
-        .unwrap_or_else(|_| format!("/tmp/ngi-db-{}", node_id));
+    let storage_path =
+        env::var("STORAGE_PATH").unwrap_or_else(|_| format!("/tmp/ngi-db-{node_id}"));
 
     // Parse peer nodes configuration
     // Format: "1:http://127.0.0.1:50051,2:http://127.0.0.1:50052,3:http://127.0.0.1:50053"
     let peers_str = env::var("RAFT_PEERS").unwrap_or_else(|_| {
         // Default single-node cluster
-        format!("{}:{}", node_id, listen_addr)
+        format!("{node_id}:{listen_addr}")
     });
 
     let mut network_factory = DbNetworkFactory::new();
@@ -59,7 +59,7 @@ async fn main() -> Result<()> {
     info!("Cluster peers: {:?}", all_peers);
 
     // Create storage
-    let store = DbStore::new(&storage_path).await?;
+    let store = DbStore::new(&storage_path)?;
 
     info!("Storage initialized at {}", storage_path);
 
@@ -76,13 +76,17 @@ async fn main() -> Result<()> {
     let (log_store, state_machine) = Adaptor::new(store.clone());
 
     // Create Raft instance
-    let raft = Arc::new(DbRaft::new(node_id, config, network_factory, log_store, state_machine).await?);
+    let raft =
+        Arc::new(DbRaft::new(node_id, config, network_factory, log_store, state_machine).await?);
 
     info!("Raft node {} initialized", node_id);
 
     // Initialize cluster if this is node 1 or if peers are defined
     if node_id == all_peers.first().copied().unwrap_or(1) && !all_peers.is_empty() {
-        info!("Node {} is first peer, initializing cluster with {:?}", node_id, all_peers);
+        info!(
+            "Node {} is first peer, initializing cluster with {:?}",
+            node_id, all_peers
+        );
 
         let mut members = std::collections::BTreeSet::new();
         for peer_id in &all_peers {
@@ -91,14 +95,17 @@ async fn main() -> Result<()> {
 
         // Try to initialize the cluster
         match raft.initialize(members).await {
-            Ok(_) => info!("Cluster initialized successfully"),
+            Ok(()) => info!("Cluster initialized successfully"),
             Err(e) => {
                 // It's OK if already initialized
                 info!("Cluster initialization returned: {}", e);
             }
         }
     } else {
-        info!("Node {} is not the first peer, skipping initialization", node_id);
+        info!(
+            "Node {} is not the first peer, skipping initialization",
+            node_id
+        );
     }
 
     info!("DB service node {} ready", node_id);
