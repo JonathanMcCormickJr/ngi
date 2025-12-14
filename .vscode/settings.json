@@ -2,5 +2,6 @@
     "cSpell.words": [
         "Infoman",
         "LBRP"
-    ]
+    ],
+    "chat.agent.maxRequests": 100
 }

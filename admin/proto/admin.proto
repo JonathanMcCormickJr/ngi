@@ -1,0 +1,17 @@
+syntax = "proto3";
+
+package admin;
+
+message MetricsSnapshot {
+  string service = 1;
+  uint64 timestamp = 2;
+  map<string, int64> counters = 3;
+  uint64 last_snapshot_size = 4;
+}
+
+message PushAck { bool ok = 1; }
+
+service Metrics {
+  // Push a snapshot of metrics from a service
+  rpc PushMetrics(MetricsSnapshot) returns (PushAck);
+}

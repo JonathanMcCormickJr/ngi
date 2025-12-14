@@ -6,4 +6,16 @@ authors.workspace = true
 license.workspace = true
 repository.workspace = true
 
+[build-dependencies]
+tonic-prost-build = "0.14"
+
 [dependencies]
+tonic = "0.14"
+prost = "0.14"
+prost-types = "0.14"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+tokio = { version = "1.48", features = ["full"] }
+prometheus = "0.14"
+once_cell = "1.21"
+hyper = { version = "1.8", features = ["full"] }
