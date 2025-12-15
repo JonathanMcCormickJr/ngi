@@ -28,14 +28,17 @@ pub fn init(addr: String) {
     });
 }
 
-pub async fn push_snapshot(service: &str, size: u64, counters: HashMap<String, i64>) {
+pub async fn push_snapshot<S: ::std::hash::BuildHasher>(service: &str, size: u64, counters: HashMap<String, i64, S>) {
     if let Some(cell) = CLIENT.get() {
         let mut guard = cell.lock().await;
         if let Some(client) = guard.as_mut() {
+            // Convert to the default-hasher HashMap expected by the generated proto types
+            let counters_std: std::collections::HashMap<String, i64> = counters.into_iter().collect();
+
             let req = MetricsSnapshot {
                 service: service.to_string(),
-                timestamp: chrono::Utc::now().timestamp_millis() as u64,
-                counters,
+                timestamp: chrono::Utc::now().timestamp_millis().try_into().unwrap_or_default(),
+                counters: counters_std,
                 last_snapshot_size: size,
             };
             let _ = client.push_metrics(Request::new(req)).await;

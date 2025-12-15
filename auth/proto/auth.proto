@@ -1,0 +1,63 @@
+syntax = "proto3";
+
+package auth;
+
+import "google/protobuf/timestamp.proto";
+
+// Auth service for user authentication and authorization
+service AuthService {
+  // Authenticate a user
+  rpc Authenticate(AuthenticateRequest) returns (AuthenticateResponse);
+
+  // Validate a session token
+  rpc ValidateSession(ValidateSessionRequest) returns (ValidateSessionResponse);
+
+  // Logout/invalidate a session
+  rpc Logout(LogoutRequest) returns (LogoutResponse);
+}
+
+// Authentication request
+message AuthenticateRequest {
+  string username = 1;
+  string password = 2;
+  string mfa_token = 3;
+}
+
+// Authentication response
+message AuthenticateResponse {
+  bool success = 1;
+  string session_token = 2;
+  string error = 3;
+  UserInfo user = 4;
+}
+
+// Session validation request
+message ValidateSessionRequest {
+  string session_token = 1;
+}
+
+// Session validation response
+message ValidateSessionResponse {
+  bool valid = 1;
+  UserInfo user = 2;
+  string error = 3;
+}
+
+// Logout request
+message LogoutRequest {
+  string session_token = 1;
+}
+
+// Logout response
+message LogoutResponse {
+  bool success = 1;
+  string error = 2;
+}
+
+// User information
+message UserInfo {
+  string user_uuid = 1;
+  string username = 2;
+  repeated string roles = 3;
+  google.protobuf.Timestamp last_login = 4;
+}

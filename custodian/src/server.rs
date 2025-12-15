@@ -3,7 +3,7 @@
 //! This module implements the gRPC endpoint handlers for the Custodian service,
 //! managing ticket lifecycle and distributed locking with Raft consensus.
 
-use crate::raft::{CustodianRaft, LockResponse};
+use crate::raft::CustodianRaft;
 use prost::Message;
 use crate::storage::LockCommand;
 use tonic::{Request, Response, Status};
@@ -16,9 +16,8 @@ pub mod custodian {
 
 use custodian::custodian_service_server::{CustodianService, CustodianServiceServer};
 use custodian::{
-    AcquireLockCommand, CreateTicketRequest, HealthRequest,
-    HealthResponse, LockRelease, LockRequest, LockResponse as ProtoLockResponse,
-    ReleaseLockCommand, Ticket, UpdateTicketRequest,
+    CreateTicketRequest, HealthRequest,
+    HealthResponse, LockRelease, LockRequest, LockResponse as ProtoLockResponse, Ticket, UpdateTicketRequest,
 };
 
 // Expose metrics endpoint via gRPC is handled elsewhere; ensure metrics module is initialized
@@ -30,7 +29,7 @@ fn init_metrics() {
 
 /// Custodian service implementation
 ///
-/// Implements the gRPC CustodianService with the following behavior:
+/// Implements the gRPC `CustodianService` with the following behavior:
 /// - Ticket operations (Create, Update) are forwarded to the DB service
 /// - Lock operations (Acquire, Release) use Raft consensus for coordination
 /// - Health checks report Raft cluster state
@@ -45,6 +44,7 @@ impl CustodianServiceImpl {
         Self { raft, storage, db_client: Some(db_client) }
     }
 
+    #[must_use] 
     pub fn new(raft: CustodianRaft, storage: crate::storage::Storage) -> Self {
         Self { raft, storage, db_client: None }
     }
@@ -101,7 +101,7 @@ impl CustodianService for CustodianServiceImpl {
         }
 
         // Generate ticket id (millisecond timestamp)
-        let ticket_id = chrono::Utc::now().timestamp_millis() as u64;
+        let ticket_id: u64 = chrono::Utc::now().timestamp_millis().try_into().unwrap_or_default();
 
         // Build proto ticket
         let ticket = custodian::Ticket {
@@ -112,7 +112,7 @@ impl CustodianService for CustodianServiceImpl {
             title: req.title.clone(),
             project: req.project.clone(),
             account_uuid: req.account_uuid.clone(),
-            symptom: req.symptom as i32,
+            symptom: req.symptom,
             status: 0,
             next_action: 0,
             resolution: None,
@@ -134,8 +134,8 @@ impl CustodianService for CustodianServiceImpl {
             let mut lock = client.lock().await;
             let key = ticket_id.to_be_bytes().to_vec();
             let mut bytes = Vec::new();
-            ticket.encode(&mut bytes).map_err(|e| Status::internal(format!("encode error: {}", e)))?;
-            lock.put("ticket", key, bytes).await.map_err(|e| Status::internal(format!("db put error: {}", e)))?;
+            ticket.encode(&mut bytes).map_err(|e| Status::internal(format!("encode error: {e}")))?;
+            lock.put("ticket", key, bytes).await.map_err(|e| Status::internal(format!("db put error: {e}")))?;
         }
 
         Ok(Response::new(ticket))
@@ -209,7 +209,7 @@ impl CustodianService for CustodianServiceImpl {
             .map_err(|_| Status::invalid_argument("Invalid updated_by_uuid"))?;
 
         // Check lock ownership
-        match self.storage.get_lock_info(req.ticket_id).map_err(|e| Status::internal(format!("storage error: {}", e)))? {
+        match self.storage.get_lock_info(req.ticket_id).map_err(|e| Status::internal(format!("storage error: {e}")))? {
             Some(lock) => {
                 if lock.user_id != updater {
                     return Err(Status::permission_denied("user does not hold lock"));
@@ -222,8 +222,8 @@ impl CustodianService for CustodianServiceImpl {
         let mut ticket_proto: custodian::Ticket = if let Some(client) = &self.db_client {
             let mut client = client.lock().await;
             let key = req.ticket_id.to_be_bytes().to_vec();
-            match client.get("ticket", key).await.map_err(|e| Status::internal(format!("db get error: {}", e)))? {
-                Some(bytes) => prost::Message::decode(bytes.as_slice()).map_err(|e| Status::internal(format!("decode error: {}", e)))?,
+            match client.get("ticket", key).await.map_err(|e| Status::internal(format!("db get error: {e}")))? {
+                Some(bytes) => prost::Message::decode(bytes.as_slice()).map_err(|e| Status::internal(format!("decode error: {e}")))?,
                 None => return Err(Status::not_found("ticket not found")),
             }
         } else {
@@ -233,9 +233,9 @@ impl CustodianService for CustodianServiceImpl {
         // Apply updates from request (only update provided fields)
         if let Some(title) = req.title { ticket_proto.title = title; }
         if let Some(project) = req.project { ticket_proto.project = project; }
-        if let Some(symptom) = req.symptom { ticket_proto.symptom = symptom as i32; }
-        if let Some(status_val) = req.status { ticket_proto.status = status_val as i32; }
-        if let Some(next_action) = req.next_action { ticket_proto.next_action = next_action as i32; }
+        if let Some(symptom) = req.symptom { ticket_proto.symptom = symptom; }
+        if let Some(status_val) = req.status { ticket_proto.status = status_val; }
+        if let Some(next_action) = req.next_action { ticket_proto.next_action = next_action; }
         if let Some(resolution) = req.resolution { ticket_proto.resolution = Some(resolution); }
         if let Some(assigned) = req.assigned_to_uuid { ticket_proto.assigned_to_uuid = Some(assigned); }
         ticket_proto.updated_by_uuid = req.updated_by_uuid.clone().unwrap_or_default();
@@ -246,8 +246,8 @@ impl CustodianService for CustodianServiceImpl {
             let mut client = client.lock().await;
             let key = req.ticket_id.to_be_bytes().to_vec();
             let mut buf = Vec::new();
-            ticket_proto.encode(&mut buf).map_err(|e| Status::internal(format!("encode error: {}", e)))?;
-            client.put("ticket", key, buf).await.map_err(|e| Status::internal(format!("db put error: {}", e)))?;
+            ticket_proto.encode(&mut buf).map_err(|e| Status::internal(format!("encode error: {e}")))?;
+            client.put("ticket", key, buf).await.map_err(|e| Status::internal(format!("db put error: {e}")))?;
         }
 
         Ok(Response::new(ticket_proto))
@@ -291,10 +291,10 @@ impl CustodianService for CustodianServiceImpl {
             .membership()
             .nodes()
             .filter_map(|(id, _node)| {
-                if Some(*id) != metrics.current_leader {
-                    Some(id.to_string())
-                } else {
+                if Some(*id) == metrics.current_leader {
                     None
+                } else {
+                    Some(id.to_string())
                 }
             })
             .collect();
@@ -318,9 +318,55 @@ pub fn create_server(service: CustodianServiceImpl) -> CustodianServiceServer<Cu
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+    use tonic::Request;
+    use openraft::Config;
+    use openraft::storage::Adaptor;
+    use std::sync::Arc;
+
     #[tokio::test]
     async fn test_custodian_service_creation() {
-        // This is a placeholder test - actual testing requires setting up a full Raft node
-        // which we'll do in integration tests
+        // basic instantiation
+        let store = crate::raft::CustodianStore::new_temp().unwrap();
+        let storage = store.storage();
+        let svc = CustodianServiceImpl::new(crate::raft::CustodianRaft::new(1, Arc::new(Config::default()), crate::network::CustodianNetworkFactory::new(), Adaptor::new(store.clone()).0, Adaptor::new(store).1).await.unwrap(), storage);
+        let _ = svc;
+    }
+
+    #[tokio::test]
+    async fn test_create_ticket_and_lock_flow() {
+        // Create backing store and raft
+        let store = crate::raft::CustodianStore::new_temp().unwrap();
+        let storage = store.storage().clone();
+
+        let cfg = Config::default();
+        let cfg = Arc::new(cfg.validate().unwrap());
+        let network_factory = crate::network::CustodianNetworkFactory::new();
+        let (log_store, state_machine) = Adaptor::new(store.clone());
+
+        let raft = crate::raft::CustodianRaft::new(1u64, cfg.clone(), network_factory, log_store, state_machine).await.expect("create raft");
+        // initialize single-node cluster so client_write works
+        let mut members = std::collections::BTreeSet::new();
+        members.insert(1u64);
+        let _ = raft.initialize(members).await;
+
+        let svc_impl = CustodianServiceImpl::new(raft.clone(), storage.clone());
+
+        // create ticket
+        let req = custodian::CreateTicketRequest { title: "Test".to_string(), project: "proj".to_string(), account_uuid: "".to_string(), symptom: 0, created_by_uuid: "user".to_string(), customer_ticket_number: None, isp_ticket_number: None, other_ticket_number: None, ebond: None, tracking_url: None, network_devices: vec![] };
+        let resp = svc_impl.create_ticket(Request::new(req)).await.expect("create ticket");
+        let ticket = resp.into_inner();
+        assert_eq!(ticket.title, "Test");
+
+        // acquire lock using service (should go through raft)
+        let user_uuid = uuid::Uuid::new_v4().to_string();
+        let lock_req = custodian::LockRequest { ticket_id: ticket.ticket_id, user_uuid: user_uuid.clone() };
+        let lock_resp = svc_impl.acquire_lock(Request::new(lock_req)).await.expect("acquire");
+        assert!(lock_resp.get_ref().success);
+
+        // release lock
+        let release_req = custodian::LockRelease { ticket_id: ticket.ticket_id, user_uuid };
+        let release_resp = svc_impl.release_lock(Request::new(release_req)).await.expect("release");
+        assert!(release_resp.get_ref().success);
     }
 }

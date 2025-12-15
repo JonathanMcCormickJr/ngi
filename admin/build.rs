@@ -1,5 +1,5 @@
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    tonic_build::configure()
-        .compile(&["proto/admin.proto"], &["proto"])?;
+    // Use `tonic_prost_build` to compile protos for admin service
+    tonic_prost_build::compile_protos("proto/admin.proto")?;
     Ok(())
 }

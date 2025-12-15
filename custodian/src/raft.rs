@@ -537,7 +537,11 @@ impl RaftStorage<CustodianTypeConfig> for CustodianStore {
 
         // Metrics: install started
         crate::metrics::SNAPSHOT_INSTALL_STARTED_TOTAL.inc();
-        crate::metrics::SNAPSHOT_LAST_SIZE_BYTES.set(data.len() as i64);
+        // Clamp snapshot size to i64::MAX to avoid cast wrap on exotic platforms
+        let max_usize = usize::try_from(i64::MAX).unwrap_or(usize::MAX);
+        let last_size = std::cmp::min(data.len(), max_usize);
+        let last_size_i64 = std::convert::TryInto::<i64>::try_into(last_size).unwrap_or(i64::MAX);
+        crate::metrics::SNAPSHOT_LAST_SIZE_BYTES.set(last_size_i64);
         let timer = crate::metrics::SNAPSHOT_INSTALL_DURATION_SECONDS.start_timer();
 
         // Deserialize snapshot data using serde_json for simplicity
@@ -572,10 +576,10 @@ impl RaftStorage<CustodianTypeConfig> for CustodianStore {
 
         // Push install metrics to admin if configured
         let mut counters = std::collections::HashMap::new();
-        counters.insert("snapshot_install_completed_total".to_string(), crate::metrics::SNAPSHOT_INSTALL_COMPLETED_TOTAL.get() as i64);
-        let admin_addr = std::env::var("ADMIN_ADDR").ok();
-        if admin_addr.is_some() {
-            crate::admin_client::init(admin_addr.unwrap());
+        let completed = std::convert::TryInto::<i64>::try_into(crate::metrics::SNAPSHOT_INSTALL_COMPLETED_TOTAL.get()).unwrap_or(i64::MAX);
+        counters.insert("snapshot_install_completed_total".to_string(), completed);
+        if let Ok(admin_addr) = std::env::var("ADMIN_ADDR") {
+            crate::admin_client::init(admin_addr);
             let size = data.len() as u64;
             tokio::spawn(async move {
                 crate::admin_client::push_snapshot("custodian", size, counters).await;
@@ -682,14 +686,17 @@ impl RaftSnapshotBuilder<CustodianTypeConfig> for CustodianSnapshotBuilder {
 
         // Record metrics for snapshot build
         crate::metrics::SNAPSHOT_CREATED_TOTAL.inc();
-        crate::metrics::SNAPSHOT_LAST_SIZE_BYTES.set(data.len() as i64);
+        let max_usize = usize::try_from(i64::MAX).unwrap_or(usize::MAX);
+        let last_size = std::cmp::min(data.len(), max_usize);
+        let last_size_i64 = std::convert::TryInto::<i64>::try_into(last_size).unwrap_or(i64::MAX);
+        crate::metrics::SNAPSHOT_LAST_SIZE_BYTES.set(last_size_i64);
 
         // Push metrics to admin if configured
         let mut counters = std::collections::HashMap::new();
-        counters.insert("snapshot_created_total".to_string(), crate::metrics::SNAPSHOT_CREATED_TOTAL.get() as i64);
-        let admin_addr = std::env::var("ADMIN_ADDR").ok();
-        if admin_addr.is_some() {
-            crate::admin_client::init(admin_addr.unwrap());
+        let created = std::convert::TryInto::<i64>::try_into(crate::metrics::SNAPSHOT_CREATED_TOTAL.get()).unwrap_or(i64::MAX);
+        counters.insert("snapshot_created_total".to_string(), created);
+        if let Ok(admin_addr) = std::env::var("ADMIN_ADDR") {
+            crate::admin_client::init(admin_addr);
             let size = data.len() as u64;
             let counters_clone = counters.clone();
             tokio::spawn(async move {
@@ -740,5 +747,72 @@ mod tests {
         let store = CustodianStore::new_temp().unwrap();
         let sm = store.state_machine.read().await;
         assert_eq!(sm.last_applied_log, None);
+    }
+
+    #[tokio::test]
+    async fn test_append_and_read_logs() {
+        let mut store = CustodianStore::new_temp().unwrap();
+
+        let user_id = uuid::Uuid::new_v4();
+        let entry = openraft::Entry { log_id: LogId::new(CommittedLeaderId::new(0, 0), 1), payload: EntryPayload::Normal(LockCommand::AcquireLock { ticket_id: 10, user_id }) };
+
+        store.append_to_log(vec![entry.clone()]).await.expect("append_to_log");
+
+        // Read back via log reader
+        let mut reader = store.get_log_reader().await;
+        let entries = reader.try_get_log_entries(0..=10).await.expect("read entries");
+        assert_eq!(entries.len(), 1);
+        assert_eq!(entries[0].log_id.index, 1);
+    }
+
+    #[tokio::test]
+    async fn test_delete_and_purge_logs() {
+        let mut store = CustodianStore::new_temp().unwrap();
+
+        let user_id = uuid::Uuid::new_v4();
+        let entries = (1u64..=3u64)
+            .map(|i| openraft::Entry { log_id: LogId::new(CommittedLeaderId::new(0, 0), i), payload: EntryPayload::Normal(LockCommand::AcquireLock { ticket_id: i, user_id }) })
+            .collect::<Vec<_>>();
+
+        store.append_to_log(entries.clone()).await.expect("append batch");
+
+        // Delete conflicts since index 2 (should remove 2 and 3)
+        store.delete_conflict_logs_since(LogId::new(CommittedLeaderId::new(0, 0), 2)).await.expect("delete conflict");
+
+        let tree = store.storage.get_tree(TREE_RAFT_LOG).expect("tree");
+        assert!(tree.contains_key(&1u64.to_be_bytes()).unwrap());
+        assert!(!tree.contains_key(&2u64.to_be_bytes()).unwrap());
+
+        // Re-add entries and purge upto 2 (remove 1 and 2)
+        store.append_to_log(entries.clone()).await.expect("re-append");
+        store.purge_logs_upto(LogId::new(CommittedLeaderId::new(0, 0), 2)).await.expect("purge");
+        let tree = store.storage.get_tree(TREE_RAFT_LOG).expect("tree");
+        assert!(!tree.contains_key(&1u64.to_be_bytes()).unwrap());
+        assert!(tree.contains_key(&3u64.to_be_bytes()).unwrap());
+    }
+
+    #[tokio::test]
+    async fn test_get_log_state_and_snapshot_flow() {
+        let mut store = CustodianStore::new_temp().unwrap();
+
+        // Put a lock into storage so it will appear in snapshots
+        let ticket_id = 99u64;
+        let user_id = uuid::Uuid::new_v4();
+        store.storage.put(crate::storage::TREE_LOCKS, &ticket_id.to_be_bytes(), &serde_json::to_vec(&crate::storage::LockInfo { ticket_id, user_id, acquired_at: chrono::Utc::now() }).unwrap()).unwrap();
+
+        // Build snapshot
+        let mut builder = store.get_snapshot_builder().await;
+        let snap = builder.build_snapshot().await.expect("build snapshot");
+        let mut cursor = snap.snapshot;
+        let bytes = cursor.into_inner();
+        assert!(!bytes.is_empty());
+
+        // Install snapshot into a fresh store
+        let mut target = CustodianStore::new_temp().unwrap();
+        target.install_snapshot(&snap.meta, Box::new(std::io::Cursor::new(bytes))).await.expect("install snapshot");
+
+        // Verify lock restored
+        let got = target.storage.get_lock_info(ticket_id).expect("get_lock_info");
+        assert!(got.is_some());
     }
 }

@@ -1,5 +1,4 @@
 use custodian::metrics;
-use custodian::raft::CustodianStore;
 use std::collections::HashMap;
 
 #[tokio::test]

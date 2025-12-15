@@ -5,7 +5,7 @@ use openraft::{RaftStorage, RaftSnapshotBuilder};
 #[tokio::test]
 async fn test_snapshot_build_and_install_e2e() {
     // Leader store with some data
-    let mut leader = CustodianStore::new_temp().expect("create leader store");
+    let leader = CustodianStore::new_temp().expect("create leader store");
     let leader_storage = leader.storage();
     // insert a key that should be captured by snapshot
     leader_storage.put(TREE_LOCKS, b"lock-42", b"owner-xyz").expect("put");

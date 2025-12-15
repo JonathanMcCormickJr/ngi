@@ -32,6 +32,7 @@ NGI (Next-Gen Infoman) is a distributed, microservices-based tech support ticket
     - **Good**: `env::var("REQUIRED_CONFIG").context("missing REQUIRED_CONFIG")?;`
     - **Bad**: `env::var("REQUIRED_CONFIG").unwrap();` (unless in startup with documentation)
     - **Test-Only**: `assert_eq!(result.unwrap(), expected);` (in `#[test]` functions)
+- Read the docs! - If you have tried and failed to properly implement something 3 times, then stop and fetch the documentation for the dependency(ies) involved before proceeding with your 4th attempt. 
 
 ---
 

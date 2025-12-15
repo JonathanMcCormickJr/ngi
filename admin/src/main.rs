@@ -5,8 +5,9 @@ use tonic::{Request, Response, Status};
 use tracing::info;
 use prometheus::{Encoder, GaugeVec, Opts, Registry, TextEncoder};
 use once_cell::sync::Lazy;
-use hyper::{Body, Request as HttpRequest, Response as HttpResponse, Server};
-use hyper::service::{make_service_fn, service_fn};
+use std::net::SocketAddr;
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::net::TcpListener;
 
 pub mod admin {
     tonic::include_proto!("admin");
@@ -56,36 +57,61 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     info!("starting admin metrics gRPC server on {}", grpc_addr);
 
     // Start a basic HTTP server exposing /metrics for Prometheus scraping
-    let metrics_addr = "127.0.0.1:50061".parse()?;
-    let make_svc = make_service_fn(|_conn| async {
-        Ok::<_, hyper::Error>(service_fn(|req: HttpRequest<Body>| async move {
-            if req.uri().path() == "/metrics" {
-                let metric_families = REGISTRY.gather();
-                let mut buffer = Vec::new();
-                let encoder = TextEncoder::new();
-                encoder.encode(&metric_families, &mut buffer).unwrap();
-                Ok::<_, hyper::Error>(HttpResponse::builder()
-                    .status(200)
-                    .header("content-type", encoder.format_type())
-                    .body(Body::from(buffer))?)
-            } else {
-                Ok::<_, hyper::Error>(HttpResponse::builder().status(404).body(Body::from("not found"))?)
-            }
-        }))
-    });
-
-    let server = Server::bind(&metrics_addr).serve(make_svc);
+    let metrics_addr: SocketAddr = "127.0.0.1:50061".parse()?;
+    let listener = TcpListener::bind(metrics_addr).await?;
     info!("starting admin HTTP metrics server on {}", metrics_addr);
 
-    // Run both servers concurrently
-    let grpc = async move {
-        tonic::transport::Server::builder()
-            .add_service(MetricsServer::new(svc))
-            .serve(grpc_addr)
-            .await
-    };
+    // Spawn the TCP-based metrics server in background
+    tokio::spawn(async move {
+        loop {
+            match listener.accept().await {
+                Ok((mut socket, _peer)) => {
+                    tokio::spawn(async move {
+                        let mut buf = [0u8; 4096];
+                        match socket.read(&mut buf).await {
+                            Ok(n) if n > 0 => {
+                                let req = String::from_utf8_lossy(&buf[..n]);
+                                let first_line = req.lines().next().unwrap_or("");
+                                let parts: Vec<&str> = first_line.split_whitespace().collect();
+                                let path = parts.get(1).copied().unwrap_or("");
 
-    tokio::try_join!(grpc, server)?;
+                                if path == "/metrics" {
+                                    let metric_families = REGISTRY.gather();
+                                    let mut buffer = Vec::new();
+                                    let encoder = TextEncoder::new();
+                                    if encoder.encode(&metric_families, &mut buffer).is_ok() {
+                                        let resp = format!(
+                                            "HTTP/1.1 200 OK\r\ncontent-type: {}\r\ncontent-length: {}\r\n\r\n",
+                                            encoder.format_type(),
+                                            buffer.len()
+                                        );
+                                        if socket.write_all(resp.as_bytes()).await.is_ok() {
+                                            let _ = socket.write_all(&buffer).await;
+                                        }
+                                    }
+                                } else {
+                                    let body = b"not found";
+                                    let resp = format!(
+                                        "HTTP/1.1 404 Not Found\r\ncontent-length: {}\r\n\r\n",
+                                        body.len()
+                                    );
+                                    let _ = socket.write_all(resp.as_bytes()).await;
+                                    let _ = socket.write_all(body).await;
+                                }
+                            }
+                            _ => {}
+                        }
+                    });
+                }
+                Err(e) => tracing::error!(%e, "accept failed"),
+            }
+        }
+    });
+
+    tonic::transport::Server::builder()
+        .add_service(MetricsServer::new(svc))
+        .serve(grpc_addr)
+        .await?;
     Ok(())
 }
 

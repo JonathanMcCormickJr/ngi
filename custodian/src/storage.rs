@@ -117,11 +117,10 @@ impl Storage {
             let (key, value) = item?;
             results.push((key.to_vec(), value.to_vec()));
             
-            if let Some(limit) = limit {
-                if results.len() >= limit {
+            if let Some(limit) = limit
+                && results.len() >= limit {
                     break;
                 }
-            }
         }
         
         Ok(results)
@@ -198,7 +197,7 @@ impl Storage {
         let tree = self.get_tree(TREE_LOCKS)?;
         let mut locks = HashMap::new();
 
-        for item in tree.iter() {
+        for item in &tree {
             let (key, value) = item?;
             let ticket_id = u64::from_be_bytes(key.as_ref().try_into().unwrap());
             let lock_info: LockInfo = serde_json::from_slice(&value)?;
