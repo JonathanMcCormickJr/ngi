@@ -7,13 +7,17 @@ use custodian::raft::{CustodianRaft, CustodianStore};
 use custodian::server::{create_server, CustodianServiceImpl};
 use openraft::Config;
 use openraft::storage::Adaptor;
+use shared::encryption::EncryptionService;
 use std::env;
+use std::fs;
+use std::path::Path;
 use std::sync::Arc;
 use tonic::transport::Server;
 use tracing::{Level, info};
 use tracing_subscriber::FmtSubscriber;
 
 #[tokio::main]
+#[allow(clippy::too_many_lines)]
 async fn main() -> Result<()> {
     // Initialize tracing
     let subscriber = FmtSubscriber::builder()
@@ -61,6 +65,23 @@ async fn main() -> Result<()> {
     let storage = store.storage().clone();
 
     info!("Storage initialized at {}", storage_path);
+
+    // Load or generate encryption keys
+    let keys_path = Path::new(&storage_path).join("keys.bin");
+    let keys = if keys_path.exists() {
+        info!("Loading encryption keys from {:?}", keys_path);
+        let bytes = fs::read(&keys_path)?;
+        let (keys, _): ((Vec<u8>, Vec<u8>), usize) = bincode::serde::decode_from_slice(&bytes, bincode::config::standard())?;
+        keys
+    } else {
+        info!("Generating new encryption keys");
+        let keys = EncryptionService::generate_keypair()
+            .map_err(|e| anyhow::anyhow!("Failed to generate keys: {e}"))?;
+        let bytes = bincode::serde::encode_to_vec(&keys, bincode::config::standard())?;
+        fs::write(&keys_path, bytes)?;
+        info!("Saved encryption keys to {:?}", keys_path);
+        keys
+    };
 
     // Create Raft configuration
     let config = Config {
@@ -127,9 +148,9 @@ async fn main() -> Result<()> {
     };
 
     let custodian_service = if let Some(db) = db_client {
-        CustodianServiceImpl::with_db_client((*raft).clone(), storage.clone(), db)
+        CustodianServiceImpl::with_db_client((*raft).clone(), storage.clone(), db, keys)
     } else {
-        CustodianServiceImpl::new((*raft).clone(), storage.clone())
+        CustodianServiceImpl::new((*raft).clone(), storage.clone(), keys)
     };
 
     info!("Starting gRPC server on {}", addr);

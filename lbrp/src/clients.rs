@@ -1,4 +1,5 @@
 //! gRPC client implementations for LBRP service communication
+#![allow(dead_code)]
 
 use anyhow::Result;
 use std::sync::Arc;
@@ -7,17 +8,29 @@ use tonic::transport::Channel;
 
 // Include generated protobuf code
 pub mod custodian {
+    #![allow(clippy::all, clippy::pedantic)]
     tonic::include_proto!("custodian");
 }
 
 pub mod db {
+    #![allow(clippy::all, clippy::pedantic)]
     tonic::include_proto!("db");
+}
+
+pub mod auth {
+    #![allow(clippy::all, clippy::pedantic)]
+    tonic::include_proto!("auth");
+}
+
+pub mod admin {
+    #![allow(clippy::all, clippy::pedantic)]
+    tonic::include_proto!("admin");
 }
 
 /// Custodian service client
 #[derive(Clone)]
 pub struct CustodianClient {
-    client: Arc<Mutex<custodian::custodian_service_client::CustodianServiceClient<Channel>>>,
+    pub client: Arc<Mutex<custodian::custodian_service_client::CustodianServiceClient<Channel>>>,
 }
 
 impl CustodianClient {
@@ -62,10 +75,46 @@ impl CustodianClient {
     }
 }
 
+/// Auth service client
+#[derive(Clone)]
+pub struct AuthClient {
+    pub client: Arc<Mutex<auth::auth_service_client::AuthServiceClient<Channel>>>,
+}
+
+impl AuthClient {
+    pub async fn connect(addr: String) -> Result<Self> {
+        let channel = Channel::from_shared(addr)?
+            .connect()
+            .await?;
+        let client = auth::auth_service_client::AuthServiceClient::new(channel);
+        Ok(Self {
+            client: Arc::new(Mutex::new(client)),
+        })
+    }
+}
+
+/// Admin service client
+#[derive(Clone)]
+pub struct AdminClient {
+    pub client: Arc<Mutex<admin::admin_service_client::AdminServiceClient<Channel>>>,
+}
+
+impl AdminClient {
+    pub async fn connect(addr: String) -> Result<Self> {
+        let channel = Channel::from_shared(addr)?
+            .connect()
+            .await?;
+        let client = admin::admin_service_client::AdminServiceClient::new(channel);
+        Ok(Self {
+            client: Arc::new(Mutex::new(client)),
+        })
+    }
+}
+
 /// DB service client
 #[derive(Clone)]
 pub struct DbClient {
-    client: Arc<Mutex<db::database_client::DatabaseClient<Channel>>>,
+    pub client: Arc<Mutex<db::database_client::DatabaseClient<Channel>>>,
 }
 
 impl DbClient {

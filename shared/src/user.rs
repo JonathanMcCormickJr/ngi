@@ -49,6 +49,15 @@ pub enum AuthMethod {
     ActiveDirectory,
 }
 
+/// User authentication credentials (encrypted at rest)
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UserAuth {
+    pub user_id: Uuid,
+    pub password_hash: String,
+    pub mfa_secret: Option<String>,
+    pub mfa_method: Option<AuthMethod>,
+}
+
 /// MFA verification status
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct MfaStatus {

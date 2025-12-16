@@ -18,6 +18,9 @@ service CustodianService {
   // Update an existing ticket
   rpc UpdateTicket(UpdateTicketRequest) returns (Ticket);
 
+  // Get a ticket by ID
+  rpc GetTicket(GetTicketRequest) returns (Ticket);
+
   // Health check
   rpc Health(HealthRequest) returns (HealthResponse);
 
@@ -50,6 +53,10 @@ message CreateTicketRequest {
   optional string ebond = 9;
   optional string tracking_url = 10;
   repeated NetworkDevice network_devices = 11;
+}
+
+message GetTicketRequest {
+  uint64 ticket_id = 1;
 }
 
 // Lock acquisition request

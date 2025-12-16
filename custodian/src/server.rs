@@ -4,21 +4,23 @@
 //! managing ticket lifecycle and distributed locking with Raft consensus.
 
 use crate::raft::CustodianRaft;
-use prost::Message;
 use crate::storage::LockCommand;
 use tonic::{Request, Response, Status};
 use uuid::Uuid;
+use shared::encryption::EncryptionService;
 
 // Include generated protobuf code
 pub mod custodian {
+    #![allow(clippy::all, clippy::pedantic)]
     tonic::include_proto!("custodian");
 }
 
 use custodian::custodian_service_server::{CustodianService, CustodianServiceServer};
 use custodian::{
-    CreateTicketRequest, HealthRequest,
+    CreateTicketRequest, GetTicketRequest, HealthRequest,
     HealthResponse, LockRelease, LockRequest, LockResponse as ProtoLockResponse, Ticket, UpdateTicketRequest,
 };
+use shared::ticket as domain;
 
 // Expose metrics endpoint via gRPC is handled elsewhere; ensure metrics module is initialized
 #[allow(dead_code)]
@@ -37,58 +39,109 @@ pub struct CustodianServiceImpl {
     raft: CustodianRaft,
     storage: crate::storage::Storage,
     db_client: Option<std::sync::Arc<tokio::sync::Mutex<crate::db_client::DbClient>>>,
+    keypair: (Vec<u8>, Vec<u8>),
 }
 
 impl CustodianServiceImpl {
-    pub fn with_db_client(raft: CustodianRaft, storage: crate::storage::Storage, db_client: std::sync::Arc<tokio::sync::Mutex<crate::db_client::DbClient>>) -> Self {
-        Self { raft, storage, db_client: Some(db_client) }
+    pub fn with_db_client(
+        raft: CustodianRaft,
+        storage: crate::storage::Storage,
+        db_client: std::sync::Arc<tokio::sync::Mutex<crate::db_client::DbClient>>,
+        keypair: (Vec<u8>, Vec<u8>),
+    ) -> Self {
+        Self {
+            raft,
+            storage,
+            db_client: Some(db_client),
+            keypair,
+        }
     }
 
-    #[must_use] 
-    pub fn new(raft: CustodianRaft, storage: crate::storage::Storage) -> Self {
-        Self { raft, storage, db_client: None }
+    #[must_use]
+    pub fn new(
+        raft: CustodianRaft,
+        storage: crate::storage::Storage,
+        keypair: (Vec<u8>, Vec<u8>),
+    ) -> Self {
+        Self {
+            raft,
+            storage,
+            db_client: None,
+            keypair,
+        }
     }
 }
 
 impl CustodianServiceImpl {
-    /// Convert protobuf Ticket to our domain type
-    fn proto_to_ticket(_proto: &custodian::Ticket) -> Result<shared::Ticket, Status> {
-        // TODO: Implement conversion from protobuf to shared::Ticket
-        Err(Status::unimplemented("Ticket conversion not implemented"))
-    }
-
     /// Convert our domain Ticket to protobuf
-    fn ticket_to_proto(_ticket: &shared::Ticket) -> custodian::Ticket {
-        // TODO: Implement conversion from shared::Ticket to protobuf
+    fn domain_to_proto(ticket: &domain::Ticket) -> custodian::Ticket {
         custodian::Ticket {
-            ticket_id: 0,
-            customer_ticket_number: None,
-            isp_ticket_number: None,
-            other_ticket_number: None,
-            title: String::new(),
-            project: String::new(),
-            account_uuid: String::new(),
-            symptom: 0,
-            status: 0,
-            next_action: 0,
-            resolution: None,
-            locked_by_uuid: None,
-            assigned_to_uuid: None,
-            created_by_uuid: String::new(),
-            created_at: None,
-            updated_by_uuid: String::new(),
-            updated_at: None,
-            history: vec![],
-            ebond: None,
-            tracking_url: None,
-            network_devices: vec![],
-            schema_version: 0,
+            ticket_id: ticket.ticket_id,
+            customer_ticket_number: ticket.customer_ticket_number.clone(),
+            isp_ticket_number: ticket.isp_ticket_number.clone(),
+            other_ticket_number: ticket.other_ticket_number.clone(),
+            title: ticket.title.clone(),
+            project: ticket.project.clone(),
+            account_uuid: ticket.account_uuid.to_string(),
+            symptom: ticket.symptom as i32,
+            status: ticket.status as i32,
+            next_action: 0, // TODO: Map NextAction properly
+            resolution: ticket.resolution.map(|r| r as i32),
+            locked_by_uuid: ticket.locked_by.map(|u| u.to_string()),
+            assigned_to_uuid: ticket.assigned_to.map(|u| u.to_string()),
+            created_by_uuid: ticket.created_by.to_string(),
+            created_at: Some(prost_types::Timestamp::from(std::time::SystemTime::from(ticket.created_at))),
+            updated_by_uuid: ticket.updated_by.to_string(),
+            updated_at: Some(prost_types::Timestamp::from(std::time::SystemTime::from(ticket.updated_at))),
+            history: vec![], // TODO: Convert history
+            ebond: ticket.ebond.clone(),
+            tracking_url: ticket.tracking_url.clone(),
+            network_devices: vec![], // TODO: Convert devices
+            schema_version: ticket.schema_version,
         }
     }
 }
 
 #[tonic::async_trait]
 impl CustodianService for CustodianServiceImpl {
+    async fn get_ticket(
+        &self,
+        request: Request<GetTicketRequest>,
+    ) -> Result<Response<Ticket>, Status> {
+        let req = request.into_inner();
+        
+        if let Some(client) = &self.db_client {
+            let mut client = client.lock().await;
+            let key = req.ticket_id.to_be_bytes().to_vec();
+            
+            match client.get("ticket", key).await.map_err(|e| Status::internal(format!("db get error: {e}")))? {
+                Some(bytes) => {
+                    // Decrypt
+                    let (encrypted_data, _): (shared::encryption::EncryptedData, usize) = bincode::serde::decode_from_slice(
+                        &bytes,
+                        bincode::config::standard()
+                    ).map_err(|e| Status::internal(format!("deserialize encrypted data error: {e}")))?;
+
+                    let decrypted_bytes = EncryptionService::decrypt_with_private_key(
+                        &encrypted_data,
+                        &self.keypair.1
+                    ).map_err(|e| Status::internal(format!("decryption error: {e}")))?;
+                    
+                    // Deserialize domain object
+                    let (ticket, _): (domain::Ticket, usize) = bincode::serde::decode_from_slice(
+                        &decrypted_bytes,
+                        bincode::config::standard()
+                    ).map_err(|e| Status::internal(format!("deserialize ticket error: {e}")))?;
+                        
+                    Ok(Response::new(Self::domain_to_proto(&ticket)))
+                }
+                None => Err(Status::not_found("ticket not found")),
+            }
+        } else {
+            Err(Status::unavailable("no db client configured"))
+        }
+    }
+
     async fn create_ticket(
         &self,
         request: Request<CreateTicketRequest>,
@@ -102,43 +155,49 @@ impl CustodianService for CustodianServiceImpl {
 
         // Generate ticket id (millisecond timestamp)
         let ticket_id: u64 = chrono::Utc::now().timestamp_millis().try_into().unwrap_or_default();
+        
+        let account_uuid = Uuid::parse_str(&req.account_uuid)
+            .map_err(|_| Status::invalid_argument("Invalid account UUID"))?;
+            
+        let created_by_uuid = Uuid::parse_str(&req.created_by_uuid)
+            .map_err(|_| Status::invalid_argument("Invalid created_by UUID"))?;
 
-        // Build proto ticket
-        let ticket = custodian::Ticket {
+        // Create domain ticket
+        let symptom = domain::Symptom::from_u8(u8::try_from(req.symptom).unwrap_or(0));
+        
+        let mut ticket = domain::Ticket::new(
             ticket_id,
-            customer_ticket_number: None,
-            isp_ticket_number: None,
-            other_ticket_number: None,
-            title: req.title.clone(),
-            project: req.project.clone(),
-            account_uuid: req.account_uuid.clone(),
-            symptom: req.symptom,
-            status: 0,
-            next_action: 0,
-            resolution: None,
-            locked_by_uuid: None,
-            assigned_to_uuid: None,
-            created_by_uuid: req.created_by_uuid.clone(),
-            created_at: Some(prost_types::Timestamp::from(std::time::SystemTime::now())),
-            updated_by_uuid: String::new(),
-            updated_at: None,
-            history: vec![],
-            ebond: req.customer_ticket_number.clone(),
-            tracking_url: None,
-            network_devices: vec![],
-            schema_version: 1,
-        };
+            req.title,
+            req.project,
+            account_uuid,
+            symptom,
+            created_by_uuid,
+        );
+        
+        ticket.customer_ticket_number = req.customer_ticket_number;
+        ticket.isp_ticket_number = req.isp_ticket_number;
+        ticket.other_ticket_number = req.other_ticket_number;
+        ticket.ebond = req.ebond;
+        ticket.tracking_url = req.tracking_url;
+        
+        // Serialize and Encrypt
+        let ticket_bytes = bincode::serde::encode_to_vec(&ticket, bincode::config::standard())
+            .map_err(|e| Status::internal(format!("serialize error: {e}")))?;
+            
+        let encrypted = EncryptionService::encrypt_with_public_key(&ticket_bytes, &self.keypair.0)
+            .map_err(|e| Status::internal(format!("encryption error: {e}")))?;
+            
+        let encrypted_bytes = bincode::serde::encode_to_vec(&encrypted, bincode::config::standard())
+            .map_err(|e| Status::internal(format!("serialize encrypted data error: {e}")))?;
 
         // Persist to DB if client available
         if let Some(client) = &self.db_client {
             let mut lock = client.lock().await;
             let key = ticket_id.to_be_bytes().to_vec();
-            let mut bytes = Vec::new();
-            ticket.encode(&mut bytes).map_err(|e| Status::internal(format!("encode error: {e}")))?;
-            lock.put("ticket", key, bytes).await.map_err(|e| Status::internal(format!("db put error: {e}")))?;
+            lock.put("ticket", key, encrypted_bytes).await.map_err(|e| Status::internal(format!("db put error: {e}")))?;
         }
 
-        Ok(Response::new(ticket))
+        Ok(Response::new(Self::domain_to_proto(&ticket)))
     }
 
     async fn acquire_lock(
@@ -219,11 +278,28 @@ impl CustodianService for CustodianServiceImpl {
         }
 
         // Fetch ticket from DB
-        let mut ticket_proto: custodian::Ticket = if let Some(client) = &self.db_client {
+        let mut ticket: domain::Ticket = if let Some(client) = &self.db_client {
             let mut client = client.lock().await;
             let key = req.ticket_id.to_be_bytes().to_vec();
             match client.get("ticket", key).await.map_err(|e| Status::internal(format!("db get error: {e}")))? {
-                Some(bytes) => prost::Message::decode(bytes.as_slice()).map_err(|e| Status::internal(format!("decode error: {e}")))?,
+                Some(bytes) => {
+                     // Decrypt
+                    let (encrypted_data, _): (shared::encryption::EncryptedData, usize) = bincode::serde::decode_from_slice(
+                        &bytes,
+                        bincode::config::standard()
+                    ).map_err(|e| Status::internal(format!("deserialize encrypted data error: {e}")))?;
+
+                    let decrypted_bytes = EncryptionService::decrypt_with_private_key(
+                        &encrypted_data,
+                        &self.keypair.1
+                    ).map_err(|e| Status::internal(format!("decryption error: {e}")))?;
+                    
+                    let (ticket, _): (domain::Ticket, usize) = bincode::serde::decode_from_slice(
+                        &decrypted_bytes,
+                        bincode::config::standard()
+                    ).map_err(|e| Status::internal(format!("deserialize ticket error: {e}")))?;
+                    ticket
+                },
                 None => return Err(Status::not_found("ticket not found")),
             }
         } else {
@@ -231,26 +307,43 @@ impl CustodianService for CustodianServiceImpl {
         };
 
         // Apply updates from request (only update provided fields)
-        if let Some(title) = req.title { ticket_proto.title = title; }
-        if let Some(project) = req.project { ticket_proto.project = project; }
-        if let Some(symptom) = req.symptom { ticket_proto.symptom = symptom; }
-        if let Some(status_val) = req.status { ticket_proto.status = status_val; }
-        if let Some(next_action) = req.next_action { ticket_proto.next_action = next_action; }
-        if let Some(resolution) = req.resolution { ticket_proto.resolution = Some(resolution); }
-        if let Some(assigned) = req.assigned_to_uuid { ticket_proto.assigned_to_uuid = Some(assigned); }
-        ticket_proto.updated_by_uuid = req.updated_by_uuid.clone().unwrap_or_default();
-        ticket_proto.updated_at = Some(prost_types::Timestamp::from(std::time::SystemTime::now()));
+        if let Some(title) = req.title { ticket.title = title; }
+        if let Some(project) = req.project { ticket.project = project; }
+        if let Some(symptom) = req.symptom { ticket.symptom = domain::Symptom::from_u8(u8::try_from(symptom).unwrap_or(0)); }
+        if let Some(status_val) = req.status { ticket.status = domain::TicketStatus::from_u8(u8::try_from(status_val).unwrap_or(0)); }
+        if let Some(next_action) = req.next_action { 
+            // TODO: Map NextAction properly. For now, if unspecified (0), we leave it.
+            // If specified, we map to None because we don't have data.
+            if next_action != 0 {
+                ticket.next_action = domain::NextAction::None; 
+            }
+        }
+        if let Some(resolution) = req.resolution { ticket.resolution = Some(domain::Resolution::from_u8(u8::try_from(resolution).unwrap_or(0))); }
+        if let Some(assigned) = req.assigned_to_uuid { 
+             ticket.assigned_to = Some(Uuid::parse_str(&assigned).map_err(|_| Status::invalid_argument("Invalid assigned_to UUID"))?);
+        }
+        
+        ticket.updated_by = updater;
+        ticket.updated_at = chrono::Utc::now();
+
+        // Serialize and Encrypt
+        let ticket_bytes = bincode::serde::encode_to_vec(&ticket, bincode::config::standard())
+            .map_err(|e| Status::internal(format!("serialize error: {e}")))?;
+            
+        let encrypted = EncryptionService::encrypt_with_public_key(&ticket_bytes, &self.keypair.0)
+            .map_err(|e| Status::internal(format!("encryption error: {e}")))?;
+            
+        let encrypted_bytes = bincode::serde::encode_to_vec(&encrypted, bincode::config::standard())
+            .map_err(|e| Status::internal(format!("serialize encrypted data error: {e}")))?;
 
         // Persist updated ticket
         if let Some(client) = &self.db_client {
             let mut client = client.lock().await;
             let key = req.ticket_id.to_be_bytes().to_vec();
-            let mut buf = Vec::new();
-            ticket_proto.encode(&mut buf).map_err(|e| Status::internal(format!("encode error: {e}")))?;
-            client.put("ticket", key, buf).await.map_err(|e| Status::internal(format!("db put error: {e}")))?;
+            client.put("ticket", key, encrypted_bytes).await.map_err(|e| Status::internal(format!("db put error: {e}")))?;
         }
 
-        Ok(Response::new(ticket_proto))
+        Ok(Response::new(Self::domain_to_proto(&ticket)))
     }
 
     async fn health(
@@ -329,7 +422,11 @@ mod tests {
         // basic instantiation
         let store = crate::raft::CustodianStore::new_temp().unwrap();
         let storage = store.storage();
-        let svc = CustodianServiceImpl::new(crate::raft::CustodianRaft::new(1, Arc::new(Config::default()), crate::network::CustodianNetworkFactory::new(), Adaptor::new(store.clone()).0, Adaptor::new(store).1).await.unwrap(), storage);
+        let svc = CustodianServiceImpl::new(
+            crate::raft::CustodianRaft::new(1, Arc::new(Config::default()), crate::network::CustodianNetworkFactory::new(), Adaptor::new(store.clone()).0, Adaptor::new(store).1).await.unwrap(), 
+            storage,
+            (vec![0; 1184], vec![0; 2400])
+        );
         let _ = svc;
     }
 
@@ -350,10 +447,22 @@ mod tests {
         members.insert(1u64);
         let _ = raft.initialize(members).await;
 
-        let svc_impl = CustodianServiceImpl::new(raft.clone(), storage.clone());
+        let svc_impl = CustodianServiceImpl::new(raft.clone(), storage.clone(), (vec![0; 1184], vec![0; 2400]));
 
         // create ticket
-        let req = custodian::CreateTicketRequest { title: "Test".to_string(), project: "proj".to_string(), account_uuid: "".to_string(), symptom: 0, created_by_uuid: "user".to_string(), customer_ticket_number: None, isp_ticket_number: None, other_ticket_number: None, ebond: None, tracking_url: None, network_devices: vec![] };
+        let req = custodian::CreateTicketRequest { 
+            title: "Test".to_string(), 
+            project: "proj".to_string(), 
+            account_uuid: uuid::Uuid::new_v4().to_string(), 
+            symptom: 0, 
+            created_by_uuid: uuid::Uuid::new_v4().to_string(), 
+            customer_ticket_number: None, 
+            isp_ticket_number: None, 
+            other_ticket_number: None, 
+            ebond: None, 
+            tracking_url: None, 
+            network_devices: vec![] 
+        };
         let resp = svc_impl.create_ticket(Request::new(req)).await.expect("create ticket");
         let ticket = resp.into_inner();
         assert_eq!(ticket.title, "Test");

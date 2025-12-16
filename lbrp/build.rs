@@ -5,9 +5,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .compile_protos(&[
             "../custodian/proto/custodian.proto",
             "../db/proto/db.proto",
+            "../auth/proto/auth.proto",
+            "../admin/proto/admin.proto",
         ], &[
             "../custodian/proto",
             "../db/proto",
+            "../auth/proto",
+            "../admin/proto",
         ])?;
     Ok(())
 }

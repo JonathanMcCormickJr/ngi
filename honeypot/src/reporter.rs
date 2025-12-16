@@ -36,6 +36,6 @@ impl IntrusionEvent {
     /// Report this event to the admin service via gRPC
     /// TODO: Implement actual gRPC client call to admin service
     pub fn report(&self) {
-        eprintln!("🚨 INTRUSION DETECTED: {:?}", self);
+        eprintln!("🚨 INTRUSION DETECTED: {self:?}");
     }
 }

@@ -1,8 +1,9 @@
 pub mod admin {
+    #![allow(clippy::all, clippy::pedantic)]
     tonic::include_proto!("admin");
 }
 
-use admin::metrics_client::MetricsClient;
+use admin::admin_service_client::AdminServiceClient;
 use admin::MetricsSnapshot;
 use tonic::transport::Channel;
 use tonic::Request;
@@ -10,7 +11,7 @@ use once_cell::sync::OnceCell;
 use std::collections::HashMap;
 use std::sync::Arc;
 
-static CLIENT: OnceCell<Arc<tokio::sync::Mutex<Option<MetricsClient<Channel>>>>> = OnceCell::new();
+static CLIENT: OnceCell<Arc<tokio::sync::Mutex<Option<AdminServiceClient<Channel>>>>> = OnceCell::new();
 
 pub fn init(addr: String) {
     let cell = CLIENT.get_or_init(|| Arc::new(tokio::sync::Mutex::new(None)));
@@ -18,7 +19,7 @@ pub fn init(addr: String) {
 
     // Spawn background connect
     tokio::spawn(async move {
-        match MetricsClient::connect(addr).await {
+        match AdminServiceClient::connect(addr).await {
             Ok(c) => {
                 let mut guard = cell.lock().await;
                 *guard = Some(c);

@@ -199,7 +199,8 @@ impl Storage {
 
         for item in &tree {
             let (key, value) = item?;
-            let ticket_id = u64::from_be_bytes(key.as_ref().try_into().unwrap());
+            let ticket_id = u64::from_be_bytes(key.as_ref().try_into()
+                .map_err(|_| anyhow::anyhow!("Invalid key length"))?);
             let lock_info: LockInfo = serde_json::from_slice(&value)?;
             locks.insert(ticket_id, lock_info);
         }

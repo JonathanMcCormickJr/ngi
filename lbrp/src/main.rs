@@ -1,82 +1,56 @@
 #![forbid(unsafe_code)]
 #![warn(clippy::all, clippy::pedantic)]
 
-use axum::{
-    response::Json,
-    routing::{get, post},
-    Router,
-};
 use std::net::SocketAddr;
-use tower::ServiceBuilder;
-use tower_http::cors::CorsLayer;
-use tower_http::compression::CompressionLayer;
-use tracing::{info, Level};
+use std::sync::Arc;
+use tracing::info;
 
 mod clients;
+mod middleware;
 mod routes;
 
-use clients::{CustodianClient, DbClient};
-
-#[derive(Clone)]
-pub struct AppState {
-    custodian: CustodianClient,
-    db: DbClient,
-}
+use clients::{AuthClient, AdminClient, CustodianClient};
+use middleware::AuthState;
+use routes::AppState;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // Initialize tracing
-    tracing_subscriber::fmt()
-        .with_max_level(Level::INFO)
-        .init();
+    tracing_subscriber::fmt::init();
 
-    info!("Starting LBRP service...");
+    let addr: SocketAddr = std::env::var("LISTEN_ADDR")
+        .unwrap_or_else(|_| "0.0.0.0:8080".to_string())
+        .parse()?;
+    
+    // Service addresses (in k8s/docker-compose these would be service names)
+    let auth_addr = std::env::var("AUTH_ADDR").unwrap_or_else(|_| "http://auth:8082".to_string());
+    let admin_addr = std::env::var("ADMIN_ADDR").unwrap_or_else(|_| "http://admin:8083".to_string());
+    let custodian_addr = std::env::var("CUSTODIAN_ADDR").unwrap_or_else(|_| "http://custodian-leader:8081".to_string());
 
-    // Get configuration from environment
-    let listen_addr = std::env::var("LISTEN_ADDR").unwrap_or_else(|_| "[::]:443".to_string());
-    let custodian_addr = std::env::var("CUSTODIAN_ADDR").unwrap_or_else(|_| "http://custodian:8081".to_string());
-    let db_addr = std::env::var("DB_ADDR").unwrap_or_else(|_| "http://db:8080".to_string());
+    info!("LBRP Service starting on {}", addr);
 
-    // Create gRPC clients
-    let custodian_client = CustodianClient::connect(custodian_addr).await?;
-    let db_client = DbClient::connect(db_addr).await?;
+    // Connect to backend services
+    let auth_client = AuthClient::connect(auth_addr.clone()).await?;
+    let admin_client = AdminClient::connect(admin_addr.clone()).await?;
+    let custodian_client = CustodianClient::connect(custodian_addr.clone()).await?;
 
-    let state = AppState {
-        custodian: custodian_client,
-        db: db_client,
+    // JWT Secret (must match Auth service)
+    // In production, load from secure vault/env
+    let jwt_secret = std::env::var("JWT_SECRET")
+        .map_or_else(|_| b"secret".to_vec(), String::into_bytes); 
+
+    let app_state = AppState {
+        auth_client,
+        admin_client,
+        custodian_client,
+        auth_state: Arc::new(AuthState { jwt_secret }),
     };
 
-    // Build the application with routes
-    let app = Router::new()
-        .route("/health", get(health_check))
-        .route("/api/ticket", post(routes::create_ticket))
-        .route("/api/ticket/:id", get(routes::get_ticket))
-        .route("/api/ticket/:id", axum::routing::put(routes::update_ticket))
-        .route("/api/ticket/:id/lock", post(routes::acquire_lock))
-        .route("/api/ticket/:id/lock", axum::routing::delete(routes::release_lock))
-        .route("/api/cluster/status", get(routes::cluster_status))
-        .route("/metrics", get(routes::metrics))
-        .layer(
-            ServiceBuilder::new()
-                .layer(CorsLayer::permissive())
-                .layer(CompressionLayer::new())
-        )
-        .with_state(state);
+    let app = routes::app(app_state);
 
-    // Parse address
-    let addr: SocketAddr = listen_addr.parse()?;
-
-    info!("LBRP listening on {}", addr);
-
-    // Start server
-    let listener = tokio::net::TcpListener::bind(&addr).await?;
+    let listener = tokio::net::TcpListener::bind(addr).await?;
     axum::serve(listener, app).await?;
 
     Ok(())
-}
-
-async fn health_check() -> Json<serde_json::Value> {
-    Json(serde_json::Value::String("OK".to_string()))
 }
 
 #[cfg(test)]

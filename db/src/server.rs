@@ -10,6 +10,7 @@ use tonic::{Request, Response, Status};
 
 // Include generated protobuf code
 pub mod db {
+    #![allow(clippy::all, clippy::pedantic)]
     tonic::include_proto!("db");
 }
 

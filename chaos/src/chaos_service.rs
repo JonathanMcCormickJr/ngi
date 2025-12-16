@@ -9,10 +9,11 @@ use tokio::sync::RwLock;
 use tonic::{Request, Response, Status};
 
 pub mod chaos {
+    #![allow(clippy::all, clippy::pedantic)]
     tonic::include_proto!("chaos");
 }
 
-use chaos::chaos_service_server::{ChaosService, ChaosServiceServer};
+use chaos::chaos_service_server::ChaosService;
 use chaos::{ChaosRequest, ChaosAck, StopRequest, ListRequest, ScenarioCatalog};
 
 /// Chaos service implementation
@@ -23,6 +24,7 @@ pub struct ChaosServiceImpl {
 
 /// Chaos scenario types
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub enum ChaosScenario {
     NetworkLatency {
         target_service: String,

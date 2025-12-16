@@ -34,6 +34,9 @@ serde_json = "1.0"
 # Shared types
 shared = { path = "../shared" }
 
+# Auth
+jsonwebtoken = { version = "10.2", features = ["use_pem", "rust_crypto"] }
+
 # Error handling
 anyhow = "1.0"
 thiserror = "2.0"

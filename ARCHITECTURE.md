@@ -774,9 +774,6 @@ graph TD
   LBRP --- CustLeader
   LBRP --- CustFollower1
   LBRP --- CustFollower2
-  LBRP --- DBLeader
-  LBRP --- DBFollower1
-  LBRP --- DBFollower2
   LBRP --- Honeypot
 
   Auth --- Admin

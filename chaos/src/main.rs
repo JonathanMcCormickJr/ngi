@@ -13,7 +13,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let addr = "0.0.0.0:8084".parse()?;
     let chaos_service = ChaosServiceImpl::default();
 
-    println!("Chaos service listening on {}", addr);
+    println!("Chaos service listening on {addr}");
 
     Server::builder()
         .add_service(chaos_service::chaos::chaos_service_server::ChaosServiceServer::new(chaos_service))

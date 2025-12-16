@@ -131,11 +131,11 @@ impl RaftService for RaftServiceImpl {
             let log_id = LogId { leader_id: openraft::LeaderId { term: e.term, node_id: leader_node }, index: e.index };
 
             let payload = match e.command.and_then(|c| c.command_type) {
-                Some(crate::server::custodian::lock_command::CommandType::AcquireLock(acq)) => {
-                    openraft::EntryPayload::Normal(crate::storage::LockCommand::AcquireLock { ticket_id: acq.ticket_id, user_id: uuid::Uuid::parse_str(&acq.user_uuid).unwrap_or_default() })
+                Some(crate::server::custodian::lock_command::CommandType::AcquireLock(acquire)) => {
+                    openraft::EntryPayload::Normal(crate::storage::LockCommand::AcquireLock { ticket_id: acquire.ticket_id, user_id: uuid::Uuid::parse_str(&acquire.user_uuid).unwrap_or_default() })
                 }
-                Some(crate::server::custodian::lock_command::CommandType::ReleaseLock(rel)) => {
-                    openraft::EntryPayload::Normal(crate::storage::LockCommand::ReleaseLock { ticket_id: rel.ticket_id, user_id: uuid::Uuid::parse_str(&rel.user_uuid).unwrap_or_default() })
+                Some(crate::server::custodian::lock_command::CommandType::ReleaseLock(release)) => {
+                    openraft::EntryPayload::Normal(crate::storage::LockCommand::ReleaseLock { ticket_id: release.ticket_id, user_id: uuid::Uuid::parse_str(&release.user_uuid).unwrap_or_default() })
                 }
                 None => openraft::EntryPayload::Blank,
             };

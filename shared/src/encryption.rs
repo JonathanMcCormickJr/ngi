@@ -28,16 +28,42 @@ use pqc_kyber::{
     decapsulate, encapsulate, keypair, KYBER_PUBLICKEYBYTES, KYBER_SECRETKEYBYTES,
 };
 use rand::Rng;
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Serialize, Serializer, Deserializer};
 use std::fmt;
 
 /// Encryption algorithm options
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy)]
 pub enum EncryptionAlgorithm {
     /// AES-256-GCM (hardware accelerated on many platforms)
     Aes256Gcm,
     /// ChaCha20-Poly1305 (constant-time, no hardware acceleration needed)
     ChaCha20Poly1305,
+}
+
+impl Serialize for EncryptionAlgorithm {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        serializer.serialize_u32(match self {
+            EncryptionAlgorithm::Aes256Gcm => 0,
+            EncryptionAlgorithm::ChaCha20Poly1305 => 1,
+        })
+    }
+}
+
+impl<'de> Deserialize<'de> for EncryptionAlgorithm {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let v = u32::deserialize(deserializer)?;
+        match v {
+            0 => Ok(EncryptionAlgorithm::Aes256Gcm),
+            1 => Ok(EncryptionAlgorithm::ChaCha20Poly1305),
+            _ => Err(serde::de::Error::custom(format!("Invalid algorithm: {v}"))),
+        }
+    }
 }
 
 impl Default for EncryptionAlgorithm {
@@ -82,6 +108,9 @@ pub struct EncryptionService;
 
 impl EncryptionService {
     /// Encrypt data using a password
+    ///
+    /// # Errors
+    /// Returns `EncryptionError` if encryption fails.
     pub fn encrypt_with_password(
         data: &[u8],
         password: &str,
@@ -90,6 +119,9 @@ impl EncryptionService {
     }
 
     /// Encrypt data using a password and specific algorithm
+    ///
+    /// # Errors
+    /// Returns `EncryptionError` if encryption fails.
     pub fn encrypt_with_password_and_algorithm(
         data: &[u8],
         password: &str,
@@ -100,7 +132,7 @@ impl EncryptionService {
         rand::rng().fill(&mut salt);
 
         // Derive key from password and salt
-        let key = Self::derive_key_from_password(password, &salt)?;
+        let key = Self::derive_key_from_password(password, &salt);
 
         // Encrypt the data
         let (nonce, ciphertext) = Self::encrypt_symmetric(&key, data, algorithm)?;
@@ -115,6 +147,9 @@ impl EncryptionService {
     }
 
     /// Decrypt data using a password
+    ///
+    /// # Errors
+    /// Returns `EncryptionError` if decryption fails or password is incorrect.
     pub fn decrypt_with_password(
         encrypted_data: &EncryptedData,
         password: &str,
@@ -125,21 +160,27 @@ impl EncryptionService {
         })?;
 
         // Derive key from password and salt
-        let key = Self::derive_key_from_password(password, salt)?;
+        let key = Self::derive_key_from_password(password, salt);
 
         // Decrypt the data
-        Self::decrypt_symmetric(&key, encrypted_data, &encrypted_data.algorithm)
+        Self::decrypt_symmetric(&key, encrypted_data, encrypted_data.algorithm)
     }
 
     /// Generate a new Kyber-768 keypair for post-quantum encryption
+    ///
+    /// # Errors
+    /// Returns `EncryptionError` if key generation fails.
     pub fn generate_keypair() -> Result<(Vec<u8>, Vec<u8>), EncryptionError> {
         let keys = keypair(&mut OsRng)
-            .map_err(|e| EncryptionError::KeyGeneration(format!("Kyber keypair generation failed: {:?}", e)))?;
+            .map_err(|e| EncryptionError::KeyGeneration(format!("Kyber keypair generation failed: {e:?}")))?;
             
         Ok((keys.public.to_vec(), keys.secret.to_vec()))
     }
 
     /// Encrypt data using a public key (Post-Quantum KEM)
+    ///
+    /// # Errors
+    /// Returns `EncryptionError` if encryption fails or public key is invalid.
     pub fn encrypt_with_public_key(
         data: &[u8],
         public_key: &[u8],
@@ -148,6 +189,9 @@ impl EncryptionService {
     }
 
     /// Encrypt data using a public key and specific algorithm
+    ///
+    /// # Errors
+    /// Returns `EncryptionError` if encryption fails or public key is invalid.
     pub fn encrypt_with_public_key_and_algorithm(
         data: &[u8],
         public_key: &[u8],
@@ -164,13 +208,11 @@ impl EncryptionService {
 
         // Encapsulate key
         let (ciphertext, shared_secret) = encapsulate(public_key, &mut OsRng)
-             .map_err(|e| EncryptionError::KeyEncapsulation(format!("Kyber encapsulation failed: {:?}", e)))?;
+             .map_err(|e| EncryptionError::KeyEncapsulation(format!("Kyber encapsulation failed: {e:?}")))?;
 
         // Use shared secret as symmetric key
         // Shared secret is 32 bytes, perfect for AES-256 or ChaCha20
-        let key: [u8; 32] = shared_secret.try_into().map_err(|_| {
-            EncryptionError::InternalError("Shared secret has incorrect length".to_string())
-        })?;
+        let key: [u8; 32] = shared_secret;
 
         // Encrypt the data
         let (nonce, payload) = Self::encrypt_symmetric(&key, data, algorithm)?;
@@ -185,6 +227,9 @@ impl EncryptionService {
     }
 
     /// Decrypt data using a private key
+    ///
+    /// # Errors
+    /// Returns `EncryptionError` if decryption fails or private key is invalid.
     pub fn decrypt_with_private_key(
         encrypted_data: &EncryptedData,
         private_key: &[u8],
@@ -205,20 +250,18 @@ impl EncryptionService {
 
         // Decapsulate key
         let shared_secret = decapsulate(kem_ciphertext, private_key)
-             .map_err(|e| EncryptionError::KeyDecapsulation(format!("Kyber decapsulation failed: {:?}", e)))?;
+             .map_err(|e| EncryptionError::KeyDecapsulation(format!("Kyber decapsulation failed: {e:?}")))?;
 
         // Use shared secret as symmetric key
-        let key: [u8; 32] = shared_secret.try_into().map_err(|_| {
-            EncryptionError::InternalError("Shared secret has incorrect length".to_string())
-        })?;
+        let key: [u8; 32] = shared_secret;
 
         // Decrypt the data
-        Self::decrypt_symmetric(&key, encrypted_data, &encrypted_data.algorithm)
+        Self::decrypt_symmetric(&key, encrypted_data, encrypted_data.algorithm)
     }
 
     /// Derive a 32-byte key from password and salt using a simple KDF
     /// Note: In production, use a proper KDF like Argon2, PBKDF2, or scrypt
-    fn derive_key_from_password(password: &str, salt: &[u8]) -> Result<[u8; 32], EncryptionError> {
+    fn derive_key_from_password(password: &str, salt: &[u8]) -> [u8; 32] {
         use std::collections::hash_map::DefaultHasher;
         use std::hash::{Hash, Hasher};
 
@@ -235,7 +278,7 @@ impl EncryptionService {
         key[16..24].copy_from_slice(&hash_bytes);
         key[24..32].copy_from_slice(&hash_bytes);
 
-        Ok(key)
+key
     }
 
     /// Perform symmetric encryption
@@ -252,7 +295,7 @@ impl EncryptionService {
 
                 let ciphertext = cipher
                     .encrypt(&nonce, data)
-                    .map_err(|e| EncryptionError::SymmetricEncryption(format!("AES-GCM encryption failed: {}", e)))?;
+                    .map_err(|e| EncryptionError::SymmetricEncryption(format!("AES-GCM encryption failed: {e}")))?;
 
                 Ok((nonce_bytes, ciphertext))
             }
@@ -263,7 +306,7 @@ impl EncryptionService {
 
                 let ciphertext = cipher
                     .encrypt(&nonce, data)
-                    .map_err(|e| EncryptionError::SymmetricEncryption(format!("ChaCha20-Poly1305 encryption failed: {}", e)))?;
+                    .map_err(|e| EncryptionError::SymmetricEncryption(format!("ChaCha20-Poly1305 encryption failed: {e}")))?;
 
                 Ok((nonce_bytes, ciphertext))
             }
@@ -274,7 +317,7 @@ impl EncryptionService {
     fn decrypt_symmetric(
         key: &[u8; 32],
         encrypted_data: &EncryptedData,
-        algorithm: &EncryptionAlgorithm,
+        algorithm: EncryptionAlgorithm,
     ) -> Result<Vec<u8>, EncryptionError> {
         match algorithm {
             EncryptionAlgorithm::Aes256Gcm => {
@@ -283,7 +326,7 @@ impl EncryptionService {
 
                 cipher
                     .decrypt(nonce, encrypted_data.ciphertext.as_ref())
-                    .map_err(|e| EncryptionError::SymmetricDecryption(format!("AES-GCM decryption failed: {}", e)))
+                    .map_err(|e| EncryptionError::SymmetricDecryption(format!("AES-GCM decryption failed: {e}")))
             }
             EncryptionAlgorithm::ChaCha20Poly1305 => {
                 let cipher = ChaCha20Poly1305::new(key.into());
@@ -291,7 +334,7 @@ impl EncryptionService {
 
                 cipher
                     .decrypt(nonce, encrypted_data.ciphertext.as_ref())
-                    .map_err(|e| EncryptionError::SymmetricDecryption(format!("ChaCha20-Poly1305 decryption failed: {}", e)))
+                    .map_err(|e| EncryptionError::SymmetricDecryption(format!("ChaCha20-Poly1305 decryption failed: {e}")))
             }
         }
     }

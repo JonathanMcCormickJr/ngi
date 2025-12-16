@@ -58,6 +58,8 @@ message LogoutResponse {
 message UserInfo {
   string user_uuid = 1;
   string username = 2;
-  repeated string roles = 3;
-  google.protobuf.Timestamp last_login = 4;
+  string display_name = 3;
+  string email = 4;
+  string role = 5;
+  google.protobuf.Timestamp last_login = 6;
 }

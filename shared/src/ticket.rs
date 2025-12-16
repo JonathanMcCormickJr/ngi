@@ -178,6 +178,30 @@ pub enum Symptom {
     Other = 255,
 }
 
+impl Symptom {
+    #[must_use]
+    pub fn from_u8(n: u8) -> Self {
+        match n {
+            1 => Self::BroadbandDown,
+            2 => Self::BroadbandIntermittent,
+            3 => Self::PacketLoss,
+            4 => Self::Power,
+            5 => Self::VpnIssue,
+            6 => Self::ConfigurationError,
+            7 => Self::HardwareFailure,
+            8 => Self::SoftwareBug,
+            9 => Self::SecurityIncident,
+            10 => Self::SlowBandwidth,
+            11 => Self::DuplexingMismatch,
+            12 => Self::LatencyIssues,
+            13 => Self::JitterProblems,
+            14 => Self::DnsIssues,
+            255 => Self::Other,
+            _ => Self::Unknown,
+        }
+    }
+}
+
 /// Ticket status workflow states
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[repr(u8)]
@@ -197,6 +221,23 @@ pub enum TicketStatus {
 }
 
 impl TicketStatus {
+    #[must_use]
+    pub fn from_u8(n: u8) -> Self {
+        match n {
+            1 => Self::AwaitingCustomer,
+            2 => Self::AwaitingISP,
+            3 => Self::AwaitingPartner,
+            4 => Self::SupportHold,
+            5 => Self::HandedOff,
+            6 => Self::AppointmentScheduled,
+            7 => Self::EbondReceived,
+            8 => Self::VoicemailReceived,
+            254 => Self::AutoClose,
+            255 => Self::Closed,
+            _ => Self::Open,
+        }
+    }
+
     /// Check if this status requires a resolution
     #[must_use]
     pub const fn requires_resolution(self) -> bool {
@@ -226,6 +267,22 @@ pub enum Resolution {
     Duplicate = 5,
     ServiceOutage = 6,
     UserError = 7,
+}
+
+impl Resolution {
+    #[must_use]
+    pub fn from_u8(n: u8) -> Self {
+        match n {
+            1 => Self::Resolved,
+            2 => Self::Workaround,
+            3 => Self::CannotReproduce,
+            4 => Self::UnsupportedIssue,
+            5 => Self::Duplicate,
+            6 => Self::ServiceOutage,
+            7 => Self::UserError,
+            _ => Self::None,
+        }
+    }
 }
 
 /// Next action scheduling
@@ -415,7 +472,7 @@ impl Ticket {
             .map(|d| {
                 let mac = d
                     .mac_address()
-                    .map_or("N/A".to_string(), |m| m.to_string());
+                    .map_or("N/A".to_string(), std::string::ToString::to_string);
                 format!("{}\n{}", d.make_model(), mac)
             })
             .collect();
@@ -427,15 +484,7 @@ impl Ticket {
         };
 
         format!(
-            "DSR: {}\nCUSTOMER: {}\n3RD_PARTY: {}\n\n{}\n\n{}\n{}\n{}\n\n***\n\n{}",
-            dsr_ticket,
-            customer_ticket,
-            third_party,
-            device_info,
-            customer_name,
-            site_id,
-            address,
-            tech_notes
+            "DSR: {dsr_ticket}\nCUSTOMER: {customer_ticket}\n3RD_PARTY: {third_party}\n\n{device_info}\n\n{customer_name}\n{site_id}\n{address}\n\n***\n\n{tech_notes}"
         )
     }
 
