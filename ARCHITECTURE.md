@@ -19,7 +19,8 @@
 
 ## Overview
 
-NGI (Next-Gen Infoman) is a distributed, microservices-based tech support ticketing system designed for high availability, strong consistency where needed, and quantum-resistant security. The system is built entirely in Rust to leverage memory safety, fearless concurrency, and high performance.
+NGI (Next-Gen Infoman) is a distributed, microservices-based tech support ticketing system designed for high availability, strong consistency where needed, and quantum-resistant security. The system is built entirely 
+in Rust to leverage memory safety, fearless concurrency, and high performance.
 
 ### Core Principles
 
