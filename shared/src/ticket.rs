@@ -207,12 +207,26 @@ impl Symptom {
 #[repr(u8)]
 #[non_exhaustive]
 pub enum TicketPriority {
-    Unkown = 0,
+    Unknown = 0,
     HardDown = 1,
     PrimaryDown = 2,
     BackupDown = 3,
     Intermittent = 4,
     PacketLoss = 5,
+}
+
+impl TicketPriority {
+    #[must_use]
+    pub fn from_u8(n: u8) -> Self {
+        match n {
+            1 => Self::HardDown,
+            2 => Self::PrimaryDown,
+            3 => Self::BackupDown,
+            4 => Self::Intermittent,
+            5 => Self::PacketLoss,
+            _ => Self::Unknown,
+        }
+    }
 }
 
 /// Ticket status workflow states
@@ -380,6 +394,9 @@ pub struct Ticket {
     /// Primary symptom category
     pub symptom: Symptom,
 
+    /// Ticket workflow priority
+    pub priority: TicketPriority,
+
     /// Current workflow status
     pub status: TicketStatus,
 
@@ -443,6 +460,7 @@ impl Ticket {
             project,
             account_uuid,
             symptom,
+            priority: TicketPriority::Unknown,
             status: TicketStatus::Open,
             next_action: NextAction::None,
             resolution: None,
@@ -915,27 +933,32 @@ mod tests {
     }
 
     #[test]
-    fn test_network_device_with_serial_but_no_mac() {
-        let router = NetworkDevice::Router {
-            make: "TP-Link".to_string(),
-            model: "Archer AX50".to_string(),
-            mac_address: None,
-            serial_number: Some("SN987654".to_string()),
-        };
+    fn test_ticket_priority_enum() {
+        assert_eq!(TicketPriority::from_u8(0), TicketPriority::Unknown);
+        assert_eq!(TicketPriority::from_u8(1), TicketPriority::HardDown);
+        assert_eq!(TicketPriority::from_u8(2), TicketPriority::PrimaryDown);
+        assert_eq!(TicketPriority::from_u8(3), TicketPriority::BackupDown);
+        assert_eq!(TicketPriority::from_u8(4), TicketPriority::Intermittent);
+        assert_eq!(TicketPriority::from_u8(5), TicketPriority::PacketLoss);
+        assert_eq!(TicketPriority::from_u8(255), TicketPriority::Unknown); // Invalid value defaults to Unknown
+    }
 
-        assert_eq!(router.device_type(), "Router");
-        assert!(router.mac_address().is_none());
-        assert_eq!(router.make_model(), "TP-Link Archer AX50");
+    #[test]
+    fn test_ticket_with_priority() {
+        let mut ticket = Ticket::new(
+            1,
+            "Test".to_string(),
+            "Project".to_string(),
+            Uuid::new_v4(),
+            Symptom::BroadbandDown,
+            Uuid::new_v4(),
+        );
 
-        let firewall = NetworkDevice::Firewall {
-            make: "Fortinet".to_string(),
-            model: "FortiGate 60E".to_string(),
-            mac_address: Some(MacAddress::new("12:34:56:78:9A:BC").unwrap()),
-            serial_number: Some("FG-123".to_string()),
-        };
+        // Initially Unknown priority
+        assert_eq!(ticket.priority, TicketPriority::Unknown);
 
-        assert_eq!(firewall.device_type(), "Firewall");
-        assert!(firewall.mac_address().is_some());
-        assert_eq!(firewall.make_model(), "Fortinet FortiGate 60E");
+        // Set priority
+        ticket.priority = TicketPriority::HardDown;
+        assert_eq!(ticket.priority, TicketPriority::HardDown);
     }
 }

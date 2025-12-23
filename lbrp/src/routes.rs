@@ -107,6 +107,7 @@ pub struct CreateTicketRequest {
     pub project: String,
     pub account_uuid: String,
     pub symptom: i32,
+    pub priority: i32,
 }
 
 async fn create_ticket(
@@ -121,6 +122,7 @@ async fn create_ticket(
         project: payload.project,
         account_uuid: payload.account_uuid,
         symptom: payload.symptom,
+        priority: payload.priority,
         created_by_uuid: claims.sub,
         customer_ticket_number: None,
         isp_ticket_number: None,

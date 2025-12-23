@@ -84,6 +84,7 @@ impl CustodianServiceImpl {
             project: ticket.project.clone(),
             account_uuid: ticket.account_uuid.to_string(),
             symptom: ticket.symptom as i32,
+            priority: ticket.priority as i32,
             status: ticket.status as i32,
             next_action: 0, // TODO: Map NextAction properly
             resolution: ticket.resolution.map(|r| r as i32),
@@ -164,6 +165,7 @@ impl CustodianService for CustodianServiceImpl {
 
         // Create domain ticket
         let symptom = domain::Symptom::from_u8(u8::try_from(req.symptom).unwrap_or(0));
+        let priority = domain::TicketPriority::from_u8(u8::try_from(req.priority).unwrap_or(0));
         
         let mut ticket = domain::Ticket::new(
             ticket_id,
@@ -173,6 +175,8 @@ impl CustodianService for CustodianServiceImpl {
             symptom,
             created_by_uuid,
         );
+        
+        ticket.priority = priority;
         
         ticket.customer_ticket_number = req.customer_ticket_number;
         ticket.isp_ticket_number = req.isp_ticket_number;
@@ -310,6 +314,7 @@ impl CustodianService for CustodianServiceImpl {
         if let Some(title) = req.title { ticket.title = title; }
         if let Some(project) = req.project { ticket.project = project; }
         if let Some(symptom) = req.symptom { ticket.symptom = domain::Symptom::from_u8(u8::try_from(symptom).unwrap_or(0)); }
+        if let Some(priority) = req.priority { ticket.priority = domain::TicketPriority::from_u8(u8::try_from(priority).unwrap_or(0)); }
         if let Some(status_val) = req.status { ticket.status = domain::TicketStatus::from_u8(u8::try_from(status_val).unwrap_or(0)); }
         if let Some(next_action) = req.next_action { 
             // TODO: Map NextAction properly. For now, if unspecified (0), we leave it.
@@ -455,6 +460,7 @@ mod tests {
             project: "proj".to_string(), 
             account_uuid: uuid::Uuid::new_v4().to_string(), 
             symptom: 0, 
+            priority: 0,
             created_by_uuid: uuid::Uuid::new_v4().to_string(), 
             customer_ticket_number: None, 
             isp_ticket_number: None, 
@@ -466,6 +472,7 @@ mod tests {
         let resp = svc_impl.create_ticket(Request::new(req)).await.expect("create ticket");
         let ticket = resp.into_inner();
         assert_eq!(ticket.title, "Test");
+        assert_eq!(ticket.priority, 0);
 
         // acquire lock using service (should go through raft)
         let user_uuid = uuid::Uuid::new_v4().to_string();
@@ -477,5 +484,26 @@ mod tests {
         let release_req = custodian::LockRelease { ticket_id: ticket.ticket_id, user_uuid };
         let release_resp = svc_impl.release_lock(Request::new(release_req)).await.expect("release");
         assert!(release_resp.get_ref().success);
+    }
+
+    #[test]
+    fn test_domain_to_proto_priority() {
+        let mut ticket = domain::Ticket::new(
+            1,
+            "Test".to_string(),
+            "Project".to_string(),
+            uuid::Uuid::new_v4(),
+            domain::Symptom::BroadbandDown,
+            uuid::Uuid::new_v4(),
+        );
+
+        // Test Unknown (default)
+        let proto = CustodianServiceImpl::domain_to_proto(&ticket);
+        assert_eq!(proto.priority, 0); // Unknown = 0
+
+        // Test Specific Priority
+        ticket.priority = domain::TicketPriority::HardDown;
+        let proto = CustodianServiceImpl::domain_to_proto(&ticket);
+        assert_eq!(proto.priority, 1); // HardDown = 1
     }
 }

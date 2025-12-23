@@ -119,32 +119,78 @@ result.context("failed to acquire lock")?;
 - `error.rs` - Shared error types
 
 **Design Principles:**
-- Use enums for Status, Resolution, NextAction, Symptom (stored as `u8` for efficiency)
+- Use enums for Status, Resolution, NextAction, Symptom, Priority (stored as `u8` for efficiency)
 - All timestamps are `SystemTime` or `DateTime<Utc>`
 - IDs are `u64` (auto-incremented)
 - UUIDs for account identifiers
 - Serialize with `#[derive(serde::Serialize, serde::Deserialize)]`
+- **Edge Case Handling:** All code must properly handle edge cases including invalid inputs, network failures, concurrent access, and boundary conditions. Use defensive programming: validate inputs, handle errors gracefully, and provide meaningful error messages. Never panic in production code except for unrecoverable startup failures.
 
 ```rust
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
+#[repr(u8)]
+#[non_exhaustive]
 pub enum TicketStatus {
     Open = 0,
     AwaitingCustomer = 1,
     AwaitingISP = 2,
-    Closed = 3,
-    AutoClosed = 4,
-    // ...
+    AwaitingPartner = 3,
+    SupportHold = 4,
+    HandedOff = 5,
+    AppointmentScheduled = 6,
+    EbondReceived = 7,
+    VoicemailReceived = 8,
+    AutoClose = 254,
+    Closed = 255,
+}
+
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
+#[repr(u8)]
+#[non_exhaustive]
+pub enum Symptom {
+    Unknown = 0,
+    BroadbandDown = 1,
+    BroadbandIntermittent = 2,
+    PacketLoss = 3,
+    Power = 4,
+    VpnIssue = 5,
+    ConfigurationError = 6,
+    HardwareFailure = 7,
+    SoftwareBug = 8,
+    SecurityIncident = 9,
+    SlowBandwidth = 10,
+    DuplexingMismatch = 11,
+    LatencyIssues = 12,
+    JitterProblems = 13,
+    DnsIssues = 14,
+    Other = 255,
 }
 
 pub struct Ticket {
-    pub id: u64,
+    pub ticket_id: TicketId,
+    pub customer_ticket_number: Option<String>,
+    pub isp_ticket_number: Option<String>,
+    pub other_ticket_number: Option<String>,
     pub title: String,
+    pub project: String,
+    pub account_uuid: Uuid,
+    pub symptom: Symptom,
+    pub priority: TicketPriority,
     pub status: TicketStatus,
-    pub lock: Option<UserId>,
-    pub created_at: SystemTime,
-    pub deleted: bool,  // Soft delete flag
-    pub deleted_at: Option<SystemTime>,
-    // ...
+    pub next_action: NextAction,
+    pub resolution: Option<Resolution>,
+    pub locked_by: Option<Uuid>,
+    pub assigned_to: Option<Uuid>,
+    pub created_by: Uuid,
+    pub created_at: DateTime<Utc>,
+    pub updated_by: Uuid,
+    pub updated_at: DateTime<Utc>,
+    pub history: Vec<HistoryEntry>,
+    pub ebond: Option<String>,
+    pub tracking_url: Option<String>,
+    pub network_devices: Vec<NetworkDevice>,
+    pub schema_version: u32,
+    pub custom_fields: std::collections::HashMap<String, String>,
 }
 ```
 

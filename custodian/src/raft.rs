@@ -803,7 +803,7 @@ mod tests {
         // Build snapshot
         let mut builder = store.get_snapshot_builder().await;
         let snap = builder.build_snapshot().await.expect("build snapshot");
-        let mut cursor = snap.snapshot;
+        let cursor = snap.snapshot;
         let bytes = cursor.into_inner();
         assert!(!bytes.is_empty());
 

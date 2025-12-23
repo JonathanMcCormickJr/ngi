@@ -13,7 +13,7 @@ pub mod error;
 pub mod encryption;
 
 // Re-export commonly used types
-pub use ticket::{Ticket, TicketStatus, Symptom, Resolution, NextAction};
+pub use ticket::{Ticket, TicketStatus, Symptom, Resolution, NextAction, TicketPriority};
 pub use user::{User, Role, AuthMethod};
 pub use error::NgiError;
 pub use encryption::{EncryptionService, EncryptedData, EncryptionAlgorithm, EncryptionError};

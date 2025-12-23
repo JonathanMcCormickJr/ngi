@@ -856,7 +856,7 @@ ops instance create db-unikernel \
 
 ```rust
 pub struct Ticket {
-    pub id: u64,                          // Auto-incremented
+    pub ticket_id: TicketId,              // Auto-incremented
     pub schema_version: u32,              // Schema version for migrations
     pub customer_ticket_number: Option<String>,
     pub isp_ticket_number: Option<String>,
@@ -865,54 +865,21 @@ pub struct Ticket {
     pub project: String,
     pub account_uuid: Uuid,
     pub symptom: Symptom,                 // u8 enum
-    pub status: Status,                   // u8 enum
-    pub next_action: NextAction,          // u8 enum
-    pub resolution: Resolution,           // u8 enum
-    pub lock: Option<LockInfo>,
-    pub assigned_to: Option<UserId>,
-    pub created_by: UserId,
+    pub priority: TicketPriority,         // u8 enum
+    pub status: TicketStatus,             // u8 enum
+    pub next_action: NextAction,          // Scheduled next action
+    pub resolution: Option<Resolution>,   // u8 enum (if closed)
+    pub locked_by: Option<Uuid>,          // User currently editing
+    pub assigned_to: Option<Uuid>,        // Assigned user/team
+    pub created_by: Uuid,
     pub created_at: DateTime<Utc>,
-    pub updated_by: UserId,
+    pub updated_by: Uuid,
     pub updated_at: DateTime<Utc>,
-    pub history: Vec<TicketHistoryEntry>,
-    pub ebond: Option<String>,
-    
-    // DSR Broadband Provisioning integration
-    pub tracking_url: Option<String>,     // URL to provisioning portal tracking record
-    
-    // Network equipment at customer site
-    pub network_devices: Vec<NetworkDevice>,
-    
-    // Billable hours tracking
-    pub billable_hours: Vec<BillableSession>,
-    pub total_billable_time: Duration,    // Sum of all sessions
-    
-    // Interaction metrics
-    pub interaction_metrics: TicketMetrics,
-    
-    // Extensible custom fields (JSON blob for forward compatibility)
-    pub custom_fields: HashMap<String, serde_json::Value>,
-}
-
-/// Tracks time spent with ticket lock for billing
-pub struct BillableSession {
-    pub user_id: UserId,
-    pub started_at: DateTime<Utc>,
-    pub ended_at: Option<DateTime<Utc>>,  // None if lock still held
-    pub duration: Duration,               // Calculated when lock released
-    pub billable: bool,                   // Some time may be non-billable
-    pub notes: Option<String>,            // Optional billing notes
-}
-
-/// Metrics on user interactions with ticket
-pub struct TicketMetrics {
-    pub total_views: u32,                 // How many times opened
-    pub unique_viewers: HashSet<UserId>,  // Unique users who viewed
-    pub comments_count: u32,              // Number of comments posted
-    pub comments_by_user: HashMap<UserId, u32>,  // Comments per user
-    pub lock_acquisitions: u32,           // Times lock was acquired
-    pub average_response_time: Duration,  // Avg time between status changes
-    pub time_in_status: HashMap<Status, Duration>,  // Time spent in each status
+    pub history: Vec<HistoryEntry>,       // Audit trail
+    pub ebond: Option<String>,            // Optional ebonding data
+    pub tracking_url: Option<String>,     // DSR Broadband Provisioning URL
+    pub network_devices: Vec<NetworkDevice>, // Equipment at site
+    pub custom_fields: HashMap<String, String>, // Extensible custom fields
 }
 ```
 
@@ -940,7 +907,17 @@ pub enum Symptom {
 }
 
 #[repr(u8)]
-pub enum Status {
+pub enum TicketPriority {
+    Unkown = 0,
+    HardDown = 1,
+    PrimaryDown = 2,
+    BackupDown = 3,
+    Intermittent = 4,
+    PacketLoss = 5,
+}
+
+#[repr(u8)]
+pub enum TicketStatus {
     Open = 0,
     AwaitingCustomer = 1,
     AwaitingISP = 2,
@@ -968,16 +945,17 @@ pub enum Resolution {
 
 pub enum NextAction {
     None,
-    FollowUp { scheduled_at: DateTime<Utc> },
-    Appointment { scheduled_at: DateTime<Utc> },
-    AutoClose { close_at: DateTime<Utc>, timeframe: AutoCloseTimeframe },
+    FollowUp(DateTime<Utc>),
+    Appointment(DateTime<Utc>),
+    AutoClose(AutoCloseSchedule),
 }
 
-pub enum AutoCloseTimeframe {
-    EndOfDay,
-    TwentyFourHours,
-    FortyEightHours,
-    SeventyTwoHours,
+#[repr(u8)]
+pub enum AutoCloseSchedule {
+    EndOfDay = 0,
+    Hours24 = 24,
+    Hours48 = 48,
+    Hours72 = 72,
 }
 ```
 

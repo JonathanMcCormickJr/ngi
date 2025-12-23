@@ -41,11 +41,37 @@ async fn wait_for_port(port: u16) -> Result<()> {
 }
 
 fn start_service(name: &str, bin: &str, env: Vec<(&str, &str)>) -> Result<ServiceProcess> {
-    let child = Command::new(format!("../target/debug/{}", bin))
-        .envs(env)
-        .spawn()
-        .context(format!("Failed to start {}", name))?;
-    
+    let exe_path = format!("../target/debug/{}", bin);
+
+    // Try to spawn the binary; if it's missing, build it and retry
+    let child = match Command::new(&exe_path).envs(env.clone()).spawn() {
+        Ok(child) => child,
+        Err(e) => {
+            // If binary not found, run `cargo build --bin <bin>` and retry
+            eprintln!("Failed to start {}: {}. Attempting to build binary...", name, e);
+            let status = Command::new("cargo")
+                .args(&[
+                    "build",
+                    "--package",
+                    bin,
+                    "--bin",
+                    bin,
+                    "--manifest-path",
+                    "../Cargo.toml",
+                ])
+                .status()
+                .context("Failed to run `cargo build` to build service binary")?;
+            if !status.success() {
+                return Err(anyhow::anyhow!("cargo build failed to build binary {}", bin).into());
+            }
+            // Retry spawn
+            Command::new(&exe_path)
+                .envs(env)
+                .spawn()
+                .context(format!("Failed to start {} after building", name))?
+        }
+    };
+
     println!("Started {} (pid {})", name, child.id());
     Ok(ServiceProcess {
         name: name.to_string(),

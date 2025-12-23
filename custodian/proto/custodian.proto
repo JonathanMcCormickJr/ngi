@@ -46,13 +46,14 @@ message CreateTicketRequest {
   string project = 2;
   string account_uuid = 3;
   Symptom symptom = 4;
-  string created_by_uuid = 5;
-  optional string customer_ticket_number = 6;
-  optional string isp_ticket_number = 7;
-  optional string other_ticket_number = 8;
-  optional string ebond = 9;
-  optional string tracking_url = 10;
-  repeated NetworkDevice network_devices = 11;
+  TicketPriority priority = 5;
+  string created_by_uuid = 6;
+  optional string customer_ticket_number = 7;
+  optional string isp_ticket_number = 8;
+  optional string other_ticket_number = 9;
+  optional string ebond = 10;
+  optional string tracking_url = 11;
+  repeated NetworkDevice network_devices = 12;
 }
 
 message GetTicketRequest {
@@ -84,14 +85,15 @@ message UpdateTicketRequest {
   optional string title = 2;
   optional string project = 3;
   optional Symptom symptom = 4;
-  optional TicketStatus status = 5;
-  optional NextAction next_action = 6;
-  optional Resolution resolution = 7;
-  optional string assigned_to_uuid = 8;
-  optional string updated_by_uuid = 9;
-  optional string ebond = 10;
-  optional string tracking_url = 11;
-  repeated NetworkDevice network_devices = 12;
+  optional TicketPriority priority = 5;
+  optional TicketStatus status = 6;
+  optional NextAction next_action = 7;
+  optional Resolution resolution = 8;
+  optional string assigned_to_uuid = 9;
+  optional string updated_by_uuid = 10;
+  optional string ebond = 11;
+  optional string tracking_url = 12;
+  repeated NetworkDevice network_devices = 13;
 }
 
 // Ticket data structure
@@ -104,20 +106,21 @@ message Ticket {
   string project = 6;
   string account_uuid = 7;
   Symptom symptom = 8;
-  TicketStatus status = 9;
-  NextAction next_action = 10;
-  optional Resolution resolution = 11;
-  optional string locked_by_uuid = 12;
-  optional string assigned_to_uuid = 13;
-  string created_by_uuid = 14;
-  google.protobuf.Timestamp created_at = 15;
-  string updated_by_uuid = 16;
-  google.protobuf.Timestamp updated_at = 17;
-  repeated HistoryEntry history = 18;
-  optional string ebond = 19;
-  optional string tracking_url = 20;
-  repeated NetworkDevice network_devices = 21;
-  uint32 schema_version = 22;
+  TicketPriority priority = 9;
+  TicketStatus status = 10;
+  NextAction next_action = 11;
+  optional Resolution resolution = 12;
+  optional string locked_by_uuid = 13;
+  optional string assigned_to_uuid = 14;
+  string created_by_uuid = 15;
+  google.protobuf.Timestamp created_at = 16;
+  string updated_by_uuid = 17;
+  google.protobuf.Timestamp updated_at = 18;
+  repeated HistoryEntry history = 19;
+  optional string ebond = 20;
+  optional string tracking_url = 21;
+  repeated NetworkDevice network_devices = 22;
+  uint32 schema_version = 23;
 }
 
 // History entry for audit trail
@@ -130,16 +133,32 @@ message HistoryEntry {
 
 // Symptom categories
 enum Symptom {
-  SYMPTOM_UNSPECIFIED = 0;
-  NO_INTERNET = 1;
-  SLOW_INTERNET = 2;
-  INTERMITTENT_CONNECTIVITY = 3;
-  WIFI_ISSUES = 4;
-  DEVICE_CONFIGURATION = 5;
-  BILLING_QUESTION = 6;
-  SERVICE_UPGRADE = 7;
-  HARDWARE_FAILURE = 8;
-  OTHER = 9;
+  SYMPTOM_UNKNOWN = 0;
+  BROADBAND_DOWN = 1;
+  BROADBAND_INTERMITTENT = 2;
+  PACKET_LOSS = 3;
+  POWER = 4;
+  VPN_ISSUE = 5;
+  CONFIGURATION_ERROR = 6;
+  HARDWARE_FAILURE = 7;
+  SOFTWARE_BUG = 8;
+  SECURITY_INCIDENT = 9;
+  SLOW_BANDWIDTH = 10;
+  DUPLEXING_MISMATCH = 11;
+  LATENCY_ISSUES = 12;
+  JITTER_PROBLEMS = 13;
+  DNS_ISSUES = 14;
+  SYMPTOM_OTHER = 255;
+}
+
+// Ticket priority
+enum TicketPriority {
+  PRIORITY_UNKNOWN = 0;
+  HARD_DOWN = 1;
+  PRIMARY_DOWN = 2;
+  BACKUP_DOWN = 3;
+  INTERMITTENT = 4;
+  PRIORITY_PACKET_LOSS = 5;
 }
 
 // Ticket status
@@ -148,8 +167,14 @@ enum TicketStatus {
   OPEN = 1;
   AWAITING_CUSTOMER = 2;
   AWAITING_ISP = 3;
-  CLOSED = 4;
-  AUTO_CLOSED = 5;
+  AWAITING_PARTNER = 4;
+  SUPPORT_HOLD = 5;
+  HANDED_OFF = 6;
+  APPOINTMENT_SCHEDULED = 7;
+  EBOND_RECEIVED = 8;
+  VOICEMAIL_RECEIVED = 9;
+  AUTO_CLOSE = 254;
+  CLOSED = 255;
 }
 
 // Next action
