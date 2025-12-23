@@ -202,6 +202,19 @@ impl Symptom {
     }
 }
 
+/// Ticket priority: how much impact is the customer feeling?
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[repr(u8)]
+#[non_exhaustive]
+pub enum TicketPriority {
+    Unkown = 0,
+    HardDown = 1,
+    PrimaryDown = 2,
+    BackupDown = 3,
+    Intermittent = 4,
+    PacketLoss = 5,
+}
+
 /// Ticket status workflow states
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[repr(u8)]

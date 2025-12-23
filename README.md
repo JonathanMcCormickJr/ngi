@@ -11,6 +11,7 @@ NGI aims to solve the pain points experienced by users of the current generation
 - Real-Time Notifications
 - Advanced Search & Filtering
 - Audit Logging & Reporting
+- Internally uses gRPC between independent components
 - RESTful API for Integration with Other Systems
 - Fault Injection for Resilience Testing
 - Intrusion Detection via Honeypot Service
@@ -32,6 +33,7 @@ Each ticket in NGI contains the following fields:
 - Project: associated project/customer organization
 - Account UUID: a universally unique identifier (UUID) representing the account associated with the ticket
 - Symptom: an enum representing the primary symptom of the issue. Values are represented as unsigned 8-bit integers for efficiency.
+- Priority: an enum representing the severity of the issue as it fits within the overall context from the customer's perspective. Values are represented as unsigned 8-bit integers for efficiency.
 - Status: an enum representing the current status of the ticket. Values are represented as unsigned 8-bit integers for efficiency. Depending on the status, certain fields may be required or optional. Examples:
     - Closed, Auto-close: require Resolution field to be not None.
     - Open, Awaiting Customer, Awaiting ISP, Awaiting Partner: require Next Action to be not None.
