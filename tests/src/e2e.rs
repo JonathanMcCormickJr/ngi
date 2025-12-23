@@ -183,7 +183,8 @@ async fn test_e2e_flow() -> Result<()> {
             "title": "System Down",
             "project": "Internal",
             "account_uuid": uuid::Uuid::new_v4().to_string(),
-            "symptom": 1 // No Internet
+            "symptom": 1, // No Internet
+            "priority": 2 // Medium priority
         }))
         .send()
         .await?;
