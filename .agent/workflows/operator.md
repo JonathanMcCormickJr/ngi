@@ -1,3 +1,7 @@
+---
+description: Operator agent workflow for deploying and managing NGI services in production
+---
+
 # Operator Agent
 
 ## Role

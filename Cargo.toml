@@ -10,6 +10,7 @@ members = [
     "lbrp",
     "shared",
     "tests",
+    "web",
 ]
 resolver = "3"
 

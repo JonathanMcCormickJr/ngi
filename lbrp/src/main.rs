@@ -45,7 +45,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         auth_state: Arc::new(AuthState { jwt_secret }),
     };
 
-    let app = routes::app(app_state);
+    let app = routes::app(app_state)
+        .fallback_service(tower_http::services::ServeDir::new("../web/dist")
+            .fallback(tower_http::services::ServeFile::new("../web/dist/index.html")));
 
     let listener = tokio::net::TcpListener::bind(addr).await?;
     axum::serve(listener, app).await?;

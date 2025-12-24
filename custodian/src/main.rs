@@ -4,7 +4,7 @@
 use anyhow::Result;
 use custodian::network::CustodianNetworkFactory;
 use custodian::raft::{CustodianRaft, CustodianStore};
-use custodian::server::{create_server, CustodianServiceImpl};
+use custodian::server::{CustodianServiceImpl, create_server};
 use openraft::Config;
 use openraft::storage::Adaptor;
 use shared::encryption::EncryptionService;
@@ -56,7 +56,10 @@ async fn main() -> Result<()> {
         }
     }
 
-    info!("Starting Custodian service node {} on {}", node_id, listen_addr);
+    info!(
+        "Starting Custodian service node {} on {}",
+        node_id, listen_addr
+    );
     info!("Storage path: {}", storage_path);
     info!("Cluster peers: {:?}", all_peers);
 
@@ -71,13 +74,13 @@ async fn main() -> Result<()> {
     let keys = if keys_path.exists() {
         info!("Loading encryption keys from {:?}", keys_path);
         let bytes = fs::read(&keys_path)?;
-        let (keys, _): ((Vec<u8>, Vec<u8>), usize) = bincode::serde::decode_from_slice(&bytes, bincode::config::standard())?;
+        let keys: (Vec<u8>, Vec<u8>) = postcard::from_bytes(&bytes)?;
         keys
     } else {
         info!("Generating new encryption keys");
         let keys = EncryptionService::generate_keypair()
             .map_err(|e| anyhow::anyhow!("Failed to generate keys: {e}"))?;
-        let bytes = bincode::serde::encode_to_vec(&keys, bincode::config::standard())?;
+        let bytes = postcard::to_allocvec(&keys)?;
         fs::write(&keys_path, bytes)?;
         info!("Saved encryption keys to {:?}", keys_path);
         keys
