@@ -776,6 +776,7 @@ graph TD
 
   LBRP --- Auth
   LBRP --- Admin
+  LBRP --- Chaos
   LBRP --- CustLeader
   LBRP --- CustFollower1
   LBRP --- CustFollower2
@@ -833,7 +834,6 @@ graph TD
   Chaos --- DBFollower2
   Chaos --- Auth
   Chaos --- Admin
-  Chaos --- LBRP
   
 ```
 
