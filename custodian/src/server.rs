@@ -118,10 +118,7 @@ impl CustodianService for CustodianServiceImpl {
             match client.get("ticket", key).await.map_err(|e| Status::internal(format!("db get error: {e}")))? {
                 Some(bytes) => {
                     // Decrypt
-                    let (encrypted_data, _): (shared::encryption::EncryptedData, usize) = bincode::serde::decode_from_slice(
-                        &bytes,
-                        bincode::config::standard()
-                    ).map_err(|e| Status::internal(format!("deserialize encrypted data error: {e}")))?;
+                    let encrypted_data: shared::encryption::EncryptedData = serde_json::from_slice(&bytes).map_err(|e| Status::internal(format!("deserialize encrypted data error: {e}")))?;
 
                     let decrypted_bytes = EncryptionService::decrypt_with_private_key(
                         &encrypted_data,
@@ -129,10 +126,7 @@ impl CustodianService for CustodianServiceImpl {
                     ).map_err(|e| Status::internal(format!("decryption error: {e}")))?;
                     
                     // Deserialize domain object
-                    let (ticket, _): (domain::Ticket, usize) = bincode::serde::decode_from_slice(
-                        &decrypted_bytes,
-                        bincode::config::standard()
-                    ).map_err(|e| Status::internal(format!("deserialize ticket error: {e}")))?;
+                    let ticket: domain::Ticket = serde_json::from_slice(&decrypted_bytes).map_err(|e| Status::internal(format!("deserialize ticket error: {e}")))?;
                         
                     Ok(Response::new(Self::domain_to_proto(&ticket)))
                 }
@@ -185,13 +179,13 @@ impl CustodianService for CustodianServiceImpl {
         ticket.tracking_url = req.tracking_url;
         
         // Serialize and Encrypt
-        let ticket_bytes = bincode::serde::encode_to_vec(&ticket, bincode::config::standard())
+        let ticket_bytes = serde_json::to_vec(&ticket)
             .map_err(|e| Status::internal(format!("serialize error: {e}")))?;
             
         let encrypted = EncryptionService::encrypt_with_public_key(&ticket_bytes, &self.keypair.0)
             .map_err(|e| Status::internal(format!("encryption error: {e}")))?;
             
-        let encrypted_bytes = bincode::serde::encode_to_vec(&encrypted, bincode::config::standard())
+        let encrypted_bytes = serde_json::to_vec(&encrypted)
             .map_err(|e| Status::internal(format!("serialize encrypted data error: {e}")))?;
 
         // Persist to DB if client available
@@ -288,20 +282,14 @@ impl CustodianService for CustodianServiceImpl {
             match client.get("ticket", key).await.map_err(|e| Status::internal(format!("db get error: {e}")))? {
                 Some(bytes) => {
                      // Decrypt
-                    let (encrypted_data, _): (shared::encryption::EncryptedData, usize) = bincode::serde::decode_from_slice(
-                        &bytes,
-                        bincode::config::standard()
-                    ).map_err(|e| Status::internal(format!("deserialize encrypted data error: {e}")))?;
+                    let encrypted_data: shared::encryption::EncryptedData = serde_json::from_slice(&bytes).map_err(|e| Status::internal(format!("deserialize encrypted data error: {e}")))?;
 
                     let decrypted_bytes = EncryptionService::decrypt_with_private_key(
                         &encrypted_data,
                         &self.keypair.1
                     ).map_err(|e| Status::internal(format!("decryption error: {e}")))?;
                     
-                    let (ticket, _): (domain::Ticket, usize) = bincode::serde::decode_from_slice(
-                        &decrypted_bytes,
-                        bincode::config::standard()
-                    ).map_err(|e| Status::internal(format!("deserialize ticket error: {e}")))?;
+                    let ticket: domain::Ticket = serde_json::from_slice(&decrypted_bytes).map_err(|e| Status::internal(format!("deserialize ticket error: {e}")))?;
                     ticket
                 },
                 None => return Err(Status::not_found("ticket not found")),
@@ -332,13 +320,13 @@ impl CustodianService for CustodianServiceImpl {
         ticket.updated_at = chrono::Utc::now();
 
         // Serialize and Encrypt
-        let ticket_bytes = bincode::serde::encode_to_vec(&ticket, bincode::config::standard())
+        let ticket_bytes = serde_json::to_vec(&ticket)
             .map_err(|e| Status::internal(format!("serialize error: {e}")))?;
             
         let encrypted = EncryptionService::encrypt_with_public_key(&ticket_bytes, &self.keypair.0)
             .map_err(|e| Status::internal(format!("encryption error: {e}")))?;
             
-        let encrypted_bytes = bincode::serde::encode_to_vec(&encrypted, bincode::config::standard())
+        let encrypted_bytes = serde_json::to_vec(&encrypted)
             .map_err(|e| Status::internal(format!("serialize encrypted data error: {e}")))?;
 
         // Persist updated ticket

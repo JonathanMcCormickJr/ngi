@@ -3,6 +3,7 @@
 
 mod server;
 
+use anyhow;
 use server::AdminServiceImpl;
 use server::admin::admin_service_server::AdminServiceServer;
 use tonic::transport::Server;
@@ -35,12 +36,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let keys = if keys_path.exists() {
         info!("Loading encryption keys from {:?}", keys_path);
         let bytes = fs::read(&keys_path)?;
-        let (keys, _): ((Vec<u8>, Vec<u8>), usize) = bincode::serde::decode_from_slice(&bytes, bincode::config::standard())?;
+        let keys: ((Vec<u8>, Vec<u8>)) = serde_json::from_slice(&bytes)?;
         keys
     } else {
         info!("Generating new encryption keys");
         let keys = EncryptionService::generate_keypair()?;
-        let bytes = bincode::serde::encode_to_vec(&keys, bincode::config::standard())?;
+        let bytes: Vec<u8> = serde_json::to_vec(&keys)
+            .map_err(|e| anyhow::anyhow!("Failed to serialize keys: {e}"))?;
         fs::write(&keys_path, bytes)?;
         info!("Saved encryption keys to {:?}", keys_path);
         keys

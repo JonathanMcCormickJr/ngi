@@ -93,7 +93,7 @@ impl AdminService for AdminServiceImpl {
             mfa_method: Some(AuthMethod::Password),
         };
         
-        let auth_bytes = bincode::serde::encode_to_vec(&auth, bincode::config::standard())
+        let auth_bytes = serde_json::to_vec(&auth)
             .map_err(|e| Status::internal(format!("Serialization error: {e}")))?;
             
         // Encrypt auth data
@@ -116,7 +116,7 @@ impl AdminService for AdminServiceImpl {
             last_login: None,
         };
 
-        let user_bytes = bincode::serde::encode_to_vec(&user, bincode::config::standard())
+        let user_bytes = serde_json::to_vec(&user)
             .map_err(|e| Status::internal(format!("Serialization error: {e}")))?;
 
         // Encrypt user profile
@@ -125,7 +125,7 @@ impl AdminService for AdminServiceImpl {
             &self.encryption_keys.0,
         ).map_err(|e| Status::internal(format!("Encryption error: {e}")))?;
 
-        let encrypted_user_bytes = bincode::serde::encode_to_vec(&encrypted_user, bincode::config::standard())
+        let encrypted_user_bytes = serde_json::to_vec(&encrypted_user)
             .map_err(|e| Status::internal(format!("Serialization error: {e}")))?;
 
         // 4. Store in DB
@@ -145,7 +145,7 @@ impl AdminService for AdminServiceImpl {
 
         // Store Auth Data (indexed by username for login)
         // We serialize the EncryptedData struct to bytes
-        let encrypted_auth_bytes = bincode::serde::encode_to_vec(&encrypted_auth, bincode::config::legacy())
+        let encrypted_auth_bytes = serde_json::to_vec(&encrypted_auth)
             .map_err(|e| Status::internal(format!("Serialization error: {e}")))?;
 
         let auth_key = format!("auth:username:{}", req.username).into_bytes();
@@ -182,7 +182,7 @@ impl AdminService for AdminServiceImpl {
         
         let resp_inner = resp.into_inner();
         if resp_inner.found {
-            let (user, _): (User, usize) = bincode::serde::decode_from_slice(&resp_inner.value, bincode::config::standard())
+            let user: User = postcard::from_bytes(&resp_inner.value)
                 .map_err(|e| Status::internal(format!("Deserialization error: {e}")))?;
                 
             Ok(Response::new(GetUserResponse {

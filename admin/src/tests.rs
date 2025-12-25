@@ -35,8 +35,8 @@ mod tests {
             last_login: None,
         };
 
-        let bytes = bincode::serde::encode_to_vec(&user, bincode::config::standard()).unwrap();
-        let (decoded, _): (User, usize) = bincode::serde::decode_from_slice(&bytes, bincode::config::standard()).unwrap();
+        let bytes = serde_json::to_vec(&user).unwrap();
+        let decoded: User = serde_json::from_slice(&bytes).unwrap();
         
         assert_eq!(user.username, decoded.username);
         assert_eq!(user.role, decoded.role);

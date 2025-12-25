@@ -74,7 +74,7 @@ mod tests {
         let mut full_bytes = bytes.clone();
         full_bytes.extend(std::iter::repeat(0).take(2000));
 
-        let result: Result<(EncryptedData, usize), _> = bincode::serde::decode_from_slice(&full_bytes, bincode::config::standard());
+        let result: Result<EncryptedData, _> = serde_json::from_slice(&full_bytes);
         
         match result {
             Ok(_) => println!("Success!"),

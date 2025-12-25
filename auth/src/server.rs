@@ -67,18 +67,16 @@ impl AuthServiceImpl {
         }
 
         // Decrypt
-        let (encrypted_data, _): (shared::encryption::EncryptedData, usize) = 
-            bincode::serde::decode_from_slice(&inner.value, bincode::config::legacy())
-            .map_err(|e| Status::internal(format!("Failed to decode encrypted data: {e}")))?;
+        let encrypted_data: shared::encryption::EncryptedData = 
+            postcard::from_bytes(&inner.value).map_err(|e| Status::internal(format!("Failed to decode encrypted data: {e}")))?;
 
         let decrypted_bytes = EncryptionService::decrypt_with_private_key(
             &encrypted_data,
             &self.encryption_keys.1
         ).map_err(|e| Status::internal(format!("Decryption failed: {e}")))?;
 
-        let (user_auth, _): (UserAuth, usize) = 
-            bincode::serde::decode_from_slice(&decrypted_bytes, bincode::config::standard())
-            .map_err(|e| Status::internal(format!("Failed to decode UserAuth: {e}")))?;
+        let user_auth: UserAuth = 
+            postcard::from_bytes(&decrypted_bytes).map_err(|e| Status::internal(format!("Failed to decode UserAuth: {e}")))?;
 
         Ok(Some(user_auth))
     }
@@ -97,28 +95,17 @@ impl AuthServiceImpl {
             return Ok(None);
         }
 
-        // Users are stored as plain bincode (not encrypted? or should be?)
-        // For now assuming plain bincode as per original design, but maybe we should encrypt PII?
-        // Let's assume plain for now to match existing patterns, or if we want "Ultra Secure", encrypt.
-        // Given the mandate, let's assume they MIGHT be encrypted. But for now let's try plain.
-        // Actually, let's stick to the pattern: if it's in DB, it's just bytes.
-        // If we want to be consistent with Custodian, we should encrypt everything.
-        // But for this step, let's assume User profile is public/internal enough or we encrypt it too.
-        // Let's encrypt it too.
-        
         // Try to decrypt
-        let (encrypted_data, _): (shared::encryption::EncryptedData, usize) = 
-            bincode::serde::decode_from_slice(&inner.value, bincode::config::standard())
-            .map_err(|e| Status::internal(format!("Failed to decode encrypted data: {e}")))?;
+        let encrypted_data: shared::encryption::EncryptedData = 
+            postcard::from_bytes(&inner.value).map_err(|e| Status::internal(format!("Failed to decode encrypted data: {e}")))?;
 
         let decrypted_bytes = EncryptionService::decrypt_with_private_key(
             &encrypted_data,
             &self.encryption_keys.1
         ).map_err(|e| Status::internal(format!("Decryption failed: {e}")))?;
 
-        let (user, _): (User, usize) = 
-            bincode::serde::decode_from_slice(&decrypted_bytes, bincode::config::standard())
-            .map_err(|e| Status::internal(format!("Failed to decode User: {e}")))?;
+        let user: User = 
+            postcard::from_bytes(&decrypted_bytes).map_err(|e| Status::internal(format!("Failed to decode User: {e}")))?;
 
         Ok(Some(user))
     }

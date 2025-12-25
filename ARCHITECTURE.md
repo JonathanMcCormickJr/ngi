@@ -758,6 +758,10 @@ graph TD
     Honeypot["CriticalBackups<br/>(Honeypot)<br/>(8085)"]
   end
 
+  subgraph "Testing"
+    Chaos["Chaos<br/>(Fault Injection)<br/>(8084)"]
+  end
+
   subgraph "Custodian Cluster"
     CustLeader["Custodian<br/>Leader<br/>(8081)"]
     CustFollower1["Custodian<br/>Follower<br/>(8081)"]
@@ -820,6 +824,16 @@ graph TD
   Honeypot --- DBLeader
   Honeypot --- DBFollower1
   Honeypot --- DBFollower2
+
+  Chaos --- CustLeader
+  Chaos --- CustFollower1
+  Chaos --- CustFollower2
+  Chaos --- DBLeader
+  Chaos --- DBFollower1
+  Chaos --- DBFollower2
+  Chaos --- Auth
+  Chaos --- Admin
+  Chaos --- LBRP
   
 ```
 
