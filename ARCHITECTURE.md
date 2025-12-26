@@ -837,6 +837,210 @@ graph TD
   
 ```
 
+### Scaled-up Deployment Topology Example
+
+This shows a deployment with multiple instances of each service for high availability and load distribution.
+
+For example, you might run:
+- 3 LBRP instances
+- 3 Auth instances
+- 2 Admin instances  
+- 5 Custodian instances (1 leader, 2 followers)
+- 5 DB instances (1 leader, 2 followers)
+- 1 Chaos instance
+- 3 Honeypot instances
+
+```mermaid
+graph TD
+  subgraph Gateway
+    LBRP0["LBRP<br/>(port 443)"]
+    LBRP1["LBRP<br/>(port 443)"]
+    LBRP2["LBRP<br/>(port 443)"]
+  end
+
+  subgraph Authentication
+    Auth0["Auth<br/>(port 8082)"]
+    Auth1["Auth<br/>(port 8082)"]
+    Auth2["Auth<br/>(port 8082)"]
+  end
+
+  subgraph Administration
+    Admin0["Admin<br/>(port 8083)"]
+    Admin1["Admin<br/>(port 8083)"]
+  end
+
+  subgraph "Security"
+    Honeypot0["CriticalBackups<br/>(Honeypot)<br/>(8085)"]
+    Honeypot1["CriticalBackups<br/>(Honeypot)<br/>(8085)"]
+    Honeypot2["CriticalBackups<br/>(Honeypot)<br/>(8085)"]
+  end
+
+  subgraph "Testing"
+    Chaos["Chaos<br/>(Fault Injection)<br/>(8084)"]
+  end
+
+  subgraph "Custodian Cluster"
+    CustLeader["Custodian<br/>Leader<br/>(8081)"]
+    CustFollower1["Custodian<br/>Follower<br/>(8081)"]
+    CustFollower2["Custodian<br/>Follower<br/>(8081)"]
+    CustFollower3["Custodian<br/>Follower<br/>(8081)"]
+    CustFollower4["Custodian<br/>Follower<br/>(8081)"]
+  end
+
+  subgraph "DB Cluster"
+    DBLeader["DB<br/>Leader<br/>(8080)"]
+    DBFollower1["DB<br/>Follower<br/>(8080)"]
+    DBFollower2["DB<br/>Follower<br/>(8080)"]
+    DBFollower3["DB<br/>Follower<br/>(8080)"]
+    DBFollower4["DB<br/>Follower<br/>(8080)"]
+  end
+
+  %% Load balancer connections
+  LBRP0 --- Auth0
+  LBRP0 --- Auth1
+  LBRP0 --- Auth2
+  LBRP1 --- Auth0
+  LBRP1 --- Auth1
+  LBRP1 --- Auth2
+  LBRP2 --- Auth0
+  LBRP2 --- Auth1
+  LBRP2 --- Auth2
+
+  LBRP0 --- Admin0
+  LBRP0 --- Admin1
+  LBRP1 --- Admin0
+  LBRP1 --- Admin1
+  LBRP2 --- Admin0
+  LBRP2 --- Admin1
+
+  LBRP0 --- CustLeader
+  LBRP0 --- CustFollower1
+  LBRP0 --- CustFollower2
+  LBRP0 --- CustFollower3
+  LBRP0 --- CustFollower4
+  LBRP1 --- CustLeader
+  LBRP1 --- CustFollower1
+  LBRP1 --- CustFollower2
+  LBRP1 --- CustFollower3
+  LBRP1 --- CustFollower4
+  LBRP2 --- CustLeader
+  LBRP2 --- CustFollower1
+  LBRP2 --- CustFollower2
+  LBRP2 --- CustFollower3
+  LBRP2 --- CustFollower4
+
+  LBRP0 --- Honeypot0
+  LBRP0 --- Honeypot1
+  LBRP0 --- Honeypot2
+  LBRP1 --- Honeypot0
+  LBRP1 --- Honeypot1
+  LBRP1 --- Honeypot2
+  LBRP2 --- Honeypot0
+  LBRP2 --- Honeypot1
+  LBRP2 --- Honeypot2
+
+  %% Auth to other services
+  Auth0 --- Admin0
+  Auth0 --- Admin1
+  Auth1 --- Admin0
+  Auth1 --- Admin1
+  Auth2 --- Admin0
+  Auth2 --- Admin1
+
+  Auth0 --- CustLeader
+  Auth0 --- CustFollower1
+  Auth0 --- CustFollower2
+  Auth0 --- CustFollower3
+  Auth0 --- CustFollower4
+  Auth1 --- CustLeader
+  Auth1 --- CustFollower1
+  Auth1 --- CustFollower2
+  Auth1 --- CustFollower3
+  Auth1 --- CustFollower4
+  Auth2 --- CustLeader
+  Auth2 --- CustFollower1
+  Auth2 --- CustFollower2
+  Auth2 --- CustFollower3
+  Auth2 --- CustFollower4
+
+  %% Custodian cluster internal connections
+  CustLeader --- CustFollower1
+  CustLeader --- CustFollower2
+  CustLeader --- CustFollower3
+  CustLeader --- CustFollower4
+  CustFollower1 --- CustFollower2
+  CustFollower1 --- CustFollower3
+  CustFollower1 --- CustFollower4
+  CustFollower2 --- CustFollower3
+  CustFollower2 --- CustFollower4
+  CustFollower3 --- CustFollower4
+
+  %% DB cluster internal connections
+  DBLeader --- DBFollower1
+  DBLeader --- DBFollower2
+  DBLeader --- DBFollower3
+  DBLeader --- DBFollower4
+  DBFollower1 --- DBFollower2
+  DBFollower1 --- DBFollower3
+  DBFollower1 --- DBFollower4
+  DBFollower2 --- DBFollower3
+  DBFollower2 --- DBFollower4
+  DBFollower3 --- DBFollower4
+
+  %% Custodian to DB connections
+  CustLeader --- DBLeader
+  CustLeader --- DBFollower1
+  CustLeader --- DBFollower2
+  CustLeader --- DBFollower3
+  CustLeader --- DBFollower4
+  CustFollower1 --- DBLeader
+  CustFollower1 --- DBFollower1
+  CustFollower1 --- DBFollower2
+  CustFollower1 --- DBFollower3
+  CustFollower1 --- DBFollower4
+  CustFollower2 --- DBLeader
+  CustFollower2 --- DBFollower1
+  CustFollower2 --- DBFollower2
+  CustFollower2 --- DBFollower3
+  CustFollower2 --- DBFollower4
+  CustFollower3 --- DBLeader
+  CustFollower3 --- DBFollower1
+  CustFollower3 --- DBFollower2
+  CustFollower3 --- DBFollower3
+  CustFollower3 --- DBFollower4
+  CustFollower4 --- DBLeader
+  CustFollower4 --- DBFollower1
+  CustFollower4 --- DBFollower2
+  CustFollower4 --- DBFollower3
+  CustFollower4 --- DBFollower4
+
+  %% Chaos service connections (testing all services)
+  Chaos --- LBRP0
+  Chaos --- LBRP1
+  Chaos --- LBRP2
+  Chaos --- Auth0
+  Chaos --- Auth1
+  Chaos --- Auth2
+  Chaos --- Admin0
+  Chaos --- Admin1
+  Chaos --- CustLeader
+  Chaos --- CustFollower1
+  Chaos --- CustFollower2
+  Chaos --- CustFollower3
+  Chaos --- CustFollower4
+  Chaos --- DBLeader
+  Chaos --- DBFollower1
+  Chaos --- DBFollower2
+  Chaos --- DBFollower3
+  Chaos --- DBFollower4
+  Chaos --- Honeypot0
+  Chaos --- Honeypot1
+  Chaos --- Honeypot2
+
+```
+
+
+
 ### Unikernel Deployment (OPS)
 
 Each service is packaged as a **Nanos unikernel** using OPS:
