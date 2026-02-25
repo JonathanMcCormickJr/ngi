@@ -4,6 +4,8 @@
 
 NGI aims to solve the pain points experienced by users of the current generation of DSR's internal ticketing system, Infoman3. NGI is designed to be modular, extensible, scalable, fault-tolerant, user-friendly, blazingly fast, ultra secure, and easily maintainable. This is a system built from the ground up to support DSR's tech support capabilities through the next 40 years and beyond.
 
+DISCLAIMER: This project is neither endorsed nor sponsored by DSR, and is just a grassroots effort at innovation on the author's own personal time. 
+
 ## Features
 - Ticket Creation & Management
 - User Authentication & Authorization with MFA
