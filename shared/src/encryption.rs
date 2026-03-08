@@ -27,7 +27,7 @@ use chacha20poly1305::ChaCha20Poly1305;
 use pqc_kyber::{
     decapsulate, encapsulate, keypair, KYBER_PUBLICKEYBYTES, KYBER_SECRETKEYBYTES,
 };
-use rand::Rng;
+use rand::{Rng, TryRng};
 use serde::{Deserialize, Serialize, Serializer, Deserializer};
 use std::fmt;
 
@@ -129,7 +129,7 @@ impl EncryptionService {
     ) -> Result<EncryptedData, EncryptionError> {
         // Generate a random salt
         let mut salt = [0u8; 32];
-        rand::rng().fill(&mut salt);
+        rand::rng().try_fill_bytes(&mut salt).map_err(|e| EncryptionError::RandomNumberGeneration("Error generating random number".to_string()))?;
 
         // Derive key from password and salt
         let key = Self::derive_key_from_password(password, &salt);
@@ -343,6 +343,9 @@ key
 /// Encryption-related errors
 #[derive(Debug, thiserror::Error)]
 pub enum EncryptionError {
+    #[error("Random number generation failed: {0}")]
+    RandomNumberGeneration(String),
+
     #[error("Symmetric encryption failed: {0}")]
     SymmetricEncryption(String),
 
