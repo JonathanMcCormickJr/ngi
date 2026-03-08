@@ -1,6 +1,6 @@
 # NGI: *Next-Gen Infoman* 🎫
 
-(c) 2025 **Jonathan A. McCormick, Jr.** All rights reserved. If you are interested in using this software, please contact the author for licensing information.
+(c) 2025-Present **Jonathan A. McCormick, Jr.** All rights reserved. If you are interested in using this software, please contact the author for licensing information.
 
 NGI aims to solve the pain points experienced by users of the current generation of DSR's internal ticketing system, Infoman3. NGI is designed to be modular, extensible, scalable, fault-tolerant, user-friendly, blazingly fast, ultra secure, and easily maintainable. This is a system built from the ground up to support DSR's tech support capabilities through the next 40 years and beyond.
 
