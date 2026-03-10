@@ -68,89 +68,17 @@ ngi/
 ├── Cargo.toml              # Workspace definition
 ├── README.md               # User-facing documentation
 ├── ARCHITECTURE.md         # This file
-├── .github/
-│   └── workflows/
-│       └── rust.yml        # CI/CD pipeline
-│
-├── common/                 # Shared library crate
-│   ├── Cargo.toml
-│   └── src/
-│       ├── lib.rs
-│       ├── ticket.rs       # Ticket types and enums
-│       ├── user.rs         # User types
-│       ├── error.rs        # Error types
-│       └── config.rs       # Configuration utilities
-│
-├── consensus/              # Raft wrapper library
-│   ├── Cargo.toml
-│   └── src/
-│       ├── lib.rs
-│       ├── raft_node.rs    # Raft node abstraction
-│       └── state_machine.rs
-│
-├── config/                 # Service discovery library
-│   ├── Cargo.toml
-│   └── src/
-│       ├── lib.rs
-│       └── discovery.rs    # Service registry
-│
-├── db/                     # Database service (binary)
-│   ├── Cargo.toml
-│   └── src/
-│       ├── main.rs
-│       ├── storage.rs      # Sled wrapper
-│       ├── raft_sm.rs      # Raft state machine
-│       └── api.rs          # gRPC service handlers (tonic)
-│
-├── custodian/              # Ticket management service (binary)
-│   ├── Cargo.toml
-│   └── src/
-│       ├── main.rs
-│       ├── locks.rs        # Distributed lock management
-│       ├── raft_sm.rs      # Raft state machine
-│       └── api.rs          # gRPC service handlers (tonic)
-│
-├── auth/                   # Authentication service (binary)
-│   ├── Cargo.toml
-│   └── src/
-│       ├── main.rs
-│       ├── mfa.rs          # Multi-factor auth logic
-│       ├── session.rs      # Session management
-│       └── api.rs          # gRPC service handlers (tonic)
-│
-├── admin/                  # Admin & monitoring service (binary)
-│   ├── Cargo.toml
-│   └── src/
-│       ├── main.rs
-│       ├── monitoring.rs   # Metrics collection
-│       ├── users.rs        # User/role management
-│       └── api.rs          # gRPC service handlers (tonic)
-│
-├── lbrp/                   # Load Balancer & Reverse Proxy (binary)
-│   ├── Cargo.toml
-│   └── src/
-│       ├── main.rs
-│       ├── proxy.rs        # Reverse proxy logic
-│       ├── balancer.rs     # Load balancing algorithms
-│       └── static_files.rs # Frontend asset serving
-│
-├── chaos/                  # Fault injection service (binary)
-│   ├── Cargo.toml
-│   └── src/
-│       ├── main.rs
-│       └── injector.rs     # Chaos scenarios
-│
-├── honeypot/               # Intrusion detection honeypot (binary)
-│   ├── Cargo.toml
-│   └── src/
-│       ├── main.rs
-│       ├── traps.rs        # Fake endpoints and data
-│       └── reporter.rs     # Alert reporting to admin
-│
-└── tests/                  # Integration tests
-    ├── Cargo.toml
-    └── src/
-        └── lib.rs
+├── FEATURE_REQUESTS.md
+├── admin/                  # Admin service (gRPC)
+├── auth/                   # Authentication service (gRPC)
+├── chaos/                  # Fault injection service (gRPC)
+├── custodian/              # Ticket lifecycle + distributed lock service
+├── db/                     # Database + consensus service
+├── honeypot/               # Intrusion detection honeypot service
+├── lbrp/                   # Load balancer + reverse proxy (REST edge)
+├── shared/                 # Shared models, errors, and utilities crate
+├── tests/                  # Integration/end-to-end test crate
+└── web/                    # Web frontend crate/assets
 ```
 
 ---
@@ -211,9 +139,10 @@ ngi/
 - **Auth**: Session state stored in DB, service is stateless
 - **Admin**: Reads/writes through DB service
 - **LBRP**: Routes requests, no state to coordinate
-- **Chaos**: Test service, intentionally unpredictable
+- **Chaos**: Test service, intentionally unpredictable (enabled in Hardened+)
+- **Honeypot**: Deceptive intrusion detection service (enabled in Hardened+)
 
-These can run single-instance for MVP and scale horizontally without coordination.
+These services can run single-instance initially and scale horizontally without coordination.
 
 ---
 
@@ -533,7 +462,7 @@ Services only accept connections from other services with valid certificates.
 - `tonic` for gRPC server/client plumbing
 
 **Clustering**:
-- Single instance (chaos doesn't need HA!)
+- Single instance in Hardened stage (chaos doesn't need HA)
 
 ---
 
@@ -581,7 +510,7 @@ Services only accept connections from other services with valid certificates.
 - `tonic` for gRPC server/client plumbing
 
 **Clustering**:
-- Single instance (honeypots don't need HA; simpler to monitor)
+- Single instance in Hardened stage (honeypots don't need HA; simpler to monitor)
 
 ---
 
@@ -691,7 +620,7 @@ Services reload `services.toml` periodically (every 30 seconds) to detect change
 - Each service maintains local copy, leader broadcasts updates via Raft OR
 - External config service (etcd, Consul) - future enhancement
 
-For MVP: Each service maintains local `services.toml`, admin manually updates when deploying/removing instances. Raft handles leader election internally; services query Raft status via API to determine current leader.
+For MVP: Core services (`db`, `custodian`, `auth`, `admin`, `lbrp`) maintain local `services.toml`; admin manually updates when deploying/removing instances. Raft handles leader election internally, and services query Raft status via API to determine current leader. In Hardened+, add `chaos` and `honeypot` entries to the same discovery model.
 
 ---
 
@@ -739,6 +668,90 @@ NGI_DB_NODE_ID=1
 ## Deployment Model
 
 ### MVP Deployment Topology
+
+```mermaid
+graph TD
+  subgraph Gateway
+    LBRP["LBRP<br/>(port 443)"]
+  end
+
+  subgraph Authentication
+    Auth["Auth<br/>(8082)"]
+  end
+
+  subgraph Administration
+    Admin["Admin<br/>(8083)"]
+  end
+
+  subgraph "Custodian Cluster"
+    CustLeader["Custodian<br/>Leader<br/>(8081)"]
+    CustFollower1["Custodian<br/>Follower<br/>(8081)"]
+    CustFollower2["Custodian<br/>Follower<br/>(8081)"]
+  end
+
+  subgraph "DB Cluster"
+    DBLeader["DB<br/>Leader<br/>(8080)"]
+    DBFollower1["DB<br/>Follower<br/>(8080)"]
+    DBFollower2["DB<br/>Follower<br/>(8080)"]
+  end
+
+  LBRP --- Auth
+  LBRP --- Admin
+  LBRP --- CustLeader
+  LBRP --- CustFollower1
+  LBRP --- CustFollower2
+
+  Auth --- Admin
+  Auth --- CustLeader
+  Auth --- CustFollower1
+  Auth --- CustFollower2
+  Auth --- DBLeader
+  Auth --- DBFollower1
+  Auth --- DBFollower2
+
+  Admin --- CustLeader
+  Admin --- CustFollower1
+  Admin --- CustFollower2
+  Admin --- DBLeader
+  Admin --- DBFollower1
+  Admin --- DBFollower2
+
+  CustLeader --- CustFollower1
+  CustLeader --- CustFollower2
+  CustLeader --- DBLeader
+  CustLeader --- DBFollower1
+  CustLeader --- DBFollower2
+
+  CustFollower1 --- CustFollower2
+  CustFollower1 --- DBLeader
+  CustFollower1 --- DBFollower1
+  CustFollower1 --- DBFollower2
+
+  CustFollower2 --- DBLeader
+  CustFollower2 --- DBFollower1
+  CustFollower2 --- DBFollower2
+
+  DBLeader --- DBFollower1
+  DBLeader --- DBFollower2
+
+  DBFollower1 --- DBFollower2
+
+```
+
+MVP is intentionally limited to the core operational path: `lbrp`, `auth`, `admin`, `custodian`, and `db`.
+
+### Hardened Deployment Topology (Production Foundation)
+
+This intermediate stage introduces production-quality validation and intrusion telemetry while keeping operational complexity moderate.
+
+For example, you might run:
+- 1 LBRP instance
+- 1 Auth instance
+- 1 Admin instance
+- 3 Custodian instances (1 leader, 2 followers)
+- 3 DB instances (1 leader, 2 followers)
+- 1 Chaos instance
+- 1 Honeypot instance
 
 ```mermaid
 graph TD
@@ -814,7 +827,6 @@ graph TD
 
   DBLeader --- DBFollower1
   DBLeader --- DBFollower2
-
   DBFollower1 --- DBFollower2
 
   Honeypot --- Auth
@@ -834,7 +846,6 @@ graph TD
   Chaos --- DBFollower2
   Chaos --- Auth
   Chaos --- Admin
-  
 ```
 
 ### Scaled-up Deployment Topology Example
@@ -1649,6 +1660,7 @@ thread_keep_alive = 10    # Seconds to keep idle threads alive
 
 ### Scaling Plan (Post-MVP)
 
+- Hardened foundation: Introduce `chaos` and `honeypot` for resilience testing and intrusion telemetry before large-scale rollout
 - Horizontal scaling: Add more instances
 - Read replicas: Add DB followers for read-heavy workloads
 - Caching: Option for session data and frequently accessed tickets
@@ -2079,7 +2091,7 @@ This minimal approach aligns with NGI's core principles while providing a fast, 
 
 ---
 
-## Future Enhancements (Post-MVP)
+## Future Enhancements (Post-Hardened)
 
 1. **Active Directory Integration** (v1.0)
 2. **Real-Time Notifications** (WebSocket push)

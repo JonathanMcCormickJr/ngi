@@ -15,8 +15,8 @@ DISCLAIMER: This project is neither endorsed nor sponsored by DSR, and is just a
 - Audit Logging & Reporting
 - Internally uses gRPC between independent components
 - RESTful API for Integration with Other Systems
-- Fault Injection for Resilience Testing
-- Intrusion Detection via Honeypot Service
+- Fault Injection for Resilience Testing (Hardened stage and beyond)
+- Intrusion Detection via Honeypot Service (Hardened stage and beyond)
 - Auto-save Drafts to Browser Cookies (recovery from interruptions)
 - Thorough Automated Test Coverage
 - Dynamic Schema Evolution (add/remove fields and workflow steps without downtime)
@@ -56,7 +56,7 @@ Each ticket in NGI contains the following fields:
 - **Modular**: NGI is built using a collection of smaller components, allowing for easy addition and removal of features as needed.
 - **Extensible**: The system is designed to accommodate future enhancements and integrations with other tools and platforms. Management can add custom fields, enum options, and workflow states without code changes—schema versioning and lazy migrations enable live evolution of data models.
 - **Scalable**: NGI can handle increasing loads and user demands without compromising performance.
-- **Fault-Tolerant**: The system is resilient to failures, ensuring continuous operation and minimal downtime. It even includes its own fault-injection system (inspired by Netflix's Chaos Monkey) to help identify and fix potential points of failure.
+- **Fault-Tolerant**: The system is resilient to failures, ensuring continuous operation and minimal downtime. In the Hardened deployment stage, it includes its own fault-injection system (inspired by Netflix's Chaos Monkey) to help identify and fix potential points of failure.
 - **User-Friendly**: NGI features an intuitive interface that simplifies ticket management for users of all technical levels. The frontend automatically saves drafts to browser cookies, so users never lose their work due to interruptions, crashes, or accidental navigation.
 - **Blazingly Fast**: Optimized for speed, NGI ensures quick response times and efficient ticket processing. It takes advantage of the Rust programming language's support for both parallelism and asynchronous programming in order to push performance to the limit. With DSR's ambitions for growth, this system is designed to handle thousands of concurrent users without breaking a sweat.
 - **Ultra Secure**: NGI incorporates robust security measures to protect sensitive information and maintain user privacy. All network communications are doubly-encrypted: first using TLS 1.3 and secondly with a NIST-vetted postquantum algorithm named CRYSTALS-Kyber. User authentication is handled with mandatory MFA using several methods, including password-based authentication, WebAuthn, U2F, TOTP, and Active Directory (where the user's underlying OS login status counts toward authentication).
@@ -70,10 +70,10 @@ See [ARCHITECTURE.md](./ARCHITECTURE.md) for detailed diagrams and explanations 
 ### Key Components
 - [**Admin:**](./admin/) Manages user accounts, roles, and permissions within the NGI system.
 - [**Auth:**](./auth/) Handles user authentication and authorization, including support for MFA and various authentication methods.
-- [**Chaos:**](./chaos/) Injects faults into the system to test resilience and fault-tolerance capabilities
+- [**Chaos:**](./chaos/) Injects faults into the system to test resilience and fault-tolerance capabilities (introduced in Hardened stage).
 - [**Custodian:**](./custodian/) Controls tickets, including creation, updates, assignments (including ticket locks), and status changes.
 - [**DB: Database Service:**](./db/) Manages data storage and retrieval, ensuring data integrity and consistency across the system.
-- [**Honeypot (CriticalBackups):**](./honeypot/) Deceptive high-value target service for intrusion detection. Captures attacker behavior and reports to admin for logging.
+- [**Honeypot (CriticalBackups):**](./honeypot/) Deceptive high-value target service for intrusion detection. Captures attacker behavior and reports to admin for logging (introduced in Hardened stage).
 - [**LBRP: Load Balancer & Reverse Proxy:**](./lbrp/) Distributes incoming requests across multiple instances of each service to ensure optimal performance and reliability. Also serves static files for the web frontend.
 - [**Tests:**](./tests/) Contains integration and end-to-end tests for the entire NGI system, ensuring that all components work together seamlessly.
 
