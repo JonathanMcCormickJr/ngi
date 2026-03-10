@@ -68,7 +68,7 @@ NGI is built using a microservices architecture, with each service responsible f
 See [ARCHITECTURE.md](./ARCHITECTURE.md) for detailed diagrams and explanations of the system architecture.
 
 ### Key Components
-- [**Admin:**](./admin/) Manages user accounts, roles, and permissions within the NGI system.
+- [**Admin:**](./admin/) Manages user accounts, roles, and permissions within the NGI system (introduced in Hardened stage).
 - [**Auth:**](./auth/) Handles user authentication and authorization, including support for MFA and various authentication methods.
 - [**Chaos:**](./chaos/) Injects faults into the system to test resilience and fault-tolerance capabilities (introduced in Hardened stage).
 - [**Custodian:**](./custodian/) Controls tickets, including creation, updates, assignments (including ticket locks), and status changes.

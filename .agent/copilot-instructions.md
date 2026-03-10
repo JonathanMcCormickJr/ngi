@@ -84,9 +84,10 @@ ngi/
 
 **Stateless (can run 1+ instances, no coordination):**
 - `auth` - Session state delegated to DB
-- `admin` - Reads/writes through DB service
+- `admin` - Reads/writes through DB service (introduced in Hardened stage)
 - `lbrp` - Routing and load balancing
-- `chaos` - Fault injection (intentionally unpredictable)
+- `chaos` - Fault injection (intentionally unpredictable, introduced in Hardened stage)
+- `honeypot` - Intrusion detection (deceptive service, introduced in Hardened stage)
 
 ### Error Handling
 

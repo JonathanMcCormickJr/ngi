@@ -137,7 +137,7 @@ ngi/
 ### Services Without Consensus (Stateless)
 
 - **Auth**: Session state stored in DB, service is stateless
-- **Admin**: Reads/writes through DB service
+- **Admin**: Reads/writes through DB service (enabled in Hardened+)
 - **LBRP**: Routes requests, no state to coordinate
 - **Chaos**: Test service, intentionally unpredictable (enabled in Hardened+)
 - **Honeypot**: Deceptive intrusion detection service (enabled in Hardened+)
@@ -398,7 +398,7 @@ Services only accept connections from other services with valid certificates.
 - `tonic` for gRPC server/client plumbing
 
 **Clustering**:
-- Stateless, single instance for MVP
+- Stateless, single instance in Hardened stage
 
 ---
 
@@ -411,12 +411,12 @@ Services only accept connections from other services with valid certificates.
 **Routes**:
 - `/api/ticket/*` → gRPC `CustodianService`
 - `/api/auth/*` → gRPC `AuthService`
-- `/api/admin/*` → gRPC `AdminService`
+- `/api/admin/*` → gRPC `AdminService` (enabled in Hardened+)
 - `/api/db/*` → gRPC `DbService` (internal only)
 - `/*` → Static frontend files
 
 **Load Balancing Algorithm**:
-- Round-robin for stateless services (auth, admin)
+- Round-robin for stateless services (auth, plus admin in Hardened+)
 - Leader-aware routing for stateful services (db, custodian)
 
 **Features**:
@@ -620,7 +620,7 @@ Services reload `services.toml` periodically (every 30 seconds) to detect change
 - Each service maintains local copy, leader broadcasts updates via Raft OR
 - External config service (etcd, Consul) - future enhancement
 
-For MVP: Core services (`db`, `custodian`, `auth`, `admin`, `lbrp`) maintain local `services.toml`; admin manually updates when deploying/removing instances. Raft handles leader election internally, and services query Raft status via API to determine current leader. In Hardened+, add `chaos` and `honeypot` entries to the same discovery model.
+For MVP: Core services (`db`, `custodian`, `auth`, `lbrp`) maintain local `services.toml`; operators manually update it when deploying/removing instances. Raft handles leader election internally, and services query Raft status via API to determine current leader. In Hardened+, add `admin`, `chaos`, and `honeypot` entries to the same discovery model.
 
 ---
 
@@ -679,10 +679,6 @@ graph TD
     Auth["Auth<br/>(8082)"]
   end
 
-  subgraph Administration
-    Admin["Admin<br/>(8083)"]
-  end
-
   subgraph "Custodian Cluster"
     CustLeader["Custodian<br/>Leader<br/>(8081)"]
     CustFollower1["Custodian<br/>Follower<br/>(8081)"]
@@ -696,25 +692,16 @@ graph TD
   end
 
   LBRP --- Auth
-  LBRP --- Admin
   LBRP --- CustLeader
   LBRP --- CustFollower1
   LBRP --- CustFollower2
 
-  Auth --- Admin
   Auth --- CustLeader
   Auth --- CustFollower1
   Auth --- CustFollower2
   Auth --- DBLeader
   Auth --- DBFollower1
   Auth --- DBFollower2
-
-  Admin --- CustLeader
-  Admin --- CustFollower1
-  Admin --- CustFollower2
-  Admin --- DBLeader
-  Admin --- DBFollower1
-  Admin --- DBFollower2
 
   CustLeader --- CustFollower1
   CustLeader --- CustFollower2
@@ -738,7 +725,7 @@ graph TD
 
 ```
 
-MVP is intentionally limited to the core operational path: `lbrp`, `auth`, `admin`, `custodian`, and `db`.
+As a true "minimum viable product" (MVP), it is meant to be the minimum needed to demonstrate core functionality, intentionally limited to the core operational path: `lbrp`, `auth`, `custodian`, and `db`. 
 
 ### Hardened Deployment Topology (Production Foundation)
 
