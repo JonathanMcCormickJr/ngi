@@ -5,24 +5,11 @@
 NGI (Next-Gen Infoman) is a distributed, microservices-based tech support ticketing system built entirely in Rust. The system prioritizes memory safety, strong consistency where needed, and post-quantum security. All code must be idiomatic Rust with zero unsafe code in business logic.
 
 **Core Principles:**
-- No unsafe code (`#![forbid(unsafe_code)]`) in business logic
-- Distributed consensus (Raft) for critical services
-- Post-quantum security (TLS 1.3 + Kyber)
-- Type-safe APIs throughout (no SQL injection risks)
-- Test-Driven Development (TDD) workflow with ≥90% code coverage
-- Blazing fast performance (optimized for concurrent users and low latency)
-- Ruggedness (see the [Rugged Manifesto](https://ruggedsoftware.org/) - secure by design, resilient to failure)
-  - Graceful degradation: degrade service rather than fail completely when problems occur
-- Comprehensive, clear, accurate, and enjoyable documentation
-- Soft deletes only (no hard deletes via API for audit trails and compliance)
-- Stateless services where possible (no coordination overhead)
-- Zero-redundancy data entry (avoid requesting data already available from other sources)
-- Schema versioning for live evolution (add/remove fields and workflow steps without downtime)
 - Audit everything critical (ticket locks, user actions, permission changes)
-- User-friendly UI/UX (intuitive and streamlined interfaces for technicians and admins)
-- KISS (Keep It Simple, Stupid) - avoid unnecessary complexity
+- Blazing fast performance (optimized for concurrent users and low latency)
+- Comprehensive, clear, accurate, and enjoyable documentation
 - Correctness over cleverness - prioritize clear, maintainable code over "clever" solutions
-- Extensibility - design with future features and integrations in mind, allowing for easy addition of new functionality without major refactoring (e.g. for enums use attributes like `#[repr(u8)]` and `#[non_exhaustive]`).
+- Distributed consensus (Raft) for critical services
 - Don't panic - handle errors gracefully and provide meaningful error messages. The only acceptable use of panic-causing uses like `assert!`, `panic!`, `unwrap`, or `expect` is in unrecoverable situations during initialization (e.g., configuration errors), in which case the panic-able conditions must be clearly and exhaustively documented, or within tests.
   - **Rationale**: In a distributed system like NGI, panics can crash services, disrupt consensus (e.g., Raft leader election), or cause cascading failures. Graceful error handling enables the system to degrade rather than fail completely, aligning with the Rugged Manifesto.
   - **Unrecoverable Situations**: Limited to startup failures where the service cannot safely operate (e.g., invalid TLS certificates, missing critical dependencies, or corrupted Raft state that prevents initialization). These must be documented with clear failure modes and recovery steps.
@@ -32,7 +19,21 @@ NGI (Next-Gen Infoman) is a distributed, microservices-based tech support ticket
     - **Good**: `env::var("REQUIRED_CONFIG").context("missing REQUIRED_CONFIG")?;`
     - **Bad**: `env::var("REQUIRED_CONFIG").unwrap();` (unless in startup with documentation)
     - **Test-Only**: `assert_eq!(result.unwrap(), expected);` (in `#[test]` functions)
+- Extensibility - design with future features and integrations in mind, allowing for easy addition of new functionality without major refactoring (e.g. for enums use attributes like `#[repr(u8)]` and `#[non_exhaustive]`).
+- KISS (Keep It Simple, Stupid) - avoid unnecessary complexity
+- List ordering - unless there is a documented reason otherwise, order lists by logical group first, then alphabetically within each group.
+- No unsafe code (`#![forbid(unsafe_code)]`) in business logic
+- Post-quantum security (TLS 1.3 + Kyber)
 - Read the docs! - If you have tried and failed to properly implement something 3 times, then stop and fetch the documentation for the dependency(ies) involved before proceeding with your 4th attempt. 
+- Ruggedness (see the [Rugged Manifesto](https://ruggedsoftware.org/) - secure by design, resilient to failure)
+    - Graceful degradation: degrade service rather than fail completely when problems occur
+- Schema versioning for live evolution (add/remove fields and workflow steps without downtime)
+- Soft deletes only (no hard deletes via API for audit trails and compliance)
+- Stateless services where possible (no coordination overhead)
+- Test-Driven Development (TDD) workflow with ≥90% code coverage
+- Type-safe APIs throughout (no SQL injection risks)
+- User-friendly UI/UX (intuitive and streamlined interfaces for technicians and admins)
+- Zero-redundancy data entry (avoid requesting data already available from other sources)
 
 ---
 
@@ -50,11 +51,11 @@ NGI (Next-Gen Infoman) is a distributed, microservices-based tech support ticket
 - **HTTP Client:** `reqwest` for outbound integrations
 
 ### Development Tools
-- Linting: `cargo clippy` with pedantic warnings
-- Formatting: `cargo fmt` with default settings
-- Testing: `cargo test` (TDD workflow)
 - Coverage: `cargo tarpaulin` (90% minimum required)
+- Formatting: `cargo fmt` with default settings
+- Linting: `cargo clippy` with pedantic warnings
 - Security: `cargo audit` for dependency vulnerabilities
+- Testing: `cargo test` (TDD workflow)
 - Watch Mode: `cargo watch` for continuous test execution
 
 ---
@@ -63,16 +64,18 @@ NGI (Next-Gen Infoman) is a distributed, microservices-based tech support ticket
 
 ### Workspace Structure
 
+Physical directories remain at the repository root. The grouping below is logical by service introduction stage.
+
 ```
 ngi/
 ├── shared/              # Shared library crate (error types, data models)
-├── db/                  # Database service (Raft + Sled)
-├── custodian/           # Ticket management (Raft-based locking)
-├── auth/                # Authentication (stateless)
-├── admin/               # User management & monitoring (stateless)
-├── lbrp/                # Load balancer & reverse proxy
-├── chaos/               # Fault injection service
-├── honeypot/            # Intrusion detection (deceptive service)
+├── db/                  # MVP: Database service (Raft + Sled)
+├── custodian/           # MVP: Ticket management (Raft-based locking)
+├── auth/                # MVP: Authentication (stateless)
+├── lbrp/                # MVP: Load balancer & reverse proxy
+├── admin/               # Hardened+: User management & monitoring (stateless)
+├── chaos/               # Hardened+: Fault injection service
+├── honeypot/            # Hardened+: Intrusion detection (deceptive service)
 └── tests/               # Integration tests
 ```
 

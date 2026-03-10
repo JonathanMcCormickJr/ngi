@@ -7,21 +7,24 @@ NGI aims to solve the pain points experienced by users of the current generation
 DISCLAIMER: This project is neither endorsed nor sponsored by DSR, and is just a grassroots effort at innovation on the author's own personal time. 
 
 ## Features
-- Ticket Creation & Management
-- User Authentication & Authorization with MFA
-- Role-Based Access Control
-- Real-Time Notifications
+User-facing capabilities:
 - Advanced Search & Filtering
 - Audit Logging & Reporting
-- Internally uses gRPC between independent components
-- RESTful API for Integration with Other Systems
-- Fault Injection for Resilience Testing (Hardened stage and beyond)
-- Intrusion Detection via Honeypot Service (Hardened stage and beyond)
 - Auto-save Drafts to Browser Cookies (recovery from interruptions)
-- Thorough Automated Test Coverage
+- Real-Time Notifications
+- Role-Based Access Control
+- Ticket Creation & Management
+- User Authentication & Authorization with MFA
+
+Platform and engineering capabilities:
 - Dynamic Schema Evolution (add/remove fields and workflow steps without downtime)
-- Zero-redundancy data entry. If a field is already filled in from another source, it will not be requested again.
+- Fault Injection for Resilience Testing (Hardened stage and beyond)
+- Internally uses gRPC between independent components
+- Intrusion Detection via Honeypot Service (Hardened stage and beyond)
 - Only one user may possess a ticket's lock at a time, preventing edit conflicts. Multiple tickets may be simultaneously locked by the same user.
+- RESTful API for Integration with Other Systems
+- Thorough Automated Test Coverage
+- Zero-redundancy data entry. If a field is already filled in from another source, it will not be requested again.
 
 For a list of user-generated feature requests, please see [FEATURE_REQUESTS.md](./FEATURE_REQUESTS.md).
 
@@ -66,6 +69,15 @@ Each ticket in NGI contains the following fields:
 NGI is built using a microservices architecture, with each service responsible for a specific function within the ticketing system. Services communicate internally using gRPC over HTTP/2 with mutual TLS for maximum performance and security, while the load balancer (LBRP) exposes a RESTful JSON API to browsers and external partners. Internal components within each service use Tokio channels for asynchronous message passing. This ensures loose coupling and high cohesion while squeezing every bit of practical performance from inter-service communication. Each service can be developed, deployed, and scaled independently, allowing for greater flexibility and agility in responding to changing requirements. Each service (including the load balancer itself) is also capable of running multiple instances for load balancing and high availability.
 
 See [ARCHITECTURE.md](./ARCHITECTURE.md) for detailed diagrams and explanations of the system architecture.
+
+### Service Introduction Structure
+The physical repository remains flat at the root. Service introduction stages are documented logically as:
+
+```text
+MVP: db/, custodian/, auth/, lbrp/
+Hardened+: admin/, chaos/, honeypot/
+Shared across all stages: shared/, tests/, web/
+```
 
 ### Key Components
 - [**Admin:**](./admin/) Manages user accounts, roles, and permissions within the NGI system (introduced in Hardened stage).

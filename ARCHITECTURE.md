@@ -52,16 +52,18 @@ in Rust to leverage memory safety, fearless concurrency, and high performance.
 
 ### Development Tools
 
-- **Linting**: `cargo clippy` with pedantic warnings
-- **Formatting**: `cargo fmt` with default settings
-- **Testing**: `cargo test` with integration tests (TDD workflow)
 - **Coverage**: `cargo tarpaulin` (90% minimum)
+- **Formatting**: `cargo fmt` with default settings
+- **Linting**: `cargo clippy` with pedantic warnings
 - **Security**: `cargo audit` for dependency vulnerabilities
+- **Testing**: `cargo test` with integration tests (TDD workflow)
 - **Watch Mode**: `cargo watch` for continuous test execution during TDD
 
 ---
 
 ## Workspace Structure
+
+The physical repository remains flat at the workspace root. The structure below is the logical grouping by service introduction stage.
 
 ```
 ngi/
@@ -69,13 +71,13 @@ ngi/
 ├── README.md               # User-facing documentation
 ├── ARCHITECTURE.md         # This file
 ├── FEATURE_REQUESTS.md
-├── admin/                  # Admin service (gRPC)
-├── auth/                   # Authentication service (gRPC)
-├── chaos/                  # Fault injection service (gRPC)
-├── custodian/              # Ticket lifecycle + distributed lock service
-├── db/                     # Database + consensus service
-├── honeypot/               # Intrusion detection honeypot service
-├── lbrp/                   # Load balancer + reverse proxy (REST edge)
+├── db/                     # MVP: Database + consensus service
+├── custodian/              # MVP: Ticket lifecycle + distributed lock service
+├── auth/                   # MVP: Authentication service (gRPC)
+├── lbrp/                   # MVP: Load balancer + reverse proxy (REST edge)
+├── admin/                  # Hardened+: User management and monitoring
+├── chaos/                  # Hardened+: Fault injection service
+├── honeypot/               # Hardened+: Intrusion detection honeypot service
 ├── shared/                 # Shared models, errors, and utilities crate
 ├── tests/                  # Integration/end-to-end test crate
 └── web/                    # Web frontend crate/assets
@@ -136,9 +138,12 @@ ngi/
 
 ### Services Without Consensus (Stateless)
 
+MVP:
 - **Auth**: Session state stored in DB, service is stateless
-- **Admin**: Reads/writes through DB service (enabled in Hardened+)
 - **LBRP**: Routes requests, no state to coordinate
+
+Hardened+:
+- **Admin**: Reads/writes through DB service (enabled in Hardened+)
 - **Chaos**: Test service, intentionally unpredictable (enabled in Hardened+)
 - **Honeypot**: Deceptive intrusion detection service (enabled in Hardened+)
 
@@ -732,11 +737,13 @@ As a true "minimum viable product" (MVP), it is meant to be the minimum needed t
 This intermediate stage introduces production-quality validation and intrusion telemetry while keeping operational complexity moderate.
 
 For example, you might run:
-- 1 LBRP instance
+MVP core services:
 - 1 Auth instance
-- 1 Admin instance
 - 3 Custodian instances (1 leader, 2 followers)
 - 3 DB instances (1 leader, 2 followers)
+- 1 LBRP instance
+Hardened additions:
+- 1 Admin instance
 - 1 Chaos instance
 - 1 Honeypot instance
 
@@ -840,11 +847,13 @@ graph TD
 This shows a deployment with multiple instances of each service for high availability and load distribution.
 
 For example, you might run:
-- 3 LBRP instances
+Core services:
 - 3 Auth instances
-- 2 Admin instances  
 - 5 Custodian instances (1 leader, 2 followers)
 - 5 DB instances (1 leader, 2 followers)
+- 3 LBRP instances
+Hardened services:
+- 2 Admin instances
 - 1 Chaos instance
 - 3 Honeypot instances
 
