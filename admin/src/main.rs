@@ -36,7 +36,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let keys = if keys_path.exists() {
         info!("Loading encryption keys from {:?}", keys_path);
         let bytes = fs::read(&keys_path)?;
-        let keys: ((Vec<u8>, Vec<u8>)) = serde_json::from_slice(&bytes)?;
+        let keys: (Vec<u8>, Vec<u8>) = serde_json::from_slice(&bytes)?;
         keys
     } else {
         info!("Generating new encryption keys");

@@ -1,9 +1,7 @@
-use shared::user::{User, UserAuth};
-use argon2::{
-    Argon2, PasswordHash, PasswordVerifier,
-};
-use jsonwebtoken::{decode, encode, DecodingKey, EncodingKey, Header, Validation};
+use argon2::{Argon2, PasswordHash, PasswordVerifier};
+use jsonwebtoken::{DecodingKey, EncodingKey, Header, Validation, decode, encode};
 use shared::encryption::EncryptionService;
+use shared::user::{User, UserAuth};
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use tonic::{Request, Response, Status};
@@ -55,11 +53,14 @@ impl AuthServiceImpl {
     async fn get_user_auth(&self, username: &str) -> Result<Option<UserAuth>, Status> {
         let mut client = self.db_client.lock().await;
         let key = format!("auth:username:{username}").into_bytes();
-        
-        let resp = client.get(db::GetRequest {
-            collection: "auth".to_string(),
-            key,
-        }).await.map_err(|e| Status::internal(format!("DB error: {e}")))?;
+
+        let resp = client
+            .get(db::GetRequest {
+                collection: "auth".to_string(),
+                key,
+            })
+            .await
+            .map_err(|e| Status::internal(format!("DB error: {e}")))?;
 
         let inner = resp.into_inner();
         if !inner.found {
@@ -67,16 +68,15 @@ impl AuthServiceImpl {
         }
 
         // Decrypt
-        let encrypted_data: shared::encryption::EncryptedData = 
-            postcard::from_bytes(&inner.value).map_err(|e| Status::internal(format!("Failed to decode encrypted data: {e}")))?;
+        let encrypted_data: shared::encryption::EncryptedData = serde_json::from_slice(&inner.value)
+            .map_err(|e| Status::internal(format!("Failed to decode encrypted data: {e}")))?;
 
-        let decrypted_bytes = EncryptionService::decrypt_with_private_key(
-            &encrypted_data,
-            &self.encryption_keys.1
-        ).map_err(|e| Status::internal(format!("Decryption failed: {e}")))?;
+        let decrypted_bytes =
+            EncryptionService::decrypt_with_private_key(&encrypted_data, &self.encryption_keys.1)
+                .map_err(|e| Status::internal(format!("Decryption failed: {e}")))?;
 
-        let user_auth: UserAuth = 
-            postcard::from_bytes(&decrypted_bytes).map_err(|e| Status::internal(format!("Failed to decode UserAuth: {e}")))?;
+        let user_auth: UserAuth = serde_json::from_slice(&decrypted_bytes)
+            .map_err(|e| Status::internal(format!("Failed to decode UserAuth: {e}")))?;
 
         Ok(Some(user_auth))
     }
@@ -84,11 +84,14 @@ impl AuthServiceImpl {
     async fn get_user_profile(&self, user_id: Uuid) -> Result<Option<User>, Status> {
         let mut client = self.db_client.lock().await;
         let key = user_id.as_bytes().to_vec();
-        
-        let resp = client.get(db::GetRequest {
-            collection: "users".to_string(),
-            key,
-        }).await.map_err(|e| Status::internal(format!("DB error: {e}")))?;
+
+        let resp = client
+            .get(db::GetRequest {
+                collection: "users".to_string(),
+                key,
+            })
+            .await
+            .map_err(|e| Status::internal(format!("DB error: {e}")))?;
 
         let inner = resp.into_inner();
         if !inner.found {
@@ -96,16 +99,15 @@ impl AuthServiceImpl {
         }
 
         // Try to decrypt
-        let encrypted_data: shared::encryption::EncryptedData = 
-            postcard::from_bytes(&inner.value).map_err(|e| Status::internal(format!("Failed to decode encrypted data: {e}")))?;
+        let encrypted_data: shared::encryption::EncryptedData = serde_json::from_slice(&inner.value)
+            .map_err(|e| Status::internal(format!("Failed to decode encrypted data: {e}")))?;
 
-        let decrypted_bytes = EncryptionService::decrypt_with_private_key(
-            &encrypted_data,
-            &self.encryption_keys.1
-        ).map_err(|e| Status::internal(format!("Decryption failed: {e}")))?;
+        let decrypted_bytes =
+            EncryptionService::decrypt_with_private_key(&encrypted_data, &self.encryption_keys.1)
+                .map_err(|e| Status::internal(format!("Decryption failed: {e}")))?;
 
-        let user: User = 
-            postcard::from_bytes(&decrypted_bytes).map_err(|e| Status::internal(format!("Failed to decode User: {e}")))?;
+        let user: User = serde_json::from_slice(&decrypted_bytes)
+            .map_err(|e| Status::internal(format!("Failed to decode User: {e}")))?;
 
         Ok(Some(user))
     }
@@ -141,10 +143,14 @@ impl AuthService for AuthServiceImpl {
         // 2. Verify Password
         let parsed_hash = PasswordHash::new(&user_auth.password_hash)
             .map_err(|e| Status::internal(format!("Invalid password hash in DB: {e}")))?;
-        
+
         if let Err(e) = Argon2::default().verify_password(req.password.as_bytes(), &parsed_hash) {
-             tracing::warn!("Password verification failed for user {}: {}", req.username, e);
-             return Ok(Response::new(AuthenticateResponse {
+            tracing::warn!(
+                "Password verification failed for user {}: {}",
+                req.username,
+                e
+            );
+            return Ok(Response::new(AuthenticateResponse {
                 success: false,
                 session_token: String::new(),
                 error: "Invalid credentials".to_string(),
@@ -165,10 +171,13 @@ impl AuthService for AuthServiceImpl {
         };
 
         // 5. Generate JWT
-        let expiration = usize::try_from(chrono::Utc::now()
-            .checked_add_signed(chrono::Duration::hours(24))
-            .expect("valid timestamp")
-            .timestamp()).unwrap_or(0);
+        let expiration = usize::try_from(
+            chrono::Utc::now()
+                .checked_add_signed(chrono::Duration::hours(24))
+                .expect("valid timestamp")
+                .timestamp(),
+        )
+        .unwrap_or(0);
 
         let claims = Claims {
             sub: user.user_id.to_string(),
@@ -180,7 +189,8 @@ impl AuthService for AuthServiceImpl {
             &Header::default(),
             &claims,
             &EncodingKey::from_secret(&self.jwt_secret),
-        ).map_err(|e| Status::internal(format!("Token generation failed: {e}")))?;
+        )
+        .map_err(|e| Status::internal(format!("Token generation failed: {e}")))?;
 
         // 6. Return
         Ok(Response::new(AuthenticateResponse {
@@ -193,7 +203,9 @@ impl AuthService for AuthServiceImpl {
                 display_name: user.display_name,
                 email: user.email,
                 role: format!("{:?}", user.role),
-                last_login: user.last_login.map(|t| prost_types::Timestamp::from(std::time::SystemTime::from(t))),
+                last_login: user
+                    .last_login
+                    .map(|t| prost_types::Timestamp::from(std::time::SystemTime::from(t))),
             }),
         }))
     }
@@ -235,7 +247,9 @@ impl AuthService for AuthServiceImpl {
                 display_name: user.display_name,
                 email: user.email,
                 role: format!("{:?}", user.role),
-                last_login: user.last_login.map(|t| prost_types::Timestamp::from(std::time::SystemTime::from(t))),
+                last_login: user
+                    .last_login
+                    .map(|t| prost_types::Timestamp::from(std::time::SystemTime::from(t))),
             }),
             error: String::new(),
         }))
@@ -247,6 +261,9 @@ impl AuthService for AuthServiceImpl {
     ) -> Result<Response<LogoutResponse>, Status> {
         // Stateless JWTs cannot be easily invalidated without a blacklist.
         // For MVP, we just say success.
-        Ok(Response::new(LogoutResponse { success: true, error: String::new() }))
+        Ok(Response::new(LogoutResponse {
+            success: true,
+            error: String::new(),
+        }))
     }
 }

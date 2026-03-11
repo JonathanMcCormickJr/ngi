@@ -182,8 +182,17 @@ impl AdminService for AdminServiceImpl {
         
         let resp_inner = resp.into_inner();
         if resp_inner.found {
-            let user: User = postcard::from_bytes(&resp_inner.value)
-                .map_err(|e| Status::internal(format!("Deserialization error: {e}")))?;
+            let encrypted_data: shared::encryption::EncryptedData = serde_json::from_slice(&resp_inner.value)
+                .map_err(|e| Status::internal(format!("Failed to decode encrypted data: {e}")))?;
+
+            let decrypted_bytes = EncryptionService::decrypt_with_private_key(
+                &encrypted_data,
+                &self.encryption_keys.1,
+            )
+            .map_err(|e| Status::internal(format!("Decryption failed: {e}")))?;
+
+            let user: User = serde_json::from_slice(&decrypted_bytes)
+                .map_err(|e| Status::internal(format!("Failed to decode User: {e}")))?;
                 
             Ok(Response::new(GetUserResponse {
                 user: Some(ProtoUser {

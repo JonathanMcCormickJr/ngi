@@ -1,6 +1,6 @@
 #[cfg(test)]
 mod tests {
-    use jsonwebtoken::{decode, encode, DecodingKey, EncodingKey, Header, Validation};
+    use jsonwebtoken::{DecodingKey, EncodingKey, Header, Validation, decode, encode};
     use serde::{Deserialize, Serialize};
 
     #[derive(Debug, Serialize, Deserialize)]
@@ -40,10 +40,10 @@ mod tests {
     #[test]
     fn test_argon2_hashing() {
         use argon2::{
-            password_hash::{
-                rand_core::OsRng, PasswordHash, PasswordHasher, PasswordVerifier, SaltString,
-            },
             Argon2,
+            password_hash::{
+                PasswordHash, PasswordHasher, PasswordVerifier, SaltString, rand_core::OsRng,
+            },
         };
 
         let password = b"hunter2";
@@ -56,7 +56,7 @@ mod tests {
         // Verify password against PHC string
         let parsed_hash = PasswordHash::new(&password_hash).unwrap();
         assert!(argon2.verify_password(password, &parsed_hash).is_ok());
-        
+
         // Verify wrong password fails
         assert!(argon2.verify_password(b"wrong", &parsed_hash).is_err());
     }
@@ -64,18 +64,18 @@ mod tests {
     #[test]
     fn test_bincode_serialization() {
         use shared::encryption::{EncryptedData, EncryptionAlgorithm};
-        
+
         // Bytes from E2E test log
         let bytes: Vec<u8> = vec![1, 0, 1, 251, 64, 4, 0, 217, 16, 149];
         // We need more bytes to fill the vectors, otherwise it will fail with EOF.
         // But let's see if it fails with "invalid variant" first.
-        
+
         // Extend with zeros to avoid EOF
         let mut full_bytes = bytes.clone();
         full_bytes.extend(std::iter::repeat(0).take(2000));
 
         let result: Result<EncryptedData, _> = serde_json::from_slice(&full_bytes);
-        
+
         match result {
             Ok(_) => println!("Success!"),
             Err(e) => println!("Error: {}", e),

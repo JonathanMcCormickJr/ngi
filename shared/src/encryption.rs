@@ -29,7 +29,7 @@ use pqc_kyber::{
 };
 use rand::{Rng, TryRng};
 use serde::{Deserialize, Serialize, Serializer, Deserializer};
-use std::fmt;
+use std::fmt::{self};
 
 /// Encryption algorithm options
 #[derive(Debug, Clone, Copy)]
@@ -129,7 +129,7 @@ impl EncryptionService {
     ) -> Result<EncryptedData, EncryptionError> {
         // Generate a random salt
         let mut salt = [0u8; 32];
-        rand::rng().try_fill_bytes(&mut salt).map_err(|e| EncryptionError::RandomNumberGeneration("Error generating random number".to_string()))?;
+        rand::rng().try_fill_bytes(&mut salt).map_err(|e| EncryptionError::RandomNumberGeneration(format!("Error generating random number: {}", e)))?;
 
         // Derive key from password and salt
         let key = Self::derive_key_from_password(password, &salt);

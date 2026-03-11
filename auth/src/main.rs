@@ -2,8 +2,8 @@
 #![warn(clippy::all, clippy::pedantic)]
 
 use anyhow::Result;
-use server::auth::auth_service_server::AuthServiceServer;
 use server::AuthServiceImpl;
+use server::auth::auth_service_server::AuthServiceServer;
 use shared::encryption::EncryptionService;
 use std::env;
 use std::fs;
@@ -11,7 +11,7 @@ use std::path::Path;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use tonic::transport::Server;
-use tracing::{info, Level};
+use tracing::{Level, info};
 use tracing_subscriber::FmtSubscriber;
 
 mod server;
@@ -26,10 +26,12 @@ async fn main() -> Result<()> {
 
     info!("Starting Auth service...");
 
-    let listen_addr = env::var("LISTEN_ADDR").unwrap_or_else(|_| "[::1]:8082".to_string()).parse()?;
+    let listen_addr = env::var("LISTEN_ADDR")
+        .unwrap_or_else(|_| "[::1]:8082".to_string())
+        .parse()?;
     let db_addr = env::var("DB_ADDR").unwrap_or_else(|_| "http://[::1]:8080".to_string());
     let storage_path = env::var("STORAGE_PATH").unwrap_or_else(|_| "/tmp/ngi-auth".to_string());
-    
+
     // Ensure storage path exists
     fs::create_dir_all(&storage_path)?;
 
@@ -38,7 +40,7 @@ async fn main() -> Result<()> {
     let keys = if keys_path.exists() {
         info!("Loading encryption keys from {:?}", keys_path);
         let bytes = fs::read(&keys_path)?;
-        let keys: ((Vec<u8>, Vec<u8>)) = serde_json::from_slice(&bytes)?;
+        let keys: (Vec<u8>, Vec<u8>) = serde_json::from_slice(&bytes)?;
         keys
     } else {
         info!("Generating new encryption keys");

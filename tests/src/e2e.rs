@@ -40,37 +40,33 @@ async fn wait_for_port(port: u16) -> Result<()> {
     Err(anyhow::anyhow!("Timed out waiting for port {}", port))
 }
 
+fn build_service_binary(bin: &str) -> Result<()> {
+    let status = Command::new("cargo")
+        .args(&[
+            "build",
+            "--package",
+            bin,
+            "--bin",
+            bin,
+            "--manifest-path",
+            "../Cargo.toml",
+        ])
+        .status()
+        .context(format!("failed to build binary {bin}"))?;
+
+    if !status.success() {
+        return Err(anyhow::anyhow!("cargo build failed for binary {bin}"));
+    }
+
+    Ok(())
+}
+
 fn start_service(name: &str, bin: &str, env: Vec<(&str, &str)>) -> Result<ServiceProcess> {
     let exe_path = format!("../target/debug/{}", bin);
-
-    // Try to spawn the binary; if it's missing, build it and retry
-    let child = match Command::new(&exe_path).envs(env.clone()).spawn() {
-        Ok(child) => child,
-        Err(e) => {
-            // If binary not found, run `cargo build --bin <bin>` and retry
-            eprintln!("Failed to start {}: {}. Attempting to build binary...", name, e);
-            let status = Command::new("cargo")
-                .args(&[
-                    "build",
-                    "--package",
-                    bin,
-                    "--bin",
-                    bin,
-                    "--manifest-path",
-                    "../Cargo.toml",
-                ])
-                .status()
-                .context("Failed to run `cargo build` to build service binary")?;
-            if !status.success() {
-                return Err(anyhow::anyhow!("cargo build failed to build binary {}", bin).into());
-            }
-            // Retry spawn
-            Command::new(&exe_path)
-                .envs(env)
-                .spawn()
-                .context(format!("Failed to start {} after building", name))?
-        }
-    };
+    let child = Command::new(&exe_path)
+        .envs(env)
+        .spawn()
+        .context(format!("Failed to start {}", name))?;
 
     println!("Started {} (pid {})", name, child.id());
     Ok(ServiceProcess {
@@ -81,9 +77,10 @@ fn start_service(name: &str, bin: &str, env: Vec<(&str, &str)>) -> Result<Servic
 
 #[tokio::test]
 async fn test_e2e_flow() -> Result<()> {
-    // Build everything first (assuming user has run cargo build)
-    // We can run cargo build here but it might be slow.
-    // Let's assume binaries exist.
+    // Build service binaries first so e2e always runs against fresh proto-compatible executables.
+    for bin in ["db", "custodian", "auth", "admin", "lbrp"] {
+        build_service_binary(bin)?;
+    }
 
     // 1. Start DB
     // Using a temp dir for storage
@@ -106,6 +103,7 @@ async fn test_e2e_flow() -> Result<()> {
         ("STORAGE_PATH", cust_path.to_str().unwrap()),
         ("RAFT_PEERS", "1:127.0.0.1:8081"),
         ("DB_ADDR", "http://127.0.0.1:50051"),
+        ("DB_LEADER_ADDR", "http://127.0.0.1:50051"),
         ("RUST_LOG", "info"),
     ])?;
     wait_for_port(8081).await.context("Custodian port")?;
@@ -188,8 +186,16 @@ async fn test_e2e_flow() -> Result<()> {
         }))
         .send()
         .await?;
-    
-    assert_eq!(ticket_resp.status(), 201);
+
+    let ticket_status = ticket_resp.status();
+    let ticket_body = ticket_resp.text().await?;
+    assert_eq!(
+        ticket_status,
+        201,
+        "unexpected create ticket response: status={}, body={}",
+        ticket_status,
+        ticket_body
+    );
     println!("Created ticket");
 
     Ok(())
