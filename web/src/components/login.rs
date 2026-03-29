@@ -1,15 +1,37 @@
+use crate::api;
 use leptos::*;
+use leptos_router::use_navigate;
+use wasm_bindgen_futures::spawn_local;
 
 #[component]
 pub fn Login() -> impl IntoView {
     let (username, set_username) = create_signal(String::new());
     let (password, set_password) = create_signal(String::new());
     let (error, set_error) = create_signal(String::new());
+    let (is_loading, set_is_loading) = create_signal(false);
+    let navigate = use_navigate();
 
     let on_submit = move |ev: leptos::ev::SubmitEvent| {
         ev.prevent_default();
-        // TODO: Integration with /auth/login
-        set_error.set("Authentication not yet implemented".to_string());
+
+        let username_value = username.get();
+        let password_value = password.get();
+        let navigate = navigate.clone();
+
+        set_is_loading.set(true);
+        set_error.set(String::new());
+
+        spawn_local(async move {
+            match api::login(username_value, password_value).await {
+                Ok(()) => {
+                    navigate("/tickets", leptos_router::NavigateOptions::default());
+                }
+                Err(err) => {
+                    set_error.set(err);
+                }
+            }
+            set_is_loading.set(false);
+        });
     };
 
     view! {
@@ -19,7 +41,7 @@ pub fn Login() -> impl IntoView {
                 <form on:submit=on_submit>
                     <div class="input-group">
                         <label for="username">"Username"</label>
-                        <input 
+                        <input
                             id="username"
                             type="text"
                             on:input=move |ev| set_username.set(event_target_value(&ev))
@@ -29,7 +51,7 @@ pub fn Login() -> impl IntoView {
                     </div>
                     <div class="input-group">
                         <label for="password">"Password"</label>
-                        <input 
+                        <input
                             id="password"
                             type="password"
                             on:input=move |ev| set_password.set(event_target_value(&ev))
@@ -37,8 +59,10 @@ pub fn Login() -> impl IntoView {
                             placeholder="••••••••"
                         />
                     </div>
-                    <button type="submit" class="btn-primary">"Sign In"</button>
-                    {move || (!error.get().is_empty()).then(|| view! { 
+                    <button type="submit" class="btn-primary" disabled=move || is_loading.get()>
+                        {move || if is_loading.get() { "Signing In..." } else { "Sign In" }}
+                    </button>
+                    {move || (!error.get().is_empty()).then(|| view! {
                         <div class="error-message">{error.get()}</div>
                     })}
                 </form>

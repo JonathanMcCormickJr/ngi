@@ -68,7 +68,10 @@ impl MultiNodeTestHarness {
 
     /// Placeholder for leader election testing
     /// In a real implementation, this would wait for Raft leader election
-    pub async fn wait_for_leader_election(&self, _timeout_duration: Duration) -> Result<u64, String> {
+    pub async fn wait_for_leader_election(
+        &self,
+        _timeout_duration: Duration,
+    ) -> Result<u64, String> {
         // For now, just return node 1 as the "leader"
         // In a real multi-node setup, this would monitor actual leader election
         Ok(1)
@@ -91,7 +94,7 @@ impl MultiNodeTestHarness {
         ClusterMetrics {
             node_count: self.nodes.len(),
             leader_id: Some(1), // Placeholder
-            term: 1, // Placeholder
+            term: 1,            // Placeholder
             committed_index: 0,
             applied_index: 0,
         }
@@ -138,7 +141,9 @@ mod tests {
         let harness = MultiNodeTestHarness::new(3).await;
 
         // Test the placeholder implementation
-        let leader_id = harness.wait_for_leader_election(Duration::from_secs(1)).await
+        let leader_id = harness
+            .wait_for_leader_election(Duration::from_secs(1))
+            .await
             .expect("Leader election placeholder should succeed");
 
         // Currently returns node 1 as placeholder

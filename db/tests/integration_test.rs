@@ -1,5 +1,5 @@
 //! Integration tests for the DB service
-//! 
+//!
 //! These tests verify the full service functionality including:
 //! - Single-node Raft initialization
 //! - gRPC API operations through Raft consensus
@@ -7,7 +7,7 @@
 //! - Cluster status reporting
 
 use db::raft::{DbRaft, DbStore};
-use openraft::{storage::Adaptor, Config};
+use openraft::{Config, storage::Adaptor};
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::time::sleep;
@@ -16,18 +16,20 @@ use tokio::time::sleep;
 mod helpers {
     use db::network::DbNetworkFactory;
     use db::raft::{DbRaft, DbStore};
-    use openraft::{storage::Adaptor, Config};
+    use openraft::{Config, storage::Adaptor};
     use std::sync::Arc;
 
     pub async fn create_test_raft_node(node_id: u64) -> anyhow::Result<DbRaft> {
         let store = DbStore::new_temp()?;
-        let config = Arc::new(Config {
-            heartbeat_interval: 100,
-            election_timeout_min: 300,
-            election_timeout_max: 500,
-            ..Default::default()
-        }
-        .validate()?);
+        let config = Arc::new(
+            Config {
+                heartbeat_interval: 100,
+                election_timeout_min: 300,
+                election_timeout_max: 500,
+                ..Default::default()
+            }
+            .validate()?,
+        );
 
         let network = DbNetworkFactory::new();
         let (log_store, state_machine) = Adaptor::new(store);
@@ -118,8 +120,14 @@ async fn test_storage_persistence() {
         let store = DbStore::new(storage_path.to_str().unwrap()).unwrap();
         let storage = store.state_machine().read().await.storage.clone();
 
-        assert_eq!(storage.get("test", b"key1").unwrap(), Some(b"value1".to_vec()));
-        assert_eq!(storage.get("test", b"key2").unwrap(), Some(b"value2".to_vec()));
+        assert_eq!(
+            storage.get("test", b"key1").unwrap(),
+            Some(b"value1".to_vec())
+        );
+        assert_eq!(
+            storage.get("test", b"key2").unwrap(),
+            Some(b"value2".to_vec())
+        );
     }
 }
 
@@ -138,9 +146,18 @@ async fn test_batch_operations() {
     storage.batch_put("test", &pairs).unwrap();
 
     // Verify all were stored
-    assert_eq!(storage.get("test", b"batch1").unwrap(), Some(b"value1".to_vec()));
-    assert_eq!(storage.get("test", b"batch2").unwrap(), Some(b"value2".to_vec()));
-    assert_eq!(storage.get("test", b"batch3").unwrap(), Some(b"value3".to_vec()));
+    assert_eq!(
+        storage.get("test", b"batch1").unwrap(),
+        Some(b"value1".to_vec())
+    );
+    assert_eq!(
+        storage.get("test", b"batch2").unwrap(),
+        Some(b"value2".to_vec())
+    );
+    assert_eq!(
+        storage.get("test", b"batch3").unwrap(),
+        Some(b"value3".to_vec())
+    );
 }
 
 #[tokio::test]
@@ -261,7 +278,9 @@ async fn test_concurrent_operations() {
         let handle = tokio::spawn(async move {
             let key = format!("concurrent_key_{}", i);
             let value = format!("concurrent_value_{}", i);
-            storage_clone.put("test", key.as_bytes(), value.as_bytes()).unwrap();
+            storage_clone
+                .put("test", key.as_bytes(), value.as_bytes())
+                .unwrap();
         });
         handles.push(handle);
     }

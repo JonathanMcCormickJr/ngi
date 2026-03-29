@@ -35,42 +35,60 @@ pub struct CustodianClient {
 
 impl CustodianClient {
     pub async fn connect(addr: String) -> Result<Self> {
-        let channel = Channel::from_shared(addr)?
-            .connect()
-            .await?;
+        let channel = Channel::from_shared(addr)?.connect().await?;
         let client = custodian::custodian_service_client::CustodianServiceClient::new(channel);
         Ok(Self {
             client: Arc::new(Mutex::new(client)),
         })
     }
 
-    pub async fn create_ticket(&self, req: custodian::CreateTicketRequest) -> Result<custodian::Ticket> {
+    pub async fn create_ticket(
+        &self,
+        req: custodian::CreateTicketRequest,
+    ) -> Result<custodian::Ticket> {
         let mut client = self.client.lock().await;
         let response = client.create_ticket(req).await?;
         Ok(response.into_inner())
     }
 
-    pub async fn acquire_lock(&self, req: custodian::LockRequest) -> Result<custodian::LockResponse> {
+    pub async fn acquire_lock(
+        &self,
+        req: custodian::LockRequest,
+    ) -> Result<custodian::LockResponse> {
         let mut client = self.client.lock().await;
         let response = client.acquire_lock(req).await?;
         Ok(response.into_inner())
     }
 
-    pub async fn release_lock(&self, req: custodian::LockRelease) -> Result<custodian::LockResponse> {
+    pub async fn release_lock(
+        &self,
+        req: custodian::LockRelease,
+    ) -> Result<custodian::LockResponse> {
         let mut client = self.client.lock().await;
         let response = client.release_lock(req).await?;
         Ok(response.into_inner())
     }
 
-    pub async fn update_ticket(&self, req: custodian::UpdateTicketRequest) -> Result<custodian::Ticket> {
+    pub async fn update_ticket(
+        &self,
+        req: custodian::UpdateTicketRequest,
+    ) -> Result<custodian::Ticket> {
         let mut client = self.client.lock().await;
         let response = client.update_ticket(req).await?;
         Ok(response.into_inner())
     }
 
+    pub async fn get_ticket(&self, req: custodian::GetTicketRequest) -> Result<custodian::Ticket> {
+        let mut client = self.client.lock().await;
+        let response = client.get_ticket(req).await?;
+        Ok(response.into_inner())
+    }
+
     pub async fn cluster_status(&self) -> Result<custodian::ClusterStatusResponse> {
         let mut client = self.client.lock().await;
-        let response = client.cluster_status(custodian::ClusterStatusRequest {}).await?;
+        let response = client
+            .cluster_status(custodian::ClusterStatusRequest {})
+            .await?;
         Ok(response.into_inner())
     }
 }
@@ -83,9 +101,7 @@ pub struct AuthClient {
 
 impl AuthClient {
     pub async fn connect(addr: String) -> Result<Self> {
-        let channel = Channel::from_shared(addr)?
-            .connect()
-            .await?;
+        let channel = Channel::from_shared(addr)?.connect().await?;
         let client = auth::auth_service_client::AuthServiceClient::new(channel);
         Ok(Self {
             client: Arc::new(Mutex::new(client)),
@@ -101,9 +117,7 @@ pub struct AdminClient {
 
 impl AdminClient {
     pub async fn connect(addr: String) -> Result<Self> {
-        let channel = Channel::from_shared(addr)?
-            .connect()
-            .await?;
+        let channel = Channel::from_shared(addr)?.connect().await?;
         let client = admin::admin_service_client::AdminServiceClient::new(channel);
         Ok(Self {
             client: Arc::new(Mutex::new(client)),
@@ -119,9 +133,7 @@ pub struct DbClient {
 
 impl DbClient {
     pub async fn connect(addr: String) -> Result<Self> {
-        let channel = Channel::from_shared(addr)?
-            .connect()
-            .await?;
+        let channel = Channel::from_shared(addr)?.connect().await?;
         let client = db::database_client::DatabaseClient::new(channel);
         Ok(Self {
             client: Arc::new(Mutex::new(client)),

@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod tests {
     use crate::middleware::Claims;
-    use jsonwebtoken::{encode, EncodingKey, Header};
+    use jsonwebtoken::{EncodingKey, Header, encode};
 
     #[test]
     fn test_claims_serialization() {

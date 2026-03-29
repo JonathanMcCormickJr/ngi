@@ -1,11 +1,11 @@
 use argon2::{
-    password_hash::{rand_core::OsRng, PasswordHasher, SaltString},
     Argon2,
+    password_hash::{PasswordHasher, SaltString, rand_core::OsRng},
 };
 use db::database_client::DatabaseClient;
-use db::{PutRequest, GetRequest};
+use db::{GetRequest, PutRequest};
 use shared::encryption::EncryptionService;
-use shared::user::{Role, User, UserAuth, AuthMethod};
+use shared::user::{AuthMethod, Role, User, UserAuth};
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use tonic::{Request, Response, Status};
@@ -22,9 +22,10 @@ pub mod db {
 }
 
 use admin::{
-    admin_service_server::AdminService, CreateUserRequest, CreateUserResponse, DeleteUserRequest,
-    DeleteUserResponse, GetUserRequest, GetUserResponse, ListUsersRequest, ListUsersResponse,
-    MetricsSnapshot, PushAck, UpdateUserRequest, UpdateUserResponse, User as ProtoUser, Role as ProtoRole,
+    CreateUserRequest, CreateUserResponse, DeleteUserRequest, DeleteUserResponse, GetUserRequest,
+    GetUserResponse, ListUsersRequest, ListUsersResponse, MetricsSnapshot, PushAck,
+    Role as ProtoRole, UpdateUserRequest, UpdateUserResponse, User as ProtoUser,
+    admin_service_server::AdminService,
 };
 
 use chrono::Utc;
@@ -76,7 +77,7 @@ impl AdminService for AdminServiceImpl {
     ) -> Result<Response<CreateUserResponse>, Status> {
         let req = request.into_inner();
         let user_id = Uuid::new_v4();
-        
+
         // 1. Hash Password
         let salt = SaltString::generate(&mut OsRng);
         let argon2 = Argon2::default();
@@ -92,15 +93,16 @@ impl AdminService for AdminServiceImpl {
             mfa_secret: None,
             mfa_method: Some(AuthMethod::Password),
         };
-        
+
         let auth_bytes = serde_json::to_vec(&auth)
             .map_err(|e| Status::internal(format!("Serialization error: {e}")))?;
-            
+
         // Encrypt auth data
         let encrypted_auth = EncryptionService::encrypt_with_public_key(
             &auth_bytes,
             &self.encryption_keys.0, // public key
-        ).map_err(|e| Status::internal(format!("Encryption error: {e}")))?;
+        )
+        .map_err(|e| Status::internal(format!("Encryption error: {e}")))?;
 
         // 3. Create User Profile (Public/Visible to system)
         let user = User {
@@ -120,28 +122,29 @@ impl AdminService for AdminServiceImpl {
             .map_err(|e| Status::internal(format!("Serialization error: {e}")))?;
 
         // Encrypt user profile
-        let encrypted_user = EncryptionService::encrypt_with_public_key(
-            &user_bytes,
-            &self.encryption_keys.0,
-        ).map_err(|e| Status::internal(format!("Encryption error: {e}")))?;
+        let encrypted_user =
+            EncryptionService::encrypt_with_public_key(&user_bytes, &self.encryption_keys.0)
+                .map_err(|e| Status::internal(format!("Encryption error: {e}")))?;
 
         let encrypted_user_bytes = serde_json::to_vec(&encrypted_user)
             .map_err(|e| Status::internal(format!("Serialization error: {e}")))?;
 
         // 4. Store in DB
-        // We need to store both User and UserAuth. 
-        // Key scheme: 
+        // We need to store both User and UserAuth.
+        // Key scheme:
         // user:{id} -> User struct
         // auth:{username} -> UserAuth struct (encrypted) - Wait, auth service needs to look up by username
-        
+
         let mut client = self.db_client.lock().await;
-        
+
         // Store User Profile
-        client.put(PutRequest {
-            collection: "users".to_string(),
-            key: user_id.as_bytes().to_vec(),
-            value: encrypted_user_bytes,
-        }).await?;
+        client
+            .put(PutRequest {
+                collection: "users".to_string(),
+                key: user_id.as_bytes().to_vec(),
+                value: encrypted_user_bytes,
+            })
+            .await?;
 
         // Store Auth Data (indexed by username for login)
         // We serialize the EncryptedData struct to bytes
@@ -149,11 +152,13 @@ impl AdminService for AdminServiceImpl {
             .map_err(|e| Status::internal(format!("Serialization error: {e}")))?;
 
         let auth_key = format!("auth:username:{}", req.username).into_bytes();
-        client.put(PutRequest {
-            collection: "auth".to_string(),
-            key: auth_key,
-            value: encrypted_auth_bytes,
-        }).await?;
+        client
+            .put(PutRequest {
+                collection: "auth".to_string(),
+                key: auth_key,
+                value: encrypted_auth_bytes,
+            })
+            .await?;
 
         Ok(Response::new(CreateUserResponse {
             user: Some(ProtoUser {
@@ -174,16 +179,20 @@ impl AdminService for AdminServiceImpl {
     ) -> Result<Response<GetUserResponse>, Status> {
         let req = request.into_inner();
         let mut client = self.db_client.lock().await;
-        
-        let resp = client.get(GetRequest {
-            collection: "users".to_string(),
-            key: req.id.into_bytes(),
-        }).await?;
-        
+
+        let resp = client
+            .get(GetRequest {
+                collection: "users".to_string(),
+                key: req.id.into_bytes(),
+            })
+            .await?;
+
         let resp_inner = resp.into_inner();
         if resp_inner.found {
-            let encrypted_data: shared::encryption::EncryptedData = serde_json::from_slice(&resp_inner.value)
-                .map_err(|e| Status::internal(format!("Failed to decode encrypted data: {e}")))?;
+            let encrypted_data: shared::encryption::EncryptedData =
+                serde_json::from_slice(&resp_inner.value).map_err(|e| {
+                    Status::internal(format!("Failed to decode encrypted data: {e}"))
+                })?;
 
             let decrypted_bytes = EncryptionService::decrypt_with_private_key(
                 &encrypted_data,
@@ -193,7 +202,7 @@ impl AdminService for AdminServiceImpl {
 
             let user: User = serde_json::from_slice(&decrypted_bytes)
                 .map_err(|e| Status::internal(format!("Failed to decode User: {e}")))?;
-                
+
             Ok(Response::new(GetUserResponse {
                 user: Some(ProtoUser {
                     id: user.user_id.to_string(),

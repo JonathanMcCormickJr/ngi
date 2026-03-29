@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod tests {
-    use custodian::storage::Storage;
     use custodian::LockCommand;
+    use custodian::storage::Storage;
     use uuid::Uuid;
 
     #[test]

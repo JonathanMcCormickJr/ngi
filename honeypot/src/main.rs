@@ -8,7 +8,7 @@ use reporter::IntrusionEvent;
 
 fn main() {
     println!("CriticalBackups service initialized (honeypot mode)");
-    
+
     // Example: log a fake intrusion attempt
     let event = IntrusionEvent::new(
         "192.168.1.100".to_string(),
@@ -29,7 +29,7 @@ mod tests {
             "/api/backup".to_string(),
             "POST".to_string(),
         );
-        
+
         assert_eq!(event.source_ip, "10.0.0.1");
         assert_eq!(event.endpoint_accessed, "/api/backup");
         assert_eq!(event.request_method, "POST");
@@ -46,7 +46,11 @@ mod tests {
     fn test_fake_backup_list() {
         let backups = traps::generate_fake_backup_list();
         assert!(!backups.is_empty());
-        assert!(backups.iter().any(|b| b.contains(".tar.gz") || b.contains(".zip")));
+        assert!(
+            backups
+                .iter()
+                .any(|b| b.contains(".tar.gz") || b.contains(".zip"))
+        );
     }
 
     #[test]

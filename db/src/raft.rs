@@ -267,7 +267,9 @@ impl RaftLogReader<DbTypeConfig> for DbLogReader {
                 )
             })?);
 
-            if let Some(end_idx) = end && index > end_idx {
+            if let Some(end_idx) = end
+                && index > end_idx
+            {
                 break;
             }
 

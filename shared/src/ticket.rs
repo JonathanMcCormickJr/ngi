@@ -2,8 +2,8 @@
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use uuid::Uuid;
 use std::fmt;
+use uuid::Uuid;
 
 /// MAC address type with validation
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -19,24 +19,24 @@ impl MacAddress {
         // Validate RFC-compliant MAC address format (XX:XX:XX:XX:XX:XX or XX-XX-XX-XX-XX-XX)
         let normalized = mac.replace('-', ":");
         let parts: Vec<&str> = normalized.split(':').collect();
-        
+
         if parts.len() != 6 {
-            return Err(crate::error::NgiError::ValidationError(
-                format!("Invalid MAC address format: {mac}"),
-            ));
+            return Err(crate::error::NgiError::ValidationError(format!(
+                "Invalid MAC address format: {mac}"
+            )));
         }
-        
+
         for part in parts {
             if part.len() != 2 || !part.chars().all(|c| c.is_ascii_hexdigit()) {
-                return Err(crate::error::NgiError::ValidationError(
-                    format!("Invalid MAC address format: {mac}"),
-                ));
+                return Err(crate::error::NgiError::ValidationError(format!(
+                    "Invalid MAC address format: {mac}"
+                )));
             }
         }
-        
+
         Ok(Self(normalized.to_uppercase()))
     }
-    
+
     /// Get the MAC address as a string
     #[must_use]
     pub fn as_str(&self) -> &str {
@@ -120,7 +120,7 @@ impl NetworkDevice {
             Self::Firewall { .. } => "Firewall",
         }
     }
-    
+
     /// Get the device make and model as a formatted string
     #[must_use]
     pub fn make_model(&self) -> String {
@@ -135,7 +135,7 @@ impl NetworkDevice {
             | Self::Firewall { make, model, .. } => format!("{make} {model}"),
         }
     }
-    
+
     /// Get the MAC address if available
     #[must_use]
     pub const fn mac_address(&self) -> Option<&MacAddress> {
@@ -489,17 +489,21 @@ impl Ticket {
         tech_notes: &str,
     ) -> String {
         let dsr_ticket = self.ticket_id;
-        let customer_ticket = self
-            .customer_ticket_number
-            .as_deref()
-            .unwrap_or("N/A");
+        let customer_ticket = self.customer_ticket_number.as_deref().unwrap_or("N/A");
         let third_party = self.other_ticket_number.as_deref().unwrap_or("N/A");
 
         // Format network devices (modems/ONTs)
         let devices: Vec<String> = self
             .network_devices
             .iter()
-            .filter(|d| matches!(d, NetworkDevice::DslModem { .. } | NetworkDevice::CoaxModem { .. } | NetworkDevice::Ont { .. }))
+            .filter(|d| {
+                matches!(
+                    d,
+                    NetworkDevice::DslModem { .. }
+                        | NetworkDevice::CoaxModem { .. }
+                        | NetworkDevice::Ont { .. }
+                )
+            })
             .map(|d| {
                 let mac = d
                     .mac_address()
@@ -527,15 +531,17 @@ impl Ticket {
     pub fn validate(&self) -> Result<(), crate::error::NgiError> {
         // Check status-specific requirements
         if self.status.requires_resolution() && self.resolution.is_none() {
-            return Err(crate::error::NgiError::ValidationError(
-                format!("Status {:?} requires a resolution", self.status),
-            ));
+            return Err(crate::error::NgiError::ValidationError(format!(
+                "Status {:?} requires a resolution",
+                self.status
+            )));
         }
 
         if self.status.requires_next_action() && matches!(self.next_action, NextAction::None) {
-            return Err(crate::error::NgiError::ValidationError(
-                format!("Status {:?} requires a next action", self.status),
-            ));
+            return Err(crate::error::NgiError::ValidationError(format!(
+                "Status {:?} requires a next action",
+                self.status
+            )));
         }
 
         Ok(())
@@ -842,12 +848,12 @@ mod tests {
             Symptom::PacketLoss,
             Uuid::new_v4(),
         );
-        
+
         // SupportHold status doesn't require resolution or next_action
         ticket.status = TicketStatus::SupportHold;
         ticket.next_action = NextAction::None;
         ticket.resolution = None;
-        
+
         assert!(ticket.validate().is_ok());
     }
 

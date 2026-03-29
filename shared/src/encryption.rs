@@ -20,15 +20,13 @@
 //! ```
 
 use aes_gcm::{
-    aead::{Aead, AeadCore, KeyInit, OsRng},
     Aes256Gcm, Nonce,
+    aead::{Aead, AeadCore, KeyInit, OsRng},
 };
 use chacha20poly1305::ChaCha20Poly1305;
-use pqc_kyber::{
-    decapsulate, encapsulate, keypair, KYBER_PUBLICKEYBYTES, KYBER_SECRETKEYBYTES,
-};
-use rand::{TryRng};
-use serde::{Deserialize, Serialize, Serializer, Deserializer};
+use pqc_kyber::{KYBER_PUBLICKEYBYTES, KYBER_SECRETKEYBYTES, decapsulate, encapsulate, keypair};
+use rand::TryRng;
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::fmt::{self};
 
 /// Encryption algorithm options
@@ -129,7 +127,12 @@ impl EncryptionService {
     ) -> Result<EncryptedData, EncryptionError> {
         // Generate a random salt
         let mut salt = [0u8; 32];
-        rand::rng().try_fill_bytes(&mut salt).map_err(|e| EncryptionError::RandomNumberGeneration(format!("Error generating random number: {}", e)))?;
+        rand::rng().try_fill_bytes(&mut salt).map_err(|e| {
+            EncryptionError::RandomNumberGeneration(format!(
+                "Error generating random number: {}",
+                e
+            ))
+        })?;
 
         // Derive key from password and salt
         let key = Self::derive_key_from_password(password, &salt);
@@ -171,9 +174,10 @@ impl EncryptionService {
     /// # Errors
     /// Returns `EncryptionError` if key generation fails.
     pub fn generate_keypair() -> Result<(Vec<u8>, Vec<u8>), EncryptionError> {
-        let keys = keypair(&mut OsRng)
-            .map_err(|e| EncryptionError::KeyGeneration(format!("Kyber keypair generation failed: {e:?}")))?;
-            
+        let keys = keypair(&mut OsRng).map_err(|e| {
+            EncryptionError::KeyGeneration(format!("Kyber keypair generation failed: {e:?}"))
+        })?;
+
         Ok((keys.public.to_vec(), keys.secret.to_vec()))
     }
 
@@ -185,7 +189,11 @@ impl EncryptionService {
         data: &[u8],
         public_key: &[u8],
     ) -> Result<EncryptedData, EncryptionError> {
-        Self::encrypt_with_public_key_and_algorithm(data, public_key, EncryptionAlgorithm::default())
+        Self::encrypt_with_public_key_and_algorithm(
+            data,
+            public_key,
+            EncryptionAlgorithm::default(),
+        )
     }
 
     /// Encrypt data using a public key and specific algorithm
@@ -199,7 +207,7 @@ impl EncryptionService {
     ) -> Result<EncryptedData, EncryptionError> {
         // Validate public key length
         if public_key.len() != KYBER_PUBLICKEYBYTES {
-             return Err(EncryptionError::InvalidInput(format!(
+            return Err(EncryptionError::InvalidInput(format!(
                 "Invalid public key length: expected {}, got {}",
                 KYBER_PUBLICKEYBYTES,
                 public_key.len()
@@ -207,8 +215,9 @@ impl EncryptionService {
         }
 
         // Encapsulate key
-        let (ciphertext, shared_secret) = encapsulate(public_key, &mut OsRng)
-             .map_err(|e| EncryptionError::KeyEncapsulation(format!("Kyber encapsulation failed: {e:?}")))?;
+        let (ciphertext, shared_secret) = encapsulate(public_key, &mut OsRng).map_err(|e| {
+            EncryptionError::KeyEncapsulation(format!("Kyber encapsulation failed: {e:?}"))
+        })?;
 
         // Use shared secret as symmetric key
         // Shared secret is 32 bytes, perfect for AES-256 or ChaCha20
@@ -236,12 +245,14 @@ impl EncryptionService {
     ) -> Result<Vec<u8>, EncryptionError> {
         // Check if KEM ciphertext is present
         let kem_ciphertext = encrypted_data.kem_ciphertext.as_ref().ok_or_else(|| {
-            EncryptionError::InvalidInput("Missing KEM ciphertext for private key decryption".to_string())
+            EncryptionError::InvalidInput(
+                "Missing KEM ciphertext for private key decryption".to_string(),
+            )
         })?;
 
         // Validate private key length
         if private_key.len() != KYBER_SECRETKEYBYTES {
-             return Err(EncryptionError::InvalidInput(format!(
+            return Err(EncryptionError::InvalidInput(format!(
                 "Invalid private key length: expected {}, got {}",
                 KYBER_SECRETKEYBYTES,
                 private_key.len()
@@ -249,8 +260,9 @@ impl EncryptionService {
         }
 
         // Decapsulate key
-        let shared_secret = decapsulate(kem_ciphertext, private_key)
-             .map_err(|e| EncryptionError::KeyDecapsulation(format!("Kyber decapsulation failed: {e:?}")))?;
+        let shared_secret = decapsulate(kem_ciphertext, private_key).map_err(|e| {
+            EncryptionError::KeyDecapsulation(format!("Kyber decapsulation failed: {e:?}"))
+        })?;
 
         // Use shared secret as symmetric key
         let key: [u8; 32] = shared_secret;
@@ -278,7 +290,7 @@ impl EncryptionService {
         key[16..24].copy_from_slice(&hash_bytes);
         key[24..32].copy_from_slice(&hash_bytes);
 
-key
+        key
     }
 
     /// Perform symmetric encryption
@@ -293,9 +305,9 @@ key
                 let nonce = Aes256Gcm::generate_nonce(&mut OsRng);
                 let nonce_bytes = nonce.to_vec();
 
-                let ciphertext = cipher
-                    .encrypt(&nonce, data)
-                    .map_err(|e| EncryptionError::SymmetricEncryption(format!("AES-GCM encryption failed: {e}")))?;
+                let ciphertext = cipher.encrypt(&nonce, data).map_err(|e| {
+                    EncryptionError::SymmetricEncryption(format!("AES-GCM encryption failed: {e}"))
+                })?;
 
                 Ok((nonce_bytes, ciphertext))
             }
@@ -304,9 +316,11 @@ key
                 let nonce = ChaCha20Poly1305::generate_nonce(&mut OsRng);
                 let nonce_bytes = nonce.to_vec();
 
-                let ciphertext = cipher
-                    .encrypt(&nonce, data)
-                    .map_err(|e| EncryptionError::SymmetricEncryption(format!("ChaCha20-Poly1305 encryption failed: {e}")))?;
+                let ciphertext = cipher.encrypt(&nonce, data).map_err(|e| {
+                    EncryptionError::SymmetricEncryption(format!(
+                        "ChaCha20-Poly1305 encryption failed: {e}"
+                    ))
+                })?;
 
                 Ok((nonce_bytes, ciphertext))
             }
@@ -326,7 +340,11 @@ key
 
                 cipher
                     .decrypt(nonce, encrypted_data.ciphertext.as_ref())
-                    .map_err(|e| EncryptionError::SymmetricDecryption(format!("AES-GCM decryption failed: {e}")))
+                    .map_err(|e| {
+                        EncryptionError::SymmetricDecryption(format!(
+                            "AES-GCM decryption failed: {e}"
+                        ))
+                    })
             }
             EncryptionAlgorithm::ChaCha20Poly1305 => {
                 let cipher = ChaCha20Poly1305::new(key.into());
@@ -334,7 +352,11 @@ key
 
                 cipher
                     .decrypt(nonce, encrypted_data.ciphertext.as_ref())
-                    .map_err(|e| EncryptionError::SymmetricDecryption(format!("ChaCha20-Poly1305 decryption failed: {e}")))
+                    .map_err(|e| {
+                        EncryptionError::SymmetricDecryption(format!(
+                            "ChaCha20-Poly1305 decryption failed: {e}"
+                        ))
+                    })
             }
         }
     }
@@ -396,8 +418,10 @@ mod tests {
             data,
             password,
             EncryptionAlgorithm::Aes256Gcm,
-        ).unwrap();
-        let decrypted_aes = EncryptionService::decrypt_with_password(&encrypted_aes, password).unwrap();
+        )
+        .unwrap();
+        let decrypted_aes =
+            EncryptionService::decrypt_with_password(&encrypted_aes, password).unwrap();
         assert_eq!(data, decrypted_aes.as_slice());
 
         // Test ChaCha20-Poly1305
@@ -405,8 +429,10 @@ mod tests {
             data,
             password,
             EncryptionAlgorithm::ChaCha20Poly1305,
-        ).unwrap();
-        let decrypted_chacha = EncryptionService::decrypt_with_password(&encrypted_chacha, password).unwrap();
+        )
+        .unwrap();
+        let decrypted_chacha =
+            EncryptionService::decrypt_with_password(&encrypted_chacha, password).unwrap();
         assert_eq!(data, decrypted_chacha.as_slice());
     }
 
@@ -427,20 +453,20 @@ mod tests {
     #[test]
     fn test_post_quantum_encryption_round_trip() {
         let original_data = b"Sensitive data protected by Kyber-768";
-        
+
         // Generate keys
         let (pk, sk) = EncryptionService::generate_keypair().unwrap();
-        
+
         // Encrypt with public key
         let encrypted = EncryptionService::encrypt_with_public_key(original_data, &pk).unwrap();
-        
+
         // Verify structure
         assert!(encrypted.kem_ciphertext.is_some());
         assert!(encrypted.salt.is_none());
-        
+
         // Decrypt with private key
         let decrypted = EncryptionService::decrypt_with_private_key(&encrypted, &sk).unwrap();
-        
+
         assert_eq!(original_data, decrypted.as_slice());
     }
 }

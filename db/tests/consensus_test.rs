@@ -6,7 +6,7 @@
 use db::network::DbNetworkFactory;
 use db::raft::{DbRaft, DbStore};
 use db::storage::LogEntry;
-use openraft::{storage::Adaptor, Config};
+use openraft::{Config, storage::Adaptor};
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::time::{sleep, timeout};
@@ -14,12 +14,15 @@ use tokio::time::{sleep, timeout};
 /// Helper to create a test Raft node
 async fn create_test_raft_node(node_id: u64) -> anyhow::Result<DbRaft> {
     let store = DbStore::new_temp()?;
-    let config = Arc::new(Config {
-        heartbeat_interval: 100,
-        election_timeout_min: 300,
-        election_timeout_max: 500,
-        ..Default::default()
-    }.validate()?);
+    let config = Arc::new(
+        Config {
+            heartbeat_interval: 100,
+            election_timeout_min: 300,
+            election_timeout_max: 500,
+            ..Default::default()
+        }
+        .validate()?,
+    );
 
     let network_factory = DbNetworkFactory::new();
     let (log_store, state_machine) = Adaptor::new(store);
@@ -46,7 +49,9 @@ async fn test_single_node_cluster_operations() {
             }
             sleep(Duration::from_millis(50)).await;
         }
-    }).await.expect("Leader election timeout");
+    })
+    .await
+    .expect("Leader election timeout");
 
     let metrics = raft.metrics().borrow().clone();
     assert_eq!(metrics.id, 1);
@@ -73,7 +78,9 @@ async fn test_consensus_write_operations() {
             }
             sleep(Duration::from_millis(50)).await;
         }
-    }).await.expect("Leader election timeout");
+    })
+    .await
+    .expect("Leader election timeout");
 
     // Test various write operations
     let test_cases = vec![
@@ -153,17 +160,23 @@ async fn test_state_machine_application() {
 #[tokio::test]
 async fn test_log_persistence_and_recovery() {
     let store = DbStore::new_temp().unwrap();
-    let config = Arc::new(Config {
-        heartbeat_interval: 100,
-        election_timeout_min: 300,
-        election_timeout_max: 500,
-        ..Default::default()
-    }.validate().unwrap());
+    let config = Arc::new(
+        Config {
+            heartbeat_interval: 100,
+            election_timeout_min: 300,
+            election_timeout_max: 500,
+            ..Default::default()
+        }
+        .validate()
+        .unwrap(),
+    );
 
     let network_factory = DbNetworkFactory::new();
     let (log_store, state_machine) = Adaptor::new(store.clone());
 
-    let raft = DbRaft::new(1, config, network_factory, log_store, state_machine).await.unwrap();
+    let raft = DbRaft::new(1, config, network_factory, log_store, state_machine)
+        .await
+        .unwrap();
 
     // Initialize cluster
     let mut members = std::collections::BTreeSet::new();
@@ -179,7 +192,9 @@ async fn test_log_persistence_and_recovery() {
             }
             sleep(Duration::from_millis(50)).await;
         }
-    }).await.expect("Leader election timeout");
+    })
+    .await
+    .expect("Leader election timeout");
 
     // Write some data
     let entry = LogEntry::Put {

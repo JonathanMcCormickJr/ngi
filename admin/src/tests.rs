@@ -1,10 +1,10 @@
 #[cfg(test)]
 mod tests {
     use crate::server::AdminServiceImpl;
+    use chrono::Utc;
     use shared::user::Role;
     use shared::user::User;
     use uuid::Uuid;
-    use chrono::Utc;
 
     #[test]
     fn test_role_mapping() {
@@ -13,7 +13,7 @@ mod tests {
         let role = Role::Admin;
         assert!(role.is_admin());
         assert!(role.can_manage_users());
-        
+
         let tech = Role::Technician;
         assert!(!tech.is_admin());
         assert!(tech.can_modify_tickets());
@@ -37,7 +37,7 @@ mod tests {
 
         let bytes = serde_json::to_vec(&user).unwrap();
         let decoded: User = serde_json::from_slice(&bytes).unwrap();
-        
+
         assert_eq!(user.username, decoded.username);
         assert_eq!(user.role, decoded.role);
     }

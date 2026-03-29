@@ -7,13 +7,13 @@
 //! all NGI microservices. It ensures type consistency and enables seamless
 //! serialization/deserialization for both gRPC and REST APIs.
 
+pub mod encryption;
+pub mod error;
 pub mod ticket;
 pub mod user;
-pub mod error;
-pub mod encryption;
 
 // Re-export commonly used types
-pub use ticket::{Ticket, TicketStatus, Symptom, Resolution, NextAction, TicketPriority};
-pub use user::{User, Role, AuthMethod};
+pub use encryption::{EncryptedData, EncryptionAlgorithm, EncryptionError, EncryptionService};
 pub use error::NgiError;
-pub use encryption::{EncryptionService, EncryptedData, EncryptionAlgorithm, EncryptionError};
+pub use ticket::{NextAction, Resolution, Symptom, Ticket, TicketPriority, TicketStatus};
+pub use user::{AuthMethod, Role, User};

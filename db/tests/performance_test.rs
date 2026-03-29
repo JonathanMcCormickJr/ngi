@@ -44,7 +44,9 @@ impl PerformanceHarness {
             // Simulate a write operation
             let key = format!("bench_key_{}", i);
             let value = format!("bench_value_{}", i);
-            self.storage.put("bench", key.as_bytes(), value.as_bytes()).unwrap();
+            self.storage
+                .put("bench", key.as_bytes(), value.as_bytes())
+                .unwrap();
 
             let latency = op_start.elapsed().as_micros();
             latencies.push(latency);
@@ -73,7 +75,9 @@ impl PerformanceHarness {
         for i in 0..operation_count {
             let key = format!("bench_key_{}", i);
             let value = format!("bench_value_{}", i);
-            self.storage.put("bench", key.as_bytes(), value.as_bytes()).unwrap();
+            self.storage
+                .put("bench", key.as_bytes(), value.as_bytes())
+                .unwrap();
         }
 
         let mut latencies = Vec::with_capacity(operation_count);
@@ -108,7 +112,11 @@ impl PerformanceHarness {
     }
 
     /// Benchmark concurrent operations
-    pub fn benchmark_concurrent_operations(&self, operation_count: usize, concurrency: usize) -> BenchmarkResults {
+    pub fn benchmark_concurrent_operations(
+        &self,
+        operation_count: usize,
+        concurrency: usize,
+    ) -> BenchmarkResults {
         let start = Instant::now();
         let mut handles = Vec::with_capacity(concurrency);
         let operations_per_worker = operation_count / concurrency;
@@ -123,7 +131,9 @@ impl PerformanceHarness {
                     // Simulate concurrent operation
                     let key = format!("concurrent_key_{}_{}", worker_id, i);
                     let value = format!("concurrent_value_{}_{}", worker_id, i);
-                    storage.put("concurrent", key.as_bytes(), value.as_bytes()).unwrap();
+                    storage
+                        .put("concurrent", key.as_bytes(), value.as_bytes())
+                        .unwrap();
                     latencies.push(op_start.elapsed().as_micros());
                 }
                 latencies

@@ -6,14 +6,14 @@ mod server;
 use anyhow;
 use server::AdminServiceImpl;
 use server::admin::admin_service_server::AdminServiceServer;
-use tonic::transport::Server;
-use tracing::info;
-use std::net::SocketAddr;
-use std::sync::Arc;
-use tokio::sync::Mutex;
 use shared::encryption::EncryptionService;
 use std::fs;
+use std::net::SocketAddr;
 use std::path::Path;
+use std::sync::Arc;
+use tokio::sync::Mutex;
+use tonic::transport::Server;
+use tracing::info;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -22,9 +22,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let addr: SocketAddr = std::env::var("LISTEN_ADDR")
         .unwrap_or_else(|_| "0.0.0.0:8083".to_string())
         .parse()?;
-    let db_addr = std::env::var("DB_ADDR")
-        .unwrap_or_else(|_| "http://db-leader:8080".to_string());
-    let storage_path = std::env::var("STORAGE_PATH").unwrap_or_else(|_| "/tmp/ngi-admin".to_string());
+    let db_addr = std::env::var("DB_ADDR").unwrap_or_else(|_| "http://db-leader:8080".to_string());
+    let storage_path =
+        std::env::var("STORAGE_PATH").unwrap_or_else(|_| "/tmp/ngi-admin".to_string());
 
     info!("Admin Service starting on {}", addr);
 

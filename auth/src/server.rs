@@ -68,8 +68,9 @@ impl AuthServiceImpl {
         }
 
         // Decrypt
-        let encrypted_data: shared::encryption::EncryptedData = serde_json::from_slice(&inner.value)
-            .map_err(|e| Status::internal(format!("Failed to decode encrypted data: {e}")))?;
+        let encrypted_data: shared::encryption::EncryptedData =
+            serde_json::from_slice(&inner.value)
+                .map_err(|e| Status::internal(format!("Failed to decode encrypted data: {e}")))?;
 
         let decrypted_bytes =
             EncryptionService::decrypt_with_private_key(&encrypted_data, &self.encryption_keys.1)
@@ -99,8 +100,9 @@ impl AuthServiceImpl {
         }
 
         // Try to decrypt
-        let encrypted_data: shared::encryption::EncryptedData = serde_json::from_slice(&inner.value)
-            .map_err(|e| Status::internal(format!("Failed to decode encrypted data: {e}")))?;
+        let encrypted_data: shared::encryption::EncryptedData =
+            serde_json::from_slice(&inner.value)
+                .map_err(|e| Status::internal(format!("Failed to decode encrypted data: {e}")))?;
 
         let decrypted_bytes =
             EncryptionService::decrypt_with_private_key(&encrypted_data, &self.encryption_keys.1)

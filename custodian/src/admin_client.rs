@@ -3,15 +3,16 @@ pub mod admin {
     tonic::include_proto!("admin");
 }
 
-use admin::admin_service_client::AdminServiceClient;
 use admin::MetricsSnapshot;
-use tonic::transport::Channel;
-use tonic::Request;
+use admin::admin_service_client::AdminServiceClient;
 use once_cell::sync::OnceCell;
 use std::collections::HashMap;
 use std::sync::Arc;
+use tonic::Request;
+use tonic::transport::Channel;
 
-static CLIENT: OnceCell<Arc<tokio::sync::Mutex<Option<AdminServiceClient<Channel>>>>> = OnceCell::new();
+static CLIENT: OnceCell<Arc<tokio::sync::Mutex<Option<AdminServiceClient<Channel>>>>> =
+    OnceCell::new();
 
 pub fn init(addr: String) {
     let cell = CLIENT.get_or_init(|| Arc::new(tokio::sync::Mutex::new(None)));
@@ -29,16 +30,24 @@ pub fn init(addr: String) {
     });
 }
 
-pub async fn push_snapshot<S: ::std::hash::BuildHasher>(service: &str, size: u64, counters: HashMap<String, i64, S>) {
+pub async fn push_snapshot<S: ::std::hash::BuildHasher>(
+    service: &str,
+    size: u64,
+    counters: HashMap<String, i64, S>,
+) {
     if let Some(cell) = CLIENT.get() {
         let mut guard = cell.lock().await;
         if let Some(client) = guard.as_mut() {
             // Convert to the default-hasher HashMap expected by the generated proto types
-            let counters_std: std::collections::HashMap<String, i64> = counters.into_iter().collect();
+            let counters_std: std::collections::HashMap<String, i64> =
+                counters.into_iter().collect();
 
             let req = MetricsSnapshot {
                 service: service.to_string(),
-                timestamp: chrono::Utc::now().timestamp_millis().try_into().unwrap_or_default(),
+                timestamp: chrono::Utc::now()
+                    .timestamp_millis()
+                    .try_into()
+                    .unwrap_or_default(),
                 counters: counters_std,
                 last_snapshot_size: size,
             };

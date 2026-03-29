@@ -16,7 +16,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("Chaos service listening on {addr}");
 
     Server::builder()
-        .add_service(chaos_service::chaos::chaos_service_server::ChaosServiceServer::new(chaos_service))
+        .add_service(
+            chaos_service::chaos::chaos_service_server::ChaosServiceServer::new(chaos_service),
+        )
         .serve(addr)
         .await?;
 

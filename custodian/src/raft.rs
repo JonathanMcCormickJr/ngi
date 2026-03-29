@@ -223,7 +223,8 @@ impl RaftLogReader<CustodianTypeConfig> for CustodianLogReader {
     async fn try_get_log_entries<RB: RangeBounds<u64> + Clone + Send>(
         &mut self,
         range: RB,
-    ) -> Result<Vec<<CustodianTypeConfig as openraft::RaftTypeConfig>::Entry>, StorageError<u64>> {
+    ) -> Result<Vec<<CustodianTypeConfig as openraft::RaftTypeConfig>::Entry>, StorageError<u64>>
+    {
         let start = match range.start_bound() {
             std::ops::Bound::Included(i) => *i,
             std::ops::Bound::Excluded(i) => i + 1,
@@ -267,7 +268,9 @@ impl RaftLogReader<CustodianTypeConfig> for CustodianLogReader {
                 )
             })?);
 
-            if let Some(end_idx) = end && index > end_idx {
+            if let Some(end_idx) = end
+                && index > end_idx
+            {
                 break;
             }
 
@@ -295,7 +298,8 @@ impl RaftLogReader<CustodianTypeConfig> for CustodianStore {
     async fn try_get_log_entries<RB: RangeBounds<u64> + Clone + Send + std::fmt::Debug>(
         &mut self,
         range: RB,
-    ) -> Result<Vec<<CustodianTypeConfig as openraft::RaftTypeConfig>::Entry>, StorageError<u64>> {
+    ) -> Result<Vec<<CustodianTypeConfig as openraft::RaftTypeConfig>::Entry>, StorageError<u64>>
+    {
         let mut reader = self.get_log_reader().await;
         reader.try_get_log_entries(range).await
     }
@@ -326,7 +330,8 @@ impl RaftStorage<CustodianTypeConfig> for CustodianStore {
 
     async fn append_to_log<I>(&mut self, entries: I) -> Result<(), StorageError<u64>>
     where
-        I: IntoIterator<Item = <CustodianTypeConfig as openraft::RaftTypeConfig>::Entry> + OptionalSend,
+        I: IntoIterator<Item = <CustodianTypeConfig as openraft::RaftTypeConfig>::Entry>
+            + OptionalSend,
     {
         let tree = self.storage.get_tree(TREE_RAFT_LOG).map_err(|e| {
             openraft::StorageIOError::new(
@@ -493,7 +498,9 @@ impl RaftStorage<CustodianTypeConfig> for CustodianStore {
                 EntryPayload::Blank => {
                     // Blank entries still need a response
                     LockResponse {
-                        success: true,                        error: Some("Lock already held by another user".to_string()),                        value: None,
+                        success: true,
+                        error: Some("Lock already held by another user".to_string()),
+                        value: None,
                     }
                 }
                 EntryPayload::Normal(log_entry) => sm.apply(log_entry).map_err(|e| {
@@ -576,7 +583,10 @@ impl RaftStorage<CustodianTypeConfig> for CustodianStore {
 
         // Push install metrics to admin if configured
         let mut counters = std::collections::HashMap::new();
-        let completed = std::convert::TryInto::<i64>::try_into(crate::metrics::SNAPSHOT_INSTALL_COMPLETED_TOTAL.get()).unwrap_or(i64::MAX);
+        let completed = std::convert::TryInto::<i64>::try_into(
+            crate::metrics::SNAPSHOT_INSTALL_COMPLETED_TOTAL.get(),
+        )
+        .unwrap_or(i64::MAX);
         counters.insert("snapshot_install_completed_total".to_string(), completed);
         if let Ok(admin_addr) = std::env::var("ADMIN_ADDR") {
             crate::admin_client::init(admin_addr);
@@ -693,7 +703,9 @@ impl RaftSnapshotBuilder<CustodianTypeConfig> for CustodianSnapshotBuilder {
 
         // Push metrics to admin if configured
         let mut counters = std::collections::HashMap::new();
-        let created = std::convert::TryInto::<i64>::try_into(crate::metrics::SNAPSHOT_CREATED_TOTAL.get()).unwrap_or(i64::MAX);
+        let created =
+            std::convert::TryInto::<i64>::try_into(crate::metrics::SNAPSHOT_CREATED_TOTAL.get())
+                .unwrap_or(i64::MAX);
         counters.insert("snapshot_created_total".to_string(), created);
         if let Ok(admin_addr) = std::env::var("ADMIN_ADDR") {
             crate::admin_client::init(admin_addr);
@@ -754,13 +766,25 @@ mod tests {
         let mut store = CustodianStore::new_temp().unwrap();
 
         let user_id = uuid::Uuid::new_v4();
-        let entry = openraft::Entry { log_id: LogId::new(CommittedLeaderId::new(0, 0), 1), payload: EntryPayload::Normal(LockCommand::AcquireLock { ticket_id: 10, user_id }) };
+        let entry = openraft::Entry {
+            log_id: LogId::new(CommittedLeaderId::new(0, 0), 1),
+            payload: EntryPayload::Normal(LockCommand::AcquireLock {
+                ticket_id: 10,
+                user_id,
+            }),
+        };
 
-        store.append_to_log(vec![entry.clone()]).await.expect("append_to_log");
+        store
+            .append_to_log(vec![entry.clone()])
+            .await
+            .expect("append_to_log");
 
         // Read back via log reader
         let mut reader = store.get_log_reader().await;
-        let entries = reader.try_get_log_entries(0..=10).await.expect("read entries");
+        let entries = reader
+            .try_get_log_entries(0..=10)
+            .await
+            .expect("read entries");
         assert_eq!(entries.len(), 1);
         assert_eq!(entries[0].log_id.index, 1);
     }
@@ -771,21 +795,39 @@ mod tests {
 
         let user_id = uuid::Uuid::new_v4();
         let entries = (1u64..=3u64)
-            .map(|i| openraft::Entry { log_id: LogId::new(CommittedLeaderId::new(0, 0), i), payload: EntryPayload::Normal(LockCommand::AcquireLock { ticket_id: i, user_id }) })
+            .map(|i| openraft::Entry {
+                log_id: LogId::new(CommittedLeaderId::new(0, 0), i),
+                payload: EntryPayload::Normal(LockCommand::AcquireLock {
+                    ticket_id: i,
+                    user_id,
+                }),
+            })
             .collect::<Vec<_>>();
 
-        store.append_to_log(entries.clone()).await.expect("append batch");
+        store
+            .append_to_log(entries.clone())
+            .await
+            .expect("append batch");
 
         // Delete conflicts since index 2 (should remove 2 and 3)
-        store.delete_conflict_logs_since(LogId::new(CommittedLeaderId::new(0, 0), 2)).await.expect("delete conflict");
+        store
+            .delete_conflict_logs_since(LogId::new(CommittedLeaderId::new(0, 0), 2))
+            .await
+            .expect("delete conflict");
 
         let tree = store.storage.get_tree(TREE_RAFT_LOG).expect("tree");
         assert!(tree.contains_key(&1u64.to_be_bytes()).unwrap());
         assert!(!tree.contains_key(&2u64.to_be_bytes()).unwrap());
 
         // Re-add entries and purge upto 2 (remove 1 and 2)
-        store.append_to_log(entries.clone()).await.expect("re-append");
-        store.purge_logs_upto(LogId::new(CommittedLeaderId::new(0, 0), 2)).await.expect("purge");
+        store
+            .append_to_log(entries.clone())
+            .await
+            .expect("re-append");
+        store
+            .purge_logs_upto(LogId::new(CommittedLeaderId::new(0, 0), 2))
+            .await
+            .expect("purge");
         let tree = store.storage.get_tree(TREE_RAFT_LOG).expect("tree");
         assert!(!tree.contains_key(&1u64.to_be_bytes()).unwrap());
         assert!(tree.contains_key(&3u64.to_be_bytes()).unwrap());
@@ -798,7 +840,19 @@ mod tests {
         // Put a lock into storage so it will appear in snapshots
         let ticket_id = 99u64;
         let user_id = uuid::Uuid::new_v4();
-        store.storage.put(crate::storage::TREE_LOCKS, &ticket_id.to_be_bytes(), &serde_json::to_vec(&crate::storage::LockInfo { ticket_id, user_id, acquired_at: chrono::Utc::now() }).unwrap()).unwrap();
+        store
+            .storage
+            .put(
+                crate::storage::TREE_LOCKS,
+                &ticket_id.to_be_bytes(),
+                &serde_json::to_vec(&crate::storage::LockInfo {
+                    ticket_id,
+                    user_id,
+                    acquired_at: chrono::Utc::now(),
+                })
+                .unwrap(),
+            )
+            .unwrap();
 
         // Build snapshot
         let mut builder = store.get_snapshot_builder().await;
@@ -809,10 +863,16 @@ mod tests {
 
         // Install snapshot into a fresh store
         let mut target = CustodianStore::new_temp().unwrap();
-        target.install_snapshot(&snap.meta, Box::new(std::io::Cursor::new(bytes))).await.expect("install snapshot");
+        target
+            .install_snapshot(&snap.meta, Box::new(std::io::Cursor::new(bytes)))
+            .await
+            .expect("install snapshot");
 
         // Verify lock restored
-        let got = target.storage.get_lock_info(ticket_id).expect("get_lock_info");
+        let got = target
+            .storage
+            .get_lock_info(ticket_id)
+            .expect("get_lock_info");
         assert!(got.is_some());
     }
 }

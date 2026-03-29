@@ -1,8 +1,8 @@
 mod api;
 mod components;
-use leptos::*;
 use components::login::Login;
 use components::ticket_list::TicketList;
+use leptos::*;
 use leptos_router::*;
 
 fn main() {

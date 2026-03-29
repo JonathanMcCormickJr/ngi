@@ -102,9 +102,7 @@ impl DbNetwork {
         }
         // Client should be initialized above, but handle gracefully
         self.client.as_mut().ok_or_else(|| {
-            openraft::error::NetworkError::new(&std::io::Error::other(
-                "client not initialized",
-            ))
+            openraft::error::NetworkError::new(&std::io::Error::other("client not initialized"))
         })
     }
 }
@@ -267,9 +265,7 @@ impl RaftNetwork<DbTypeConfig> for DbNetwork {
     > {
         // TODO: Implement snapshot streaming
         Err(openraft::error::StreamingError::Closed(
-            openraft::error::ReplicationClosed::new(std::io::Error::other(
-                "not implemented",
-            )),
+            openraft::error::ReplicationClosed::new(std::io::Error::other("not implemented")),
         ))
     }
 

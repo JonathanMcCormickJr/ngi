@@ -332,7 +332,7 @@ mod tests {
         );
 
         assert!(!session.is_fully_authenticated());
-        
+
         session.mfa_verified = true;
         assert!(session.is_fully_authenticated());
     }
@@ -347,7 +347,7 @@ mod tests {
         );
 
         assert!(!user.mfa_enabled);
-        
+
         user.mfa_enabled = true;
         assert!(user.mfa_enabled);
     }
@@ -362,7 +362,7 @@ mod tests {
         );
 
         assert!(user.last_login.is_none());
-        
+
         user.last_login = Some(Utc::now());
         assert!(user.last_login.is_some());
     }

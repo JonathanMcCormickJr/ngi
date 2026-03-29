@@ -103,26 +103,32 @@ impl Storage {
     /// # Errors
     ///
     /// Returns an error if the tree cannot be accessed.
-    pub fn list(&self, tree: &str, prefix: &[u8], limit: Option<usize>) -> Result<Vec<(Vec<u8>, Vec<u8>)>> {
+    pub fn list(
+        &self,
+        tree: &str,
+        prefix: &[u8],
+        limit: Option<usize>,
+    ) -> Result<Vec<(Vec<u8>, Vec<u8>)>> {
         let tree = self.get_tree(tree)?;
         let mut results = Vec::new();
-        
+
         let iter = if prefix.is_empty() {
             tree.iter()
         } else {
             tree.scan_prefix(prefix)
         };
-        
+
         for item in iter {
             let (key, value) = item?;
             results.push((key.to_vec(), value.to_vec()));
-            
+
             if let Some(limit) = limit
-                && results.len() >= limit {
-                    break;
-                }
+                && results.len() >= limit
+            {
+                break;
+            }
         }
-        
+
         Ok(results)
     }
 
@@ -199,8 +205,11 @@ impl Storage {
 
         for item in &tree {
             let (key, value) = item?;
-            let ticket_id = u64::from_be_bytes(key.as_ref().try_into()
-                .map_err(|_| anyhow::anyhow!("Invalid key length"))?);
+            let ticket_id = u64::from_be_bytes(
+                key.as_ref()
+                    .try_into()
+                    .map_err(|_| anyhow::anyhow!("Invalid key length"))?,
+            );
             let lock_info: LockInfo = serde_json::from_slice(&value)?;
             locks.insert(ticket_id, lock_info);
         }
@@ -224,9 +233,7 @@ impl LockCommand {
     /// Returns an error if the command cannot be applied.
     pub fn apply(&self, storage: &Storage) -> Result<()> {
         match self {
-            Self::AcquireLock { ticket_id, user_id } => {
-                storage.acquire_lock(*ticket_id, *user_id)
-            }
+            Self::AcquireLock { ticket_id, user_id } => storage.acquire_lock(*ticket_id, *user_id),
             Self::ReleaseLock { ticket_id, .. } => storage.release_lock(*ticket_id),
         }
     }
