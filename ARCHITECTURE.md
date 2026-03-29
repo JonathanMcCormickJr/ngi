@@ -1077,142 +1077,22 @@ ops instance create db-unikernel \
 
 ## Data Models
 
-### Ticket
+Implementation source of truth for shared models:
+- `shared/src/ticket.rs`
+- `shared/src/user.rs`
+- `shared/src/lib.rs` (re-exports)
 
-```rust
-pub struct Ticket {
-    pub ticket_id: TicketId,              // Auto-incremented
-    pub schema_version: u32,              // Schema version for migrations
-    pub customer_ticket_number: Option<String>,
-    pub isp_ticket_number: Option<String>,
-    pub other_ticket_number: Option<String>,
-    pub title: String,
-    pub project: String,
-    pub account_uuid: Uuid,
-    pub symptom: Symptom,                 // u8 enum
-    pub priority: TicketPriority,         // u8 enum
-    pub status: TicketStatus,             // u8 enum
-    pub next_action: NextAction,          // Scheduled next action
-    pub resolution: Option<Resolution>,   // u8 enum (if closed)
-    pub locked_by: Option<Uuid>,          // User currently editing
-    pub assigned_to: Option<Uuid>,        // Assigned user/team
-    pub created_by: Uuid,
-    pub created_at: DateTime<Utc>,
-    pub updated_by: Uuid,
-    pub updated_at: DateTime<Utc>,
-    pub history: Vec<HistoryEntry>,       // Audit trail
-    pub ebond: Option<String>,            // Optional ebonding data
-    pub tracking_url: Option<String>,     // DSR Broadband Provisioning URL
-    pub network_devices: Vec<NetworkDevice>, // Equipment at site
-    pub custom_fields: HashMap<String, String>, // Extensible custom fields
-}
-```
+This document intentionally summarizes architecture behavior and compatibility expectations, and avoids embedding concrete shared-type implementations so docs cannot drift from `/shared`.
 
 ### Enums (u8 for efficiency)
 
-```rust
-#[repr(u8)]
-pub enum Symptom {
-    Unknown = 0,
-    BroadbandDown = 1,
-    BroadbandIntermittent = 2,
-    PacketLoss = 3,
-    Power = 4,
-    VpnIssue = 5,
-    ConfigurationError = 6,
-    HardwareFailure = 7,
-    SoftwareBug = 8,
-    SecurityIncident = 9,
-    SlowBandwidth = 10,
-    DuplexingMismatch = 11,
-    LatencyIssues = 12,
-    JitterProblems = 13,
-    DnsIssues = 14,
-    Other = 255,
-}
-
-#[repr(u8)]
-pub enum TicketPriority {
-    Unkown = 0,
-    HardDown = 1,
-    PrimaryDown = 2,
-    BackupDown = 3,
-    Intermittent = 4,
-    PacketLoss = 5,
-}
-
-#[repr(u8)]
-pub enum TicketStatus {
-    Open = 0,
-    AwaitingCustomer = 1,
-    AwaitingISP = 2,
-    AwaitingPartner = 3,
-    SupportHold = 4,
-    HandedOff = 5,
-    AppointmentScheduled = 6,
-    EbondReceived = 7,
-    VoicemailReceived = 8,
-    AutoClose = 254,
-    Closed = 255,
-}
-
-#[repr(u8)]
-pub enum Resolution {
-    None = 0,
-    Resolved = 1,
-    Workaround = 2,
-    CannotReproduce = 3,
-    UnsupportedIssue = 4,
-    Duplicate = 5,
-    ServiceOutage = 6,
-    UserError = 7,
-}
-
-pub enum NextAction {
-    None,
-    FollowUp(DateTime<Utc>),
-    Appointment(DateTime<Utc>),
-    AutoClose(AutoCloseSchedule),
-}
-
-#[repr(u8)]
-pub enum AutoCloseSchedule {
-    EndOfDay = 0,
-    Hours24 = 24,
-    Hours48 = 48,
-    Hours72 = 72,
-}
-```
+Shared ticket enums use `#[repr(u8)]` to keep binary and network encoding stable and compact. For exact variant values and conversion helpers, see `shared/src/ticket.rs`.
 
 #### Enum Extensibility
 
 **Challenge**: Adding new enum variants breaks backward compatibility.
 
-**Solution**: Reserve high values for future additions and use `#[non_exhaustive]` attribute:
-
-```rust
-#[repr(u8)]
-#[non_exhaustive]  // Forces match arms to include wildcard
-pub enum Symptom {
-    Unknown = 0,
-    // ... existing variants ...
-    DnsIssues = 14,
-    // Reserve 15-254 for future symptoms
-    Other = 255,
-}
-
-// Serialization preserves unknown values
-impl Symptom {
-    pub fn from_u8(value: u8) -> Self {
-        match value {
-            0 => Self::Unknown,
-            // ... all variants ...
-            14 => Self::DnsIssues,
-            _ => Self::Other,  // Unknown values map to Other
-        }
-    }
-}
-```
+**Solution**: Keep canonical enum values in `shared/src/ticket.rs`, use `#[non_exhaustive]` as needed, and maintain tolerant conversion helpers for compatibility.
 
 **Benefits**:
 - Old code can read new enum values (maps to `Other`)
@@ -1221,35 +1101,7 @@ impl Symptom {
 
 ### User
 
-```rust
-pub struct User {
-    pub id: UserId,
-    pub username: String,
-    pub email: String,
-    pub full_name: String,
-    pub role: Role,
-    pub mfa_enabled: bool,
-    pub mfa_methods: Vec<MfaMethod>,
-    pub created_at: DateTime<Utc>,
-    pub last_login: Option<DateTime<Utc>>,
-    pub active: bool,
-}
-
-pub enum Role {
-    Admin,
-    Manager,
-    Supervisor,
-    Technician,
-    EbondPartner,
-    ReadOnly,
-}
-
-pub enum MfaMethod {
-    TOTP { secret: String },
-    WebAuthn { credential_id: Vec<u8> },
-    ActiveDirectory,
-}
-```
+User account, RBAC role, authentication, and session types are defined in `shared/src/user.rs`.
 
 ### Lock Info
 
@@ -2192,10 +2044,8 @@ Logs aggregated in `admin` service for centralized viewing.
 Each data structure carries a `schema_version` field:
 
 ```rust
-pub struct Ticket {
-    pub schema_version: u32,  // Current: 1
-    // ... fields ...
-}
+// Canonical shared structs (including Ticket.schema_version)
+// are defined in shared/src/ticket.rs.
 
 // Migration registry
 pub struct SchemaRegistry {
@@ -2210,15 +2060,10 @@ trait Migration {
 
 #### Adding New Fields
 
-**Step 1: Add optional field**
-```rust
-// Schema v1 → v2: Add priority field
-pub struct Ticket {
-    pub schema_version: u32,  // Now 2
-    // ... existing fields ...
-    pub priority: Option<Priority>,  // New field (optional for backward compat)
-}
-```
+**Step 1: Update canonical shared type**
+- Add the field in `shared/src/ticket.rs`
+- Keep backward compatibility with `Option<T>` or a safe default
+- Update schema version handling in migration logic
 
 **Step 2: Create migration**
 ```rust
@@ -2301,11 +2146,8 @@ pub enum FieldType {
     Checkbox,
 }
 
-// Tickets store custom field values
-pub struct Ticket {
-    // ...
-    pub custom_fields: HashMap<String, serde_json::Value>,
-}
+// Ticket custom_fields are defined in shared/src/ticket.rs.
+// Keep admin field-definition config compatible with that type.
 ```
 
 **Admin UI for Field Management**:

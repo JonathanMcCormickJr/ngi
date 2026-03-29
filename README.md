@@ -29,6 +29,10 @@ Platform and engineering capabilities:
 For a list of user-generated feature requests, please see [FEATURE_REQUESTS.md](./FEATURE_REQUESTS.md).
 
 ## Ticket Structure
+Canonical implementation source of truth:
+- `shared/src/ticket.rs` for ticket-related structs/enums
+- `shared/src/user.rs` for user and role/auth/session structs/enums
+
 Each ticket in NGI contains the following fields:
 - Ticket Number (unique identifier): auto-incremented unsigned 64-bit integer
 - Customer Ticket Number: optional field for the customer's own ticket reference
