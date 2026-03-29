@@ -1,0 +1,10 @@
+[alias]
+# MVP stage commands target only the core deployment services.
+build-mvp = "build --workspace --profile stage-mvp --exclude admin --exclude chaos --exclude honeypot"
+check-mvp = "check --workspace --exclude admin --exclude chaos --exclude honeypot"
+test-mvp = "test --workspace --profile test-mvp --exclude admin --exclude chaos --exclude honeypot"
+
+# Hardened stage includes all deployed services.
+build-hardened = "build --workspace --profile stage-hardened"
+check-hardened = "check --workspace"
+test-hardened = "test --workspace --profile test-hardened"

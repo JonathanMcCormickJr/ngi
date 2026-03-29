@@ -20,3 +20,41 @@ authors = ["Jonathan A. McCormick, Jr. <mccormick9[at]pm[dot]me>"]
 edition = "2024"
 license = "Proprietary"
 repository = "https://github.com/JonathanMcCormickJr/ngi"
+
+[workspace.metadata.deployment_stages]
+# Core operational path used by the MVP topology.
+mvp = ["auth", "custodian", "db", "lbrp", "web"]
+# MVP services plus hardening services introduced in the hardened topology.
+hardened = ["admin", "auth", "chaos", "custodian", "db", "honeypot", "lbrp", "web"]
+
+[profile.stage-mvp]
+inherits = "release"
+codegen-units = 16
+debug = 1
+incremental = true
+lto = "thin"
+opt-level = 2
+panic = "abort"
+strip = "debuginfo"
+
+[profile.stage-hardened]
+inherits = "release"
+codegen-units = 8
+debug = 1
+incremental = false
+lto = "fat"
+opt-level = 3
+panic = "abort"
+strip = "symbols"
+
+[profile.test-mvp]
+inherits = "test"
+debug = 2
+incremental = true
+opt-level = 1
+
+[profile.test-hardened]
+inherits = "test"
+debug = 1
+incremental = false
+opt-level = 2

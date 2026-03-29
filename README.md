@@ -169,6 +169,29 @@ cargo fmt
 cargo clippy -- -D warnings
 ```
 
+### Deployment Stage Profiles
+```bash
+# MVP stage (core services: auth, custodian, db, lbrp, web)
+cargo build-mvp
+cargo check-mvp
+cargo test-mvp
+
+# Hardened stage (all deployed services)
+cargo build-hardened
+cargo check-hardened
+cargo test-hardened
+```
+
+The workspace defines dedicated Cargo profiles for stage builds and tests:
+- `stage-mvp` and `stage-hardened` for compilation
+- `test-mvp` and `test-hardened` for testing
+
+You can invoke them directly if needed:
+```bash
+cargo build --workspace --profile stage-mvp --exclude admin --exclude chaos --exclude honeypot
+cargo test --workspace --profile test-hardened
+```
+
 ### Debugging
 ```bash
 # Enable debug logging

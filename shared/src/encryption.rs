@@ -27,7 +27,7 @@ use chacha20poly1305::ChaCha20Poly1305;
 use pqc_kyber::{
     decapsulate, encapsulate, keypair, KYBER_PUBLICKEYBYTES, KYBER_SECRETKEYBYTES,
 };
-use rand::{Rng, TryRng};
+use rand::{TryRng};
 use serde::{Deserialize, Serialize, Serializer, Deserializer};
 use std::fmt::{self};
 
