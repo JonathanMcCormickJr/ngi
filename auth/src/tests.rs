@@ -1,5 +1,6 @@
 #[cfg(test)]
 mod tests {
+    use crate::{load_or_generate_encryption_keys, load_or_generate_jwt_secret, resolve_jwt_secret};
     use jsonwebtoken::{DecodingKey, EncodingKey, Header, Validation, decode, encode};
     use serde::{Deserialize, Serialize};
 
@@ -63,7 +64,7 @@ mod tests {
 
     #[test]
     fn test_bincode_serialization() {
-        use shared::encryption::{EncryptedData, EncryptionAlgorithm};
+        use shared::encryption::EncryptedData;
 
         // Bytes from E2E test log
         let bytes: Vec<u8> = vec![1, 0, 1, 251, 64, 4, 0, 217, 16, 149];
@@ -80,5 +81,46 @@ mod tests {
             Ok(_) => println!("Success!"),
             Err(e) => println!("Error: {}", e),
         }
+    }
+
+    #[test]
+    fn test_load_or_generate_encryption_keys_round_trip() {
+        let dir = tempfile::tempdir().expect("tempdir");
+
+        let first =
+            load_or_generate_encryption_keys(dir.path()).expect("first key generation should work");
+        assert!(!first.0.is_empty());
+        assert!(!first.1.is_empty());
+
+        let second =
+            load_or_generate_encryption_keys(dir.path()).expect("second key load should work");
+        assert_eq!(first, second);
+    }
+
+    #[test]
+    fn test_load_or_generate_jwt_secret_round_trip() {
+        let dir = tempfile::tempdir().expect("tempdir");
+
+        let first = load_or_generate_jwt_secret(dir.path()).expect("generate jwt secret");
+        assert_eq!(first.len(), 32);
+
+        let second = load_or_generate_jwt_secret(dir.path()).expect("reload jwt secret");
+        assert_eq!(first, second);
+    }
+
+    #[test]
+    fn test_resolve_jwt_secret_uses_env_var() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let secret = resolve_jwt_secret(Some("my-secret".to_string()), dir.path())
+            .expect("should succeed with env var");
+        assert_eq!(secret, b"my-secret");
+    }
+
+    #[test]
+    fn test_resolve_jwt_secret_generates_from_disk_when_none() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let secret = resolve_jwt_secret(None, dir.path())
+            .expect("should generate from disk");
+        assert_eq!(secret.len(), 32);
     }
 }

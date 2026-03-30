@@ -585,4 +585,211 @@ mod tests {
         let proto = CustodianServiceImpl::domain_to_proto(&ticket);
         assert_eq!(proto.priority, 1); // HardDown = 1
     }
+
+    #[tokio::test]
+    async fn get_ticket_without_db_client_returns_unavailable() {
+        let store = crate::raft::CustodianStore::new_temp().expect("store");
+        let storage = store.storage();
+        let raft = crate::raft::CustodianRaft::new(
+            1,
+            Arc::new(Config::default()),
+            crate::network::CustodianNetworkFactory::new(),
+            Adaptor::new(store.clone()).0,
+            Adaptor::new(store).1,
+        )
+        .await
+        .expect("raft");
+
+        let svc = CustodianServiceImpl::new(raft, storage, (vec![0; 1184], vec![0; 2400]));
+        let err = svc
+            .get_ticket(Request::new(custodian::GetTicketRequest { ticket_id: 1 }))
+            .await
+            .expect_err("no db client should fail");
+
+        assert_eq!(err.code(), tonic::Code::Unavailable);
+    }
+
+    #[tokio::test]
+    async fn create_ticket_rejects_empty_title() {
+        let store = crate::raft::CustodianStore::new_temp().expect("store");
+        let storage = store.storage();
+        let raft = crate::raft::CustodianRaft::new(
+            1,
+            Arc::new(Config::default()),
+            crate::network::CustodianNetworkFactory::new(),
+            Adaptor::new(store.clone()).0,
+            Adaptor::new(store).1,
+        )
+        .await
+        .expect("raft");
+
+        let svc = CustodianServiceImpl::new(raft, storage, (vec![0; 1184], vec![0; 2400]));
+        let err = svc
+            .create_ticket(Request::new(custodian::CreateTicketRequest {
+                title: String::new(),
+                project: "demo".to_string(),
+                account_uuid: uuid::Uuid::new_v4().to_string(),
+                symptom: 0,
+                priority: 0,
+                created_by_uuid: uuid::Uuid::new_v4().to_string(),
+                customer_ticket_number: None,
+                isp_ticket_number: None,
+                other_ticket_number: None,
+                ebond: None,
+                tracking_url: None,
+                network_devices: vec![],
+            }))
+            .await
+            .expect_err("empty title should fail");
+
+        assert_eq!(err.code(), tonic::Code::InvalidArgument);
+    }
+
+    #[tokio::test]
+    async fn update_ticket_requires_updated_by_uuid() {
+        let store = crate::raft::CustodianStore::new_temp().expect("store");
+        let storage = store.storage();
+        let raft = crate::raft::CustodianRaft::new(
+            1,
+            Arc::new(Config::default()),
+            crate::network::CustodianNetworkFactory::new(),
+            Adaptor::new(store.clone()).0,
+            Adaptor::new(store).1,
+        )
+        .await
+        .expect("raft");
+
+        let svc = CustodianServiceImpl::new(raft, storage, (vec![0; 1184], vec![0; 2400]));
+        let err = svc
+            .update_ticket(Request::new(custodian::UpdateTicketRequest {
+                ticket_id: 1,
+                title: None,
+                project: None,
+                symptom: None,
+                priority: None,
+                status: None,
+                next_action: None,
+                resolution: None,
+                assigned_to_uuid: None,
+                updated_by_uuid: None,
+                ebond: None,
+                tracking_url: None,
+                network_devices: vec![],
+            }))
+            .await
+            .expect_err("missing updater should fail");
+
+        assert_eq!(err.code(), tonic::Code::InvalidArgument);
+    }
+
+    #[tokio::test]
+    async fn health_and_cluster_status_are_available() {
+        let store = crate::raft::CustodianStore::new_temp().expect("store");
+        let storage = store.storage();
+        let cfg = Arc::new(Config::default().validate().expect("validated config"));
+        let raft = crate::raft::CustodianRaft::new(
+            1,
+            cfg,
+            crate::network::CustodianNetworkFactory::new(),
+            Adaptor::new(store.clone()).0,
+            Adaptor::new(store).1,
+        )
+        .await
+        .expect("raft");
+
+        let mut members = std::collections::BTreeSet::new();
+        members.insert(1u64);
+        let _ = raft.initialize(members).await;
+
+        let svc = CustodianServiceImpl::new(raft, storage, (vec![0; 1184], vec![0; 2400]));
+
+        let health = svc
+            .health(Request::new(custodian::HealthRequest {}))
+            .await
+            .expect("health")
+            .into_inner();
+        assert!(!health.status.is_empty());
+
+        let cluster = svc
+            .cluster_status(Request::new(custodian::ClusterStatusRequest {}))
+            .await
+            .expect("cluster")
+            .into_inner();
+        assert!(cluster.term >= 1);
+    }
+
+    #[tokio::test]
+    async fn acquire_and_release_lock_reject_invalid_user_uuid() {
+        let store = crate::raft::CustodianStore::new_temp().expect("store");
+        let storage = store.storage().clone();
+        let cfg = Arc::new(Config::default().validate().expect("validated config"));
+        let raft = crate::raft::CustodianRaft::new(
+            1,
+            cfg,
+            crate::network::CustodianNetworkFactory::new(),
+            Adaptor::new(store.clone()).0,
+            Adaptor::new(store).1,
+        )
+        .await
+        .expect("raft");
+
+        let svc = CustodianServiceImpl::new(raft, storage, (vec![0; 1184], vec![0; 2400]));
+
+        let acquire_err = svc
+            .acquire_lock(Request::new(custodian::LockRequest {
+                ticket_id: 1,
+                user_uuid: "not-a-uuid".to_string(),
+            }))
+            .await
+            .expect_err("invalid user uuid");
+        assert_eq!(acquire_err.code(), tonic::Code::InvalidArgument);
+
+        let release_err = svc
+            .release_lock(Request::new(custodian::LockRelease {
+                ticket_id: 1,
+                user_uuid: "not-a-uuid".to_string(),
+            }))
+            .await
+            .expect_err("invalid user uuid");
+        assert_eq!(release_err.code(), tonic::Code::InvalidArgument);
+    }
+
+    #[tokio::test]
+    async fn update_ticket_requires_existing_lock() {
+        let store = crate::raft::CustodianStore::new_temp().expect("store");
+        let storage = store.storage().clone();
+        let cfg = Arc::new(Config::default().validate().expect("validated config"));
+        let raft = crate::raft::CustodianRaft::new(
+            1,
+            cfg,
+            crate::network::CustodianNetworkFactory::new(),
+            Adaptor::new(store.clone()).0,
+            Adaptor::new(store).1,
+        )
+        .await
+        .expect("raft");
+
+        let svc = CustodianServiceImpl::new(raft, storage, (vec![0; 1184], vec![0; 2400]));
+
+        let err = svc
+            .update_ticket(Request::new(custodian::UpdateTicketRequest {
+                ticket_id: 99,
+                title: Some("new title".to_string()),
+                project: None,
+                symptom: None,
+                priority: None,
+                status: None,
+                next_action: None,
+                resolution: None,
+                assigned_to_uuid: None,
+                updated_by_uuid: Some("00000000-0000-0000-0000-000000000001".to_string()),
+                ebond: None,
+                tracking_url: None,
+                network_devices: vec![],
+            }))
+            .await
+            .expect_err("must fail without lock");
+
+        assert_eq!(err.code(), tonic::Code::PermissionDenied);
+    }
 }

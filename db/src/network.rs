@@ -353,6 +353,109 @@ impl RaftNetwork<DbTypeConfig> for DbNetwork {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::server::db::raft_service_server::RaftService;
+    use crate::server::db::{
+        AppendEntriesRequest, AppendEntriesResponse, InstallSnapshotRequest,
+        InstallSnapshotResponse, ProtoVote, VoteRequest, VoteResponse,
+    };
+    use std::sync::Arc;
+    use std::time::Duration;
+    use tokio::sync::RwLock;
+    use tokio::task;
+    use tonic::{Request, Response, Status};
+
+    #[derive(Clone)]
+    struct TestRaftSvc {
+        missing_vote: Arc<RwLock<bool>>,
+    }
+
+    impl TestRaftSvc {
+        fn new() -> Self {
+            Self {
+                missing_vote: Arc::new(RwLock::new(false)),
+            }
+        }
+    }
+
+    #[tonic::async_trait]
+    impl RaftService for TestRaftSvc {
+        async fn vote(
+            &self,
+            request: Request<VoteRequest>,
+        ) -> Result<Response<VoteResponse>, Status> {
+            let req = request.into_inner();
+            let missing_vote = *self.missing_vote.read().await;
+
+            Ok(Response::new(VoteResponse {
+                vote: if missing_vote {
+                    None
+                } else {
+                    Some(ProtoVote {
+                        term: req.vote.as_ref().map_or(1, |v| v.term),
+                        node_id: req.vote.as_ref().map_or(1, |v| v.node_id),
+                        committed: true,
+                    })
+                },
+                vote_granted: true,
+                last_log_id: None,
+            }))
+        }
+
+        async fn append_entries(
+            &self,
+            request: Request<AppendEntriesRequest>,
+        ) -> Result<Response<AppendEntriesResponse>, Status> {
+            let req = request.into_inner();
+            let missing_vote = *self.missing_vote.read().await;
+
+            Ok(Response::new(AppendEntriesResponse {
+                vote: if missing_vote {
+                    None
+                } else {
+                    Some(ProtoVote {
+                        term: req.vote.as_ref().map_or(1, |v| v.term),
+                        node_id: req.vote.as_ref().map_or(1, |v| v.node_id),
+                        committed: true,
+                    })
+                },
+                response_type: 0,
+                partial_success_index: None,
+            }))
+        }
+
+        async fn install_snapshot(
+            &self,
+            request: Request<InstallSnapshotRequest>,
+        ) -> Result<Response<InstallSnapshotResponse>, Status> {
+            let req = request.into_inner();
+            let missing_vote = *self.missing_vote.read().await;
+
+            Ok(Response::new(InstallSnapshotResponse {
+                vote: if missing_vote {
+                    None
+                } else {
+                    Some(ProtoVote {
+                        term: req.vote.as_ref().map_or(1, |v| v.term),
+                        node_id: req.vote.as_ref().map_or(1, |v| v.node_id),
+                        committed: true,
+                    })
+                },
+            }))
+        }
+    }
+
+    async fn start_test_server(addr: &str, svc: TestRaftSvc) -> tokio::task::JoinHandle<()> {
+        let socket_addr = addr.parse().expect("parse test address");
+        let service = crate::server::db::raft_service_server::RaftServiceServer::new(svc);
+
+        task::spawn(async move {
+            tonic::transport::Server::builder()
+                .add_service(service)
+                .serve(socket_addr)
+                .await
+                .expect("serve raft test server");
+        })
+    }
 
     #[test]
     fn test_network_factory_creation() {
@@ -362,5 +465,186 @@ mod tests {
 
         assert!(factory.get_peer_address(1).is_some());
         assert!(factory.get_peer_address(99).is_none());
+    }
+
+    #[tokio::test]
+    async fn test_network_vote_append_and_install_snapshot_success() {
+        let svc = TestRaftSvc::new();
+        let server = start_test_server("127.0.0.1:50061", svc).await;
+
+        tokio::time::sleep(Duration::from_millis(50)).await;
+
+        let mut peers = HashMap::new();
+        peers.insert(1, "http://127.0.0.1:50061".to_string());
+        let mut factory = DbNetworkFactory::with_peers(peers);
+        let mut client = factory.new_client(1, &openraft::BasicNode::default()).await;
+
+        let vote_req = openraft::raft::VoteRequest {
+            vote: openraft::Vote {
+                leader_id: openraft::LeaderId {
+                    term: 1,
+                    node_id: 1,
+                },
+                committed: true,
+            },
+            last_log_id: None,
+        };
+        assert!(
+            client
+                .vote(vote_req, openraft::network::RPCOption::new(Duration::from_secs(1)))
+                .await
+                .is_ok()
+        );
+
+        let append_req = openraft::raft::AppendEntriesRequest {
+            vote: openraft::Vote {
+                leader_id: openraft::LeaderId {
+                    term: 1,
+                    node_id: 1,
+                },
+                committed: true,
+            },
+            prev_log_id: None,
+            entries: vec![],
+            leader_commit: None,
+        };
+        assert!(
+            client
+                .append_entries(
+                    append_req,
+                    openraft::network::RPCOption::new(Duration::from_secs(1)),
+                )
+                .await
+                .is_ok()
+        );
+
+        let snapshot_req = openraft::raft::InstallSnapshotRequest {
+            vote: openraft::Vote {
+                leader_id: openraft::LeaderId {
+                    term: 1,
+                    node_id: 1,
+                },
+                committed: true,
+            },
+            meta: openraft::SnapshotMeta::default(),
+            offset: 0,
+            data: b"chunk".to_vec(),
+            done: true,
+        };
+        assert!(
+            client
+                .install_snapshot(
+                    snapshot_req,
+                    openraft::network::RPCOption::new(Duration::from_secs(1)),
+                )
+                .await
+                .is_ok()
+        );
+
+        server.abort();
+    }
+
+    #[tokio::test]
+    async fn test_network_rpc_reports_missing_vote_errors() {
+        let svc = TestRaftSvc::new();
+        *svc.missing_vote.write().await = true;
+        let server = start_test_server("127.0.0.1:50062", svc).await;
+
+        tokio::time::sleep(Duration::from_millis(50)).await;
+
+        let mut peers = HashMap::new();
+        peers.insert(1, "http://127.0.0.1:50062".to_string());
+        let mut factory = DbNetworkFactory::with_peers(peers);
+        let mut client = factory.new_client(1, &openraft::BasicNode::default()).await;
+
+        let vote_req = openraft::raft::VoteRequest {
+            vote: openraft::Vote {
+                leader_id: openraft::LeaderId {
+                    term: 1,
+                    node_id: 1,
+                },
+                committed: true,
+            },
+            last_log_id: None,
+        };
+        assert!(
+            client
+                .vote(vote_req, openraft::network::RPCOption::new(Duration::from_secs(1)))
+                .await
+                .is_err()
+        );
+
+        let append_req = openraft::raft::AppendEntriesRequest {
+            vote: openraft::Vote {
+                leader_id: openraft::LeaderId {
+                    term: 1,
+                    node_id: 1,
+                },
+                committed: true,
+            },
+            prev_log_id: None,
+            entries: vec![],
+            leader_commit: None,
+        };
+        assert!(
+            client
+                .append_entries(
+                    append_req,
+                    openraft::network::RPCOption::new(Duration::from_secs(1)),
+                )
+                .await
+                .is_err()
+        );
+
+        let snapshot_req = openraft::raft::InstallSnapshotRequest {
+            vote: openraft::Vote {
+                leader_id: openraft::LeaderId {
+                    term: 1,
+                    node_id: 1,
+                },
+                committed: true,
+            },
+            meta: openraft::SnapshotMeta::default(),
+            offset: 0,
+            data: b"chunk".to_vec(),
+            done: true,
+        };
+        assert!(
+            client
+                .install_snapshot(
+                    snapshot_req,
+                    openraft::network::RPCOption::new(Duration::from_secs(1)),
+                )
+                .await
+                .is_err()
+        );
+
+        server.abort();
+    }
+
+    #[tokio::test]
+    async fn test_network_rpc_reports_transport_errors() {
+        let mut peers = HashMap::new();
+        peers.insert(1, "http://127.0.0.1:59999".to_string());
+        let mut factory = DbNetworkFactory::with_peers(peers);
+        let mut client = factory.new_client(1, &openraft::BasicNode::default()).await;
+
+        let vote_req = openraft::raft::VoteRequest {
+            vote: openraft::Vote {
+                leader_id: openraft::LeaderId {
+                    term: 1,
+                    node_id: 1,
+                },
+                committed: true,
+            },
+            last_log_id: None,
+        };
+
+        assert!(
+            client
+                .vote(vote_req, openraft::network::RPCOption::new(Duration::from_millis(100)))
+                .await
+                .is_err()
+        );
     }
 }

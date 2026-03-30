@@ -16,6 +16,150 @@ use tonic::transport::Server;
 use tracing::{Level, info};
 use tracing_subscriber::FmtSubscriber;
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct PeerConfig {
+    pub node_id: u64,
+    pub address: String,
+}
+
+pub(crate) fn parse_peer_configs(peers_str: &str) -> Vec<PeerConfig> {
+    let mut peers = Vec::new();
+
+    for peer_config in peers_str.split(',') {
+        let parts: Vec<&str> = peer_config.trim().split(':').collect();
+        if parts.len() < 2 {
+            continue;
+        }
+
+        let peer_id: u64 = parts[0].parse().unwrap_or(0);
+        if peer_id == 0 {
+            continue;
+        }
+
+        peers.push(PeerConfig {
+            node_id: peer_id,
+            address: parts[1..].join(":"),
+        });
+    }
+
+    peers
+}
+
+pub(crate) fn should_initialize_cluster(node_id: u64, all_peers: &[u64]) -> bool {
+    node_id == all_peers.first().copied().unwrap_or(1) && !all_peers.is_empty()
+}
+
+/// Parses a raw listen-address string into a [`std::net::SocketAddr`].
+///
+/// # Errors
+/// Returns an [`std::net::AddrParseError`] if the string is not a valid socket address.
+pub(crate) fn parse_listen_addr(
+    raw: &str,
+) -> Result<std::net::SocketAddr, std::net::AddrParseError> {
+    raw.parse()
+}
+
+/// Builds the standard Raft configuration for the Custodian service.
+///
+/// # Errors
+/// Returns an error if the configuration fails validation.
+pub(crate) fn make_raft_config() -> Result<Arc<Config>> {
+    let config = Config {
+        heartbeat_interval: 500,
+        election_timeout_min: 1500,
+        election_timeout_max: 3000,
+        ..Default::default()
+    };
+    Ok(Arc::new(config.validate()?))
+}
+
+/// Builds a [`CustodianNetworkFactory`] populated from a `RAFT_PEERS`-format string and
+/// returns the list of [`PeerConfig`] entries in encounter order.
+pub(crate) fn build_network_factory_and_peers(
+    peers_str: &str,
+) -> (CustodianNetworkFactory, Vec<PeerConfig>) {
+    let mut factory = CustodianNetworkFactory::new();
+    let peers = parse_peer_configs(peers_str);
+    for peer in &peers {
+        factory.add_node(peer.node_id, peer.address.clone());
+    }
+    (factory, peers)
+}
+
+/// Loads encryption keys from `keys_path` if the file exists, or generates a fresh keypair
+/// and writes it to disk.
+///
+/// # Errors
+/// Returns an error if key generation, serialization, or I/O fails.
+pub(crate) fn load_or_generate_keys(
+    keys_path: &Path,
+) -> Result<(Vec<u8>, Vec<u8>)> {
+    if keys_path.exists() {
+        let bytes = fs::read(keys_path)?;
+        let keys: (Vec<u8>, Vec<u8>) = postcard::from_bytes(&bytes)?;
+        Ok(keys)
+    } else {
+        let keys = EncryptionService::generate_keypair()
+            .map_err(|e| anyhow::anyhow!("Failed to generate keys: {e}"))?;
+        let bytes = postcard::to_allocvec(&keys)?;
+        fs::write(keys_path, bytes)?;
+        Ok(keys)
+    }
+}
+
+/// Creates a [`CustodianStore`] and initialises a [`CustodianRaft`] consensus node.
+///
+/// # Errors
+/// Returns an error if storage initialisation or Raft node creation fails.
+pub(crate) async fn build_raft_node(
+    node_id: u64,
+    config: Arc<Config>,
+    network_factory: CustodianNetworkFactory,
+    storage_path: &str,
+) -> Result<(Arc<CustodianRaft>, CustodianStore)> {
+    let store = CustodianStore::new(storage_path)?;
+    let (log_store, state_machine) = Adaptor::new(store.clone());
+    let raft: Arc<CustodianRaft> = Arc::new(
+        CustodianRaft::new(node_id, config, network_factory, log_store, state_machine).await?,
+    );
+    Ok((raft, store))
+}
+
+/// Initialises the Raft cluster when this node is the designated first peer.
+///
+/// Errors from [`openraft::Raft::initialize`] are treated as non-fatal because
+/// re-bootstrapping an already-initialised cluster returns a benign error on restart.
+pub(crate) async fn initialize_cluster_if_leader(
+    raft: &CustodianRaft,
+    node_id: u64,
+    all_peers: &[u64],
+) {
+    if should_initialize_cluster(node_id, all_peers) {
+        let mut members = std::collections::BTreeSet::new();
+        for peer_id in all_peers {
+            members.insert(*peer_id);
+        }
+        // Non-fatal: may fail if cluster was already bootstrapped.
+        let _ = raft.initialize(members).await;
+    }
+}
+
+/// Connects to the DB service leader if an endpoint is provided.
+///
+/// Returns `None` and emits a warning if the connection fails.
+pub(crate) async fn maybe_connect_db(
+    db_endpoint: Option<String>,
+) -> Option<Arc<tokio::sync::Mutex<custodian::db_client::DbClient>>> {
+    let endpoint = db_endpoint?;
+    match custodian::db_client::DbClient::connect(endpoint).await {
+        Ok(c) => Some(Arc::new(tokio::sync::Mutex::new(c))),
+        Err(e) => {
+            tracing::warn!("failed to connect to db: {}", e);
+            None
+        }
+    }
+}
+
 #[tokio::main]
 #[allow(clippy::too_many_lines)]
 async fn main() -> Result<()> {
@@ -40,20 +184,13 @@ async fn main() -> Result<()> {
         format!("{node_id}:{listen_addr}")
     });
 
-    let mut network_factory = CustodianNetworkFactory::new();
-    let mut all_peers = Vec::new();
-
-    for peer_config in peers_str.split(',') {
-        let parts: Vec<&str> = peer_config.trim().split(':').collect();
-        if parts.len() >= 2 {
-            let peer_id: u64 = parts[0].parse().unwrap_or(0);
-            let peer_addr = parts[1..].join(":");
-            if peer_id > 0 {
-                network_factory.add_node(peer_id, peer_addr);
-                all_peers.push(peer_id);
-                info!("Configured peer: node_id={}, addr={}", peer_id, parts[1]);
-            }
-        }
+    let (network_factory, peers) = build_network_factory_and_peers(&peers_str);
+    let all_peers: Vec<u64> = peers.iter().map(|p| p.node_id).collect();
+    for peer in &peers {
+        info!(
+            "Configured peer: node_id={}, addr={}",
+            peer.node_id, peer.address
+        );
     }
 
     info!(
@@ -63,92 +200,29 @@ async fn main() -> Result<()> {
     info!("Storage path: {}", storage_path);
     info!("Cluster peers: {:?}", all_peers);
 
-    // Create storage
-    let store = CustodianStore::new(&storage_path)?;
+    // Create Raft config and consensus node (also initialises the storage directory)
+    let config = make_raft_config()?;
+    let (raft, store) = build_raft_node(node_id, config, network_factory, &storage_path).await?;
     let storage = store.storage().clone();
 
     info!("Storage initialized at {}", storage_path);
 
-    // Load or generate encryption keys
+    // Load or generate encryption keys (storage directory is now guaranteed to exist)
     let keys_path = Path::new(&storage_path).join("keys.bin");
-    let keys = if keys_path.exists() {
-        info!("Loading encryption keys from {:?}", keys_path);
-        let bytes = fs::read(&keys_path)?;
-        let keys: (Vec<u8>, Vec<u8>) = postcard::from_bytes(&bytes)?;
-        keys
-    } else {
-        info!("Generating new encryption keys");
-        let keys = EncryptionService::generate_keypair()
-            .map_err(|e| anyhow::anyhow!("Failed to generate keys: {e}"))?;
-        let bytes = postcard::to_allocvec(&keys)?;
-        fs::write(&keys_path, bytes)?;
-        info!("Saved encryption keys to {:?}", keys_path);
-        keys
-    };
-
-    // Create Raft configuration
-    let config = Config {
-        heartbeat_interval: 500,
-        election_timeout_min: 1500,
-        election_timeout_max: 3000,
-        ..Default::default()
-    };
-    let config = Arc::new(config.validate()?);
-
-    // Split store into log storage and state machine using Adaptor
-    let (log_store, state_machine) = Adaptor::new(store.clone());
-
-    // Create Raft instance
-    let raft: Arc<CustodianRaft> = Arc::new(
-        CustodianRaft::new(node_id, config, network_factory, log_store, state_machine).await?,
-    );
+    let keys = load_or_generate_keys(&keys_path)?;
 
     info!("Raft node {} initialized", node_id);
 
-    // Initialize cluster if this is node 1 or if peers are defined
-    if node_id == all_peers.first().copied().unwrap_or(1) && !all_peers.is_empty() {
-        info!(
-            "Node {} is first peer, initializing cluster with {:?}",
-            node_id, all_peers
-        );
-
-        let mut members = std::collections::BTreeSet::new();
-        for peer_id in &all_peers {
-            members.insert(*peer_id);
-        }
-
-        // Try to initialize the cluster
-        match raft.initialize(members).await {
-            Ok(()) => info!("Cluster initialized successfully"),
-            Err(e) => {
-                // It's OK if already initialized
-                info!("Cluster initialization returned: {}", e);
-            }
-        }
-    } else {
-        info!(
-            "Node {} is not the first peer, skipping initialization",
-            node_id
-        );
-    }
+    // Initialize cluster if this node is the designated first peer
+    initialize_cluster_if_leader(&raft, node_id, &all_peers).await;
 
     info!("Custodian service node {} ready", node_id);
 
     // Parse address
-    let addr = listen_addr.parse::<std::net::SocketAddr>()?;
+    let addr = parse_listen_addr(&listen_addr)?;
 
     // Create gRPC service; optionally connect to DB leader
-    let db_client = if let Ok(db_endpoint) = std::env::var("DB_LEADER_ADDR") {
-        match custodian::db_client::DbClient::connect(db_endpoint).await {
-            Ok(c) => Some(std::sync::Arc::new(tokio::sync::Mutex::new(c))),
-            Err(e) => {
-                tracing::warn!("failed to connect to db: {}", e);
-                None
-            }
-        }
-    } else {
-        None
-    };
+    let db_client = maybe_connect_db(std::env::var("DB_LEADER_ADDR").ok()).await;
 
     let custodian_service = if let Some(db) = db_client {
         CustodianServiceImpl::with_db_client((*raft).clone(), storage.clone(), db, keys)

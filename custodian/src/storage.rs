@@ -280,4 +280,36 @@ mod tests {
         assert!(locks.contains_key(&1));
         assert!(locks.contains_key(&2));
     }
+
+    #[test]
+    fn test_storage_inner_and_list() {
+        let storage = Storage::new_temp().unwrap();
+
+        // inner() should return the underlying sled Db handle
+        let _db: &sled::Db = storage.inner();
+
+        // Populate a couple of entries via the raw put API
+        storage.put("test_tree", b"key1", b"val1").unwrap();
+        storage.put("test_tree", b"key2", b"val2").unwrap();
+        storage.put("test_tree", b"other", b"valx").unwrap();
+
+        // list() with empty prefix returns all entries
+        let all = storage.list("test_tree", b"", None).unwrap();
+        assert_eq!(all.len(), 3);
+
+        // list() with non-empty prefix filters by prefix
+        let filtered = storage.list("test_tree", b"key", None).unwrap();
+        assert_eq!(filtered.len(), 2);
+
+        // list() with limit stops early
+        let limited = storage.list("test_tree", b"", Some(2)).unwrap();
+        assert_eq!(limited.len(), 2);
+    }
+
+    #[test]
+    fn test_get_lock_info_returns_none_for_unknown_ticket() {
+        let storage = Storage::new_temp().unwrap();
+        let result = storage.get_lock_info(9999).unwrap();
+        assert!(result.is_none());
+    }
 }

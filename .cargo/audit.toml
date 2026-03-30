@@ -1,0 +1,6 @@
+[advisories]
+ignore = [
+    # pqc_kyber has no patched release yet; project intentionally requires post-quantum KEM.
+    # Track upstream and remove this ignore when a fixed version is published.
+    "RUSTSEC-2023-0079",
+]

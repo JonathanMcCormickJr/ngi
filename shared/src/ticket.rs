@@ -967,4 +967,102 @@ mod tests {
         ticket.priority = TicketPriority::HardDown;
         assert_eq!(ticket.priority, TicketPriority::HardDown);
     }
+
+    // ── from_u8 helpers ───────────────────────────────────────────────────────
+
+    #[test]
+    fn test_symptom_from_u8_all_variants() {
+        assert_eq!(Symptom::from_u8(0), Symptom::Unknown);
+        assert_eq!(Symptom::from_u8(1), Symptom::BroadbandDown);
+        assert_eq!(Symptom::from_u8(2), Symptom::BroadbandIntermittent);
+        assert_eq!(Symptom::from_u8(3), Symptom::PacketLoss);
+        assert_eq!(Symptom::from_u8(4), Symptom::Power);
+        assert_eq!(Symptom::from_u8(5), Symptom::VpnIssue);
+        assert_eq!(Symptom::from_u8(6), Symptom::ConfigurationError);
+        assert_eq!(Symptom::from_u8(7), Symptom::HardwareFailure);
+        assert_eq!(Symptom::from_u8(8), Symptom::SoftwareBug);
+        assert_eq!(Symptom::from_u8(9), Symptom::SecurityIncident);
+        assert_eq!(Symptom::from_u8(10), Symptom::SlowBandwidth);
+        assert_eq!(Symptom::from_u8(11), Symptom::DuplexingMismatch);
+        assert_eq!(Symptom::from_u8(12), Symptom::LatencyIssues);
+        assert_eq!(Symptom::from_u8(13), Symptom::JitterProblems);
+        assert_eq!(Symptom::from_u8(14), Symptom::DnsIssues);
+        assert_eq!(Symptom::from_u8(255), Symptom::Other);
+        assert_eq!(Symptom::from_u8(100), Symptom::Unknown); // unrecognised → Unknown
+    }
+
+    #[test]
+    fn test_ticket_status_from_u8_all_variants() {
+        assert_eq!(TicketStatus::from_u8(0), TicketStatus::Open);
+        assert_eq!(TicketStatus::from_u8(1), TicketStatus::AwaitingCustomer);
+        assert_eq!(TicketStatus::from_u8(2), TicketStatus::AwaitingISP);
+        assert_eq!(TicketStatus::from_u8(3), TicketStatus::AwaitingPartner);
+        assert_eq!(TicketStatus::from_u8(4), TicketStatus::SupportHold);
+        assert_eq!(TicketStatus::from_u8(5), TicketStatus::HandedOff);
+        assert_eq!(TicketStatus::from_u8(6), TicketStatus::AppointmentScheduled);
+        assert_eq!(TicketStatus::from_u8(7), TicketStatus::EbondReceived);
+        assert_eq!(TicketStatus::from_u8(8), TicketStatus::VoicemailReceived);
+        assert_eq!(TicketStatus::from_u8(254), TicketStatus::AutoClose);
+        assert_eq!(TicketStatus::from_u8(255), TicketStatus::Closed);
+        assert_eq!(TicketStatus::from_u8(100), TicketStatus::Open); // unrecognised → Open
+    }
+
+    #[test]
+    fn test_resolution_from_u8_all_variants() {
+        assert_eq!(Resolution::from_u8(0), Resolution::None);
+        assert_eq!(Resolution::from_u8(1), Resolution::Resolved);
+        assert_eq!(Resolution::from_u8(2), Resolution::Workaround);
+        assert_eq!(Resolution::from_u8(3), Resolution::CannotReproduce);
+        assert_eq!(Resolution::from_u8(4), Resolution::UnsupportedIssue);
+        assert_eq!(Resolution::from_u8(5), Resolution::Duplicate);
+        assert_eq!(Resolution::from_u8(6), Resolution::ServiceOutage);
+        assert_eq!(Resolution::from_u8(7), Resolution::UserError);
+        assert_eq!(Resolution::from_u8(200), Resolution::None); // unrecognised → None
+    }
+
+    #[test]
+    fn test_ont_and_firewall_device_type_and_make_model() {
+        let ont = NetworkDevice::Ont {
+            make: "Nokia".to_string(),
+            model: "G-010S-A".to_string(),
+            mac_address: None,
+            serial_number: None,
+        };
+        assert_eq!(ont.device_type(), "ONT");
+        assert_eq!(ont.make_model(), "Nokia G-010S-A");
+        assert!(ont.mac_address().is_none());
+
+        let firewall = NetworkDevice::Firewall {
+            make: "pfSense".to_string(),
+            model: "SG-3100".to_string(),
+            mac_address: Some(MacAddress::new("AA:BB:CC:DD:EE:FF").unwrap()),
+            serial_number: None,
+        };
+        assert_eq!(firewall.device_type(), "Firewall");
+        assert_eq!(firewall.make_model(), "pfSense SG-3100");
+        assert!(firewall.mac_address().is_some());
+    }
+
+    #[test]
+    fn test_tracking_update_shows_na_for_device_without_mac() {
+        // Ensures the mac_address().map_or("N/A", ...) branch is exercised.
+        let mut ticket = Ticket::new(
+            1,
+            "Test".to_string(),
+            "Project".to_string(),
+            Uuid::new_v4(),
+            Symptom::BroadbandDown,
+            Uuid::new_v4(),
+        );
+        ticket.network_devices.push(NetworkDevice::DslModem {
+            make: "ASUS".to_string(),
+            model: "DSL-N14U".to_string(),
+            mac_address: None, // no MAC → should render as "N/A"
+            serial_number: None,
+        });
+        let update =
+            ticket.format_tracking_update("Tech", "SITE-1", "123 Main St", "Notes");
+        assert!(update.contains("ASUS DSL-N14U"));
+        assert!(update.contains("N/A"));
+    }
 }

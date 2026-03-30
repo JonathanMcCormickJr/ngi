@@ -142,3 +142,95 @@ impl DbClient {
 
     // Add DB client methods as needed
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn unreachable_channel() -> Channel {
+        Channel::from_static("http://127.0.0.1:9").connect_lazy()
+    }
+
+    fn test_custodian_client() -> CustodianClient {
+        CustodianClient {
+            client: Arc::new(Mutex::new(
+                custodian::custodian_service_client::CustodianServiceClient::new(
+                    unreachable_channel(),
+                ),
+            )),
+        }
+    }
+
+    #[tokio::test]
+    async fn connect_rejects_invalid_address_format() {
+        assert!(CustodianClient::connect("not-a-url".to_string()).await.is_err());
+        assert!(AuthClient::connect("not-a-url".to_string()).await.is_err());
+        assert!(AdminClient::connect("not-a-url".to_string()).await.is_err());
+        assert!(DbClient::connect("not-a-url".to_string()).await.is_err());
+    }
+
+    #[tokio::test]
+    async fn custodian_wrappers_propagate_transport_errors() {
+        let client = test_custodian_client();
+
+        assert!(client
+            .create_ticket(custodian::CreateTicketRequest {
+                title: "t".to_string(),
+                project: "p".to_string(),
+                account_uuid: "00000000-0000-0000-0000-000000000001".to_string(),
+                symptom: 0,
+                priority: 0,
+                created_by_uuid: "00000000-0000-0000-0000-000000000002".to_string(),
+                customer_ticket_number: None,
+                isp_ticket_number: None,
+                other_ticket_number: None,
+                ebond: None,
+                tracking_url: None,
+                network_devices: vec![],
+            })
+            .await
+            .is_err());
+
+        assert!(client
+            .acquire_lock(custodian::LockRequest {
+                ticket_id: 1,
+                user_uuid: "00000000-0000-0000-0000-000000000003".to_string(),
+            })
+            .await
+            .is_err());
+
+        assert!(client
+            .release_lock(custodian::LockRelease {
+                ticket_id: 1,
+                user_uuid: "00000000-0000-0000-0000-000000000004".to_string(),
+            })
+            .await
+            .is_err());
+
+        assert!(client
+            .update_ticket(custodian::UpdateTicketRequest {
+                ticket_id: 1,
+                title: None,
+                project: None,
+                symptom: None,
+                priority: None,
+                status: None,
+                next_action: None,
+                resolution: None,
+                assigned_to_uuid: None,
+                updated_by_uuid: Some("00000000-0000-0000-0000-000000000005".to_string()),
+                ebond: None,
+                tracking_url: None,
+                network_devices: vec![],
+            })
+            .await
+            .is_err());
+
+        assert!(client
+            .get_ticket(custodian::GetTicketRequest { ticket_id: 1 })
+            .await
+            .is_err());
+
+        assert!(client.cluster_status().await.is_err());
+    }
+}

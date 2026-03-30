@@ -210,9 +210,136 @@ impl Database for DatabaseService {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+    use crate::network::DbNetworkFactory;
+    use crate::raft::DbStore;
+    use openraft::Config;
+    use openraft::storage::Adaptor;
+    use std::sync::Arc;
+
+    async fn create_service() -> DatabaseService {
+        let store = DbStore::new_temp().expect("temp store");
+        let cfg = Arc::new(Config::default().validate().expect("raft config"));
+        let network_factory = DbNetworkFactory::new();
+        let (log_store, state_machine) = Adaptor::new(store.clone());
+
+        let raft = crate::raft::DbRaft::new(1, cfg, network_factory, log_store, state_machine)
+            .await
+            .expect("raft node");
+
+        let mut members = std::collections::BTreeSet::new();
+        members.insert(1);
+        let _ = raft.initialize(members).await;
+
+        let storage = store.state_machine().read().await.storage.clone();
+        DatabaseService::new(raft, storage)
+    }
+
     #[tokio::test]
-    async fn test_database_service_creation() {
-        // This is a placeholder test - actual testing requires setting up a full Raft node
-        // which we'll do in integration tests
+    async fn database_service_put_get_exists_delete_list_and_batch_put() {
+        let svc = create_service().await;
+
+        let put_resp = svc
+            .put(Request::new(PutRequest {
+                collection: "tickets".to_string(),
+                key: b"k1".to_vec(),
+                value: b"v1".to_vec(),
+            }))
+            .await
+            .expect("put")
+            .into_inner();
+        assert!(put_resp.success);
+
+        let exists_resp = svc
+            .exists(Request::new(ExistsRequest {
+                collection: "tickets".to_string(),
+                key: b"k1".to_vec(),
+            }))
+            .await
+            .expect("exists")
+            .into_inner();
+        assert!(exists_resp.exists);
+
+        let get_resp = svc
+            .get(Request::new(GetRequest {
+                collection: "tickets".to_string(),
+                key: b"k1".to_vec(),
+            }))
+            .await
+            .expect("get")
+            .into_inner();
+        assert!(get_resp.found);
+        assert_eq!(get_resp.value, b"v1");
+
+        let batch_resp = svc
+            .batch_put(Request::new(BatchPutRequest {
+                collection: "tickets".to_string(),
+                items: vec![
+                    KeyValue {
+                        key: b"k2".to_vec(),
+                        value: b"v2".to_vec(),
+                    },
+                    KeyValue {
+                        key: b"k3".to_vec(),
+                        value: b"v3".to_vec(),
+                    },
+                ],
+            }))
+            .await
+            .expect("batch_put")
+            .into_inner();
+        assert!(batch_resp.success);
+        assert_eq!(batch_resp.written, 2);
+
+        let list_resp = svc
+            .list(Request::new(ListRequest {
+                collection: "tickets".to_string(),
+                prefix: b"k".to_vec(),
+                limit: 10,
+            }))
+            .await
+            .expect("list")
+            .into_inner();
+        assert!(list_resp.items.len() >= 3);
+
+        let delete_resp = svc
+            .delete(Request::new(DeleteRequest {
+                collection: "tickets".to_string(),
+                key: b"k1".to_vec(),
+            }))
+            .await
+            .expect("delete")
+            .into_inner();
+        assert!(delete_resp.success);
+
+        let get_deleted = svc
+            .get(Request::new(GetRequest {
+                collection: "tickets".to_string(),
+                key: b"k1".to_vec(),
+            }))
+            .await
+            .expect("get deleted")
+            .into_inner();
+        assert!(!get_deleted.found);
+    }
+
+    #[tokio::test]
+    async fn database_service_reports_health_and_cluster_status() {
+        let svc = create_service().await;
+
+        let health = svc
+            .health(Request::new(HealthRequest {}))
+            .await
+            .expect("health")
+            .into_inner();
+        assert_eq!(health.node_id, "1");
+        assert!(!health.role.is_empty());
+
+        let status = svc
+            .cluster_status(Request::new(ClusterStatusRequest {}))
+            .await
+            .expect("cluster status")
+            .into_inner();
+        assert!(status.member_ids.contains(&"1".to_string()));
     }
 }

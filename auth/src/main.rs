@@ -16,6 +16,52 @@ use tracing_subscriber::FmtSubscriber;
 
 mod server;
 
+pub(crate) fn load_or_generate_encryption_keys(storage_path: &Path) -> Result<(Vec<u8>, Vec<u8>)> {
+    let keys_path = storage_path.join("keys.bin");
+    if keys_path.exists() {
+        info!("Loading encryption keys from {:?}", keys_path);
+        let bytes = fs::read(&keys_path)?;
+        let keys: (Vec<u8>, Vec<u8>) = serde_json::from_slice(&bytes)?;
+        return Ok(keys);
+    }
+
+    info!("Generating new encryption keys");
+    let keys = EncryptionService::generate_keypair()
+        .map_err(|e| anyhow::anyhow!("Failed to generate keys: {e}"))?;
+    let bytes: Vec<u8> = serde_json::to_vec(&keys)
+        .map_err(|e| anyhow::anyhow!("Failed to serialize keys: {e}"))?;
+    fs::write(&keys_path, bytes)?;
+    info!("Saved encryption keys to {:?}", keys_path);
+    Ok(keys)
+}
+
+pub(crate) fn load_or_generate_jwt_secret(storage_path: &Path) -> Result<Vec<u8>> {
+    let jwt_secret_path = storage_path.join("jwt.secret");
+    if jwt_secret_path.exists() {
+        return Ok(fs::read(&jwt_secret_path)?);
+    }
+
+    let secret: [u8; 32] = rand::random();
+    fs::write(&jwt_secret_path, secret)?;
+    Ok(secret.to_vec())
+}
+
+/// Resolves the JWT secret: returns `env_secret` as bytes if provided, otherwise
+/// loads (or generates) the on-disk secret.
+///
+/// # Errors
+/// Returns an error if the on-disk secret cannot be read or created.
+pub(crate) fn resolve_jwt_secret(
+    env_secret: Option<String>,
+    storage_path: &Path,
+) -> Result<Vec<u8>> {
+    if let Some(secret) = env_secret {
+        Ok(secret.into_bytes())
+    } else {
+        load_or_generate_jwt_secret(storage_path)
+    }
+}
+
 #[tokio::main]
 async fn main() -> Result<()> {
     // Initialize tracing
@@ -36,36 +82,10 @@ async fn main() -> Result<()> {
     fs::create_dir_all(&storage_path)?;
 
     // Load or generate encryption keys
-    let keys_path = Path::new(&storage_path).join("keys.bin");
-    let keys = if keys_path.exists() {
-        info!("Loading encryption keys from {:?}", keys_path);
-        let bytes = fs::read(&keys_path)?;
-        let keys: (Vec<u8>, Vec<u8>) = serde_json::from_slice(&bytes)?;
-        keys
-    } else {
-        info!("Generating new encryption keys");
-        let keys = EncryptionService::generate_keypair()
-            .map_err(|e| anyhow::anyhow!("Failed to generate keys: {e}"))?;
-        let bytes: Vec<u8> = serde_json::to_vec(&keys)
-            .map_err(|e| anyhow::anyhow!("Failed to serialize keys: {e}"))?;
-        fs::write(&keys_path, bytes)?;
-        info!("Saved encryption keys to {:?}", keys_path);
-        keys
-    };
+    let keys = load_or_generate_encryption_keys(Path::new(&storage_path))?;
 
     // Load or generate JWT secret
-    let jwt_secret = if let Ok(secret) = env::var("JWT_SECRET") {
-        secret.into_bytes()
-    } else {
-        let jwt_secret_path = Path::new(&storage_path).join("jwt.secret");
-        if jwt_secret_path.exists() {
-            fs::read(&jwt_secret_path)?
-        } else {
-            let secret: [u8; 32] = rand::random();
-            fs::write(&jwt_secret_path, secret)?;
-            secret.to_vec()
-        }
-    };
+    let jwt_secret = resolve_jwt_secret(env::var("JWT_SECRET").ok(), Path::new(&storage_path))?;
 
     // Connect to DB
     info!("Connecting to DB at {}", db_addr);

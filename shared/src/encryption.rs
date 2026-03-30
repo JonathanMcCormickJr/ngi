@@ -469,4 +469,60 @@ mod tests {
 
         assert_eq!(original_data, decrypted.as_slice());
     }
+
+    #[test]
+    fn test_pq_encrypt_with_aes_algorithm() {
+        let data = b"Test data for AES-based PQ encryption";
+        let (pk, sk) = EncryptionService::generate_keypair().unwrap();
+
+        let encrypted = EncryptionService::encrypt_with_public_key_and_algorithm(
+            data,
+            &pk,
+            EncryptionAlgorithm::Aes256Gcm,
+        )
+        .unwrap();
+        assert!(encrypted.kem_ciphertext.is_some());
+
+        let decrypted = EncryptionService::decrypt_with_private_key(&encrypted, &sk).unwrap();
+        assert_eq!(data, decrypted.as_slice());
+    }
+
+    #[test]
+    fn test_decrypt_with_private_key_fails_missing_kem_ciphertext() {
+        // Password-encrypted data has no kem_ciphertext field.
+        let encrypted = EncryptionService::encrypt_with_password(b"data", "pass").unwrap();
+        let (_pk, sk) = EncryptionService::generate_keypair().unwrap();
+
+        let result = EncryptionService::decrypt_with_private_key(&encrypted, &sk);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_decrypt_with_private_key_fails_invalid_key_length() {
+        let (pk, _sk) = EncryptionService::generate_keypair().unwrap();
+        let encrypted = EncryptionService::encrypt_with_public_key(b"data", &pk).unwrap();
+
+        // Supply a key that is too short (wrong length).
+        let short_sk = vec![0u8; 32];
+        let result = EncryptionService::decrypt_with_private_key(&encrypted, &short_sk);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_encryption_algorithm_serde_invalid_variant() {
+        // Deserializing an unknown variant number must return an error.
+        let result: Result<EncryptionAlgorithm, _> = serde_json::from_str("99");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_encrypted_data_debug_format() {
+        let encrypted = EncryptionService::encrypt_with_password(b"hello", "pass").unwrap();
+        let debug_str = format!("{encrypted:?}");
+        assert!(debug_str.contains("EncryptedData"));
+        assert!(debug_str.contains("nonce"));
+        assert!(debug_str.contains("ciphertext"));
+        // Salt is present for password-based encryption.
+        assert!(debug_str.contains("salt"));
+    }
 }

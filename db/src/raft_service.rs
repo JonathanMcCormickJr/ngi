@@ -221,3 +221,208 @@ impl RaftService for RaftServiceImpl {
         Ok(Response::new(proto_response))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::network::DbNetworkFactory;
+    use crate::raft::DbStore;
+    use crate::storage::LogEntry;
+    use openraft::storage::Adaptor;
+    use tonic::Request;
+
+    async fn test_service() -> RaftServiceImpl {
+        let store = DbStore::new_temp().expect("temp store");
+        let cfg = Arc::new(
+            openraft::Config::default()
+                .validate()
+                .expect("raft config"),
+        );
+        let network_factory = DbNetworkFactory::new();
+        let (log_store, state_machine) = Adaptor::new(store);
+        let raft = Arc::new(
+            DbRaft::new(1, cfg, network_factory, log_store, state_machine)
+                .await
+                .expect("raft node"),
+        );
+
+        let mut members = std::collections::BTreeSet::new();
+        members.insert(1);
+        let _ = raft.initialize(members).await;
+
+        RaftServiceImpl::new(raft)
+    }
+
+    #[tokio::test]
+    async fn vote_rejects_missing_vote() {
+        let service = test_service().await;
+        let err = service
+            .vote(Request::new(VoteRequest {
+                vote: None,
+                last_log_id: None,
+            }))
+            .await
+            .expect_err("missing vote must fail");
+
+        assert_eq!(err.code(), tonic::Code::InvalidArgument);
+    }
+
+    #[tokio::test]
+    async fn vote_accepts_well_formed_request() {
+        let service = test_service().await;
+        let resp = service
+            .vote(Request::new(VoteRequest {
+                vote: Some(ProtoVote {
+                    term: 1,
+                    node_id: 1,
+                    committed: false,
+                }),
+                last_log_id: None,
+            }))
+            .await
+            .expect("vote request");
+
+        let body = resp.into_inner();
+        assert!(body.vote.is_some());
+    }
+
+    #[tokio::test]
+    async fn append_entries_rejects_missing_vote() {
+        let service = test_service().await;
+        let err = service
+            .append_entries(Request::new(AppendEntriesRequest {
+                vote: None,
+                prev_log_id: None,
+                entries: vec![],
+                leader_commit: None,
+            }))
+            .await
+            .expect_err("missing vote must fail");
+
+        assert_eq!(err.code(), tonic::Code::InvalidArgument);
+    }
+
+    #[tokio::test]
+    async fn append_entries_rejects_invalid_entry_data() {
+        let service = test_service().await;
+        let err = service
+            .append_entries(Request::new(AppendEntriesRequest {
+                vote: Some(ProtoVote {
+                    term: 1,
+                    node_id: 1,
+                    committed: false,
+                }),
+                prev_log_id: None,
+                entries: vec![crate::server::db::Entry {
+                    data: b"not-json".to_vec(),
+                }],
+                leader_commit: None,
+            }))
+            .await
+            .expect_err("invalid entry payload must fail");
+
+        assert_eq!(err.code(), tonic::Code::InvalidArgument);
+    }
+
+    #[tokio::test]
+    async fn append_entries_handles_well_formed_entry() {
+        let service = test_service().await;
+        let entry = openraft::Entry::<DbTypeConfig> {
+            log_id: openraft::LogId {
+                leader_id: openraft::LeaderId { term: 1, node_id: 1 },
+                index: 1,
+            },
+            payload: openraft::EntryPayload::Normal(LogEntry::Put {
+                collection: "c".to_string(),
+                key: b"k".to_vec(),
+                value: b"v".to_vec(),
+            }),
+        };
+
+        let entry_bytes = serde_json::to_vec(&entry).expect("serialize entry");
+
+        let response = service
+            .append_entries(Request::new(AppendEntriesRequest {
+                vote: Some(ProtoVote {
+                    term: 1,
+                    node_id: 1,
+                    committed: false,
+                }),
+                prev_log_id: None,
+                entries: vec![crate::server::db::Entry { data: entry_bytes }],
+                leader_commit: None,
+            }))
+            .await
+            .expect("append entries should succeed");
+
+        let body = response.into_inner();
+        assert_eq!(body.response_type, 0);
+        assert!(body.vote.is_some());
+    }
+
+    #[tokio::test]
+    async fn install_snapshot_rejects_missing_vote_or_meta() {
+        let service = test_service().await;
+
+        let err_vote = service
+            .install_snapshot(Request::new(InstallSnapshotRequest {
+                vote: None,
+                meta: Some(crate::server::db::SnapshotMeta {
+                    last_log_id: None,
+                    last_applied: 0,
+                    last_membership: 0,
+                    snapshot_id: "snap".to_string(),
+                }),
+                offset: 0,
+                data: vec![],
+                done: true,
+            }))
+            .await
+            .expect_err("missing vote must fail");
+        assert_eq!(err_vote.code(), tonic::Code::InvalidArgument);
+
+        let err_meta = service
+            .install_snapshot(Request::new(InstallSnapshotRequest {
+                vote: Some(ProtoVote {
+                    term: 1,
+                    node_id: 1,
+                    committed: false,
+                }),
+                meta: None,
+                offset: 0,
+                data: vec![],
+                done: true,
+            }))
+            .await
+            .expect_err("missing meta must fail");
+        assert_eq!(err_meta.code(), tonic::Code::InvalidArgument);
+    }
+
+    #[tokio::test]
+    async fn install_snapshot_accepts_well_formed_request() {
+        let service = test_service().await;
+
+        let response = service
+            .install_snapshot(Request::new(InstallSnapshotRequest {
+                vote: Some(ProtoVote {
+                    term: 1,
+                    node_id: 1,
+                    committed: false,
+                }),
+                meta: Some(crate::server::db::SnapshotMeta {
+                    last_log_id: None,
+                    last_applied: 0,
+                    last_membership: 1,
+                    snapshot_id: "snap-1".to_string(),
+                }),
+                offset: 0,
+                data: b"snapshot-chunk".to_vec(),
+                done: true,
+            }))
+            .await
+            .expect("install snapshot should succeed");
+
+        let body = response.into_inner();
+        assert!(body.vote.is_some());
+    }
+}

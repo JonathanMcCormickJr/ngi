@@ -269,3 +269,424 @@ impl AuthService for AuthServiceImpl {
         }))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use argon2::password_hash::{SaltString, rand_core::OsRng};
+    use argon2::{Argon2, PasswordHasher};
+    use serde::Serialize;
+    use std::collections::HashMap;
+    use std::net::SocketAddr;
+    use std::sync::Arc;
+    use tokio::sync::RwLock;
+    use tokio::sync::Mutex;
+    use tokio::sync::oneshot;
+    use tonic::transport::Server;
+    use tonic::transport::Channel;
+
+    #[derive(Clone, Default)]
+    struct MockDb {
+        values: Arc<RwLock<HashMap<(String, Vec<u8>), Vec<u8>>>>,
+    }
+
+    #[tonic::async_trait]
+    impl db::database_server::Database for MockDb {
+        async fn put(
+            &self,
+            _request: Request<db::PutRequest>,
+        ) -> Result<Response<db::PutResponse>, Status> {
+            Err(Status::unimplemented("not needed"))
+        }
+
+        async fn get(
+            &self,
+            request: Request<db::GetRequest>,
+        ) -> Result<Response<db::GetResponse>, Status> {
+            let req = request.into_inner();
+            let key = (req.collection, req.key);
+            let map = self.values.read().await;
+            if let Some(value) = map.get(&key) {
+                Ok(Response::new(db::GetResponse {
+                    found: true,
+                    value: value.clone(),
+                    error: String::new(),
+                }))
+            } else {
+                Ok(Response::new(db::GetResponse {
+                    found: false,
+                    value: vec![],
+                    error: String::new(),
+                }))
+            }
+        }
+
+        async fn delete(
+            &self,
+            _request: Request<db::DeleteRequest>,
+        ) -> Result<Response<db::DeleteResponse>, Status> {
+            Err(Status::unimplemented("not needed"))
+        }
+
+        async fn list(
+            &self,
+            _request: Request<db::ListRequest>,
+        ) -> Result<Response<db::ListResponse>, Status> {
+            Err(Status::unimplemented("not needed"))
+        }
+
+        async fn exists(
+            &self,
+            _request: Request<db::ExistsRequest>,
+        ) -> Result<Response<db::ExistsResponse>, Status> {
+            Err(Status::unimplemented("not needed"))
+        }
+
+        async fn batch_put(
+            &self,
+            _request: Request<db::BatchPutRequest>,
+        ) -> Result<Response<db::BatchPutResponse>, Status> {
+            Err(Status::unimplemented("not needed"))
+        }
+
+        async fn health(
+            &self,
+            _request: Request<db::HealthRequest>,
+        ) -> Result<Response<db::HealthResponse>, Status> {
+            Ok(Response::new(db::HealthResponse {
+                healthy: true,
+                node_id: "1".to_string(),
+                role: "leader".to_string(),
+            }))
+        }
+
+        async fn cluster_status(
+            &self,
+            _request: Request<db::ClusterStatusRequest>,
+        ) -> Result<Response<db::ClusterStatusResponse>, Status> {
+            Ok(Response::new(db::ClusterStatusResponse {
+                leader_id: "1".to_string(),
+                member_ids: vec!["1".to_string()],
+                term: 1,
+                commit_index: 0,
+            }))
+        }
+    }
+
+    async fn start_mock_db(mock_db: MockDb) -> (SocketAddr, oneshot::Sender<()>) {
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("bind listener");
+        let addr = listener.local_addr().expect("local addr");
+        drop(listener);
+
+        let (tx, rx) = oneshot::channel();
+        tokio::spawn(async move {
+            let _ = Server::builder()
+                .add_service(db::database_server::DatabaseServer::new(mock_db))
+                .serve_with_shutdown(addr, async {
+                    let _ = rx.await;
+                })
+                .await;
+        });
+
+        (addr, tx)
+    }
+
+    async fn connect_mock_db_with_retry(addr: SocketAddr) -> DatabaseClient<tonic::transport::Channel> {
+        let endpoint = format!("http://{addr}");
+        let mut last_err = None;
+
+        for _ in 0..20 {
+            match DatabaseClient::connect(endpoint.clone()).await {
+                Ok(client) => return client,
+                Err(err) => {
+                    last_err = Some(err);
+                    tokio::time::sleep(std::time::Duration::from_millis(25)).await;
+                }
+            }
+        }
+
+        panic!("connect mock db failed after retries: {last_err:?}");
+    }
+
+    fn encrypt_json<T: Serialize>(value: &T, public_key: &[u8]) -> Vec<u8> {
+        let plaintext = serde_json::to_vec(value).expect("serialize plaintext");
+        let encrypted = EncryptionService::encrypt_with_public_key(&plaintext, public_key)
+            .expect("encrypt value");
+        serde_json::to_vec(&encrypted).expect("serialize encrypted")
+    }
+
+    fn test_service() -> AuthServiceImpl {
+        let channel = Channel::from_static("http://127.0.0.1:9").connect_lazy();
+        let client = DatabaseClient::new(channel);
+        AuthServiceImpl::new(
+            Arc::new(Mutex::new(client)),
+            b"secret-for-tests".to_vec(),
+            (vec![0; 1184], vec![0; 2400]),
+        )
+    }
+
+    #[tokio::test]
+    async fn validate_session_rejects_invalid_token() {
+        let svc = test_service();
+        let req = ValidateSessionRequest {
+            session_token: "not-a-token".to_string(),
+        };
+
+        let resp = svc
+            .validate_session(Request::new(req))
+            .await
+            .expect("validate_session should return a response");
+
+        let body = resp.into_inner();
+        assert!(!body.valid);
+        assert_eq!(body.error, "Invalid token");
+        assert!(body.user.is_none());
+    }
+
+    #[tokio::test]
+    async fn validate_session_rejects_invalid_user_id_claim() {
+        let svc = test_service();
+        let claims = Claims {
+            sub: "not-a-uuid".to_string(),
+            exp: usize::try_from(chrono::Utc::now().timestamp() + 60).unwrap_or(0),
+            role: "Admin".to_string(),
+        };
+        let token = encode(
+            &Header::default(),
+            &claims,
+            &EncodingKey::from_secret(&svc.jwt_secret),
+        )
+        .expect("token generation");
+
+        let req = ValidateSessionRequest {
+            session_token: token,
+        };
+        let err = svc
+            .validate_session(Request::new(req))
+            .await
+            .expect_err("invalid uuid claim should return error");
+
+        assert_eq!(err.code(), tonic::Code::Internal);
+    }
+
+    #[tokio::test]
+    async fn logout_always_succeeds_for_mvp() {
+        let svc = test_service();
+        let resp = svc
+            .logout(Request::new(LogoutRequest {
+                session_token: "any-token".to_string(),
+            }))
+            .await
+            .expect("logout should not fail");
+
+        let body = resp.into_inner();
+        assert!(body.success);
+        assert!(body.error.is_empty());
+    }
+
+    #[tokio::test]
+    async fn authenticate_success_and_validate_session_success() {
+        let keys = EncryptionService::generate_keypair().expect("keypair");
+        let mut user = User::new(
+            "alice".to_string(),
+            "Alice".to_string(),
+            "alice@example.com".to_string(),
+            shared::user::Role::Technician,
+        );
+        user.last_login = Some(chrono::Utc::now());
+
+        let salt = SaltString::generate(&mut OsRng);
+        let hash = Argon2::default()
+            .hash_password(b"correct-horse", &salt)
+            .expect("password hash")
+            .to_string();
+
+        let user_auth = UserAuth {
+            user_id: user.user_id,
+            password_hash: hash,
+            mfa_secret: None,
+            mfa_method: None,
+        };
+
+        let mut map = HashMap::new();
+        map.insert(
+            (
+                "auth".to_string(),
+                format!("auth:username:{}", user.username).into_bytes(),
+            ),
+            encrypt_json(&user_auth, &keys.0),
+        );
+        map.insert(
+            ("users".to_string(), user.user_id.as_bytes().to_vec()),
+            encrypt_json(&user, &keys.0),
+        );
+
+        let mock_db = MockDb {
+            values: Arc::new(RwLock::new(map)),
+        };
+        let (addr, shutdown) = start_mock_db(mock_db).await;
+
+        let db_client = connect_mock_db_with_retry(addr).await;
+        let svc = AuthServiceImpl::new(
+            Arc::new(Mutex::new(db_client)),
+            b"jwt-secret".to_vec(),
+            keys,
+        );
+
+        let auth = svc
+            .authenticate(Request::new(AuthenticateRequest {
+                username: "alice".to_string(),
+                password: "correct-horse".to_string(),
+                mfa_token: String::new(),
+            }))
+            .await
+            .expect("authenticate")
+            .into_inner();
+
+        assert!(auth.success);
+        assert!(!auth.session_token.is_empty());
+        assert!(auth.user.is_some());
+
+        let validate = svc
+            .validate_session(Request::new(ValidateSessionRequest {
+                session_token: auth.session_token,
+            }))
+            .await
+            .expect("validate")
+            .into_inner();
+
+        assert!(validate.valid);
+        assert!(validate.user.is_some());
+
+        let _ = shutdown.send(());
+    }
+
+    #[tokio::test]
+    async fn authenticate_returns_invalid_credentials_for_unknown_user() {
+        // Empty DB → get_user_auth returns Ok(None) → "Invalid credentials"
+        let keys = EncryptionService::generate_keypair().expect("keypair");
+        let (addr, shutdown) = start_mock_db(MockDb::default()).await;
+        let db_client = connect_mock_db_with_retry(addr).await;
+        let svc = AuthServiceImpl::new(
+            Arc::new(Mutex::new(db_client)),
+            b"jwt-secret".to_vec(),
+            keys,
+        );
+
+        let auth = svc
+            .authenticate(Request::new(AuthenticateRequest {
+                username: "nobody".to_string(),
+                password: "anypass".to_string(),
+                mfa_token: String::new(),
+            }))
+            .await
+            .expect("auth response")
+            .into_inner();
+
+        assert!(!auth.success);
+        assert_eq!(auth.error, "Invalid credentials");
+        assert!(auth.session_token.is_empty());
+        assert!(auth.user.is_none());
+        let _ = shutdown.send(());
+    }
+
+    #[tokio::test]
+    async fn validate_session_returns_user_not_found_when_profile_missing() {
+        // Valid JWT for a UUID that has no profile in the DB → "User not found"
+        let keys = EncryptionService::generate_keypair().expect("keypair");
+        let (addr, shutdown) = start_mock_db(MockDb::default()).await;
+        let db_client = connect_mock_db_with_retry(addr).await;
+        let svc = AuthServiceImpl::new(
+            Arc::new(Mutex::new(db_client)),
+            b"jwt-secret".to_vec(),
+            keys,
+        );
+
+        let user_id = Uuid::new_v4();
+        let claims = Claims {
+            sub: user_id.to_string(),
+            exp: usize::try_from(chrono::Utc::now().timestamp() + 3600).unwrap_or(0),
+            role: "Admin".to_string(),
+        };
+        let token = encode(
+            &Header::default(),
+            &claims,
+            &EncodingKey::from_secret(&svc.jwt_secret),
+        )
+        .expect("token generation");
+
+        let resp = svc
+            .validate_session(Request::new(ValidateSessionRequest {
+                session_token: token,
+            }))
+            .await
+            .expect("validate response")
+            .into_inner();
+
+        assert!(!resp.valid);
+        assert_eq!(resp.error, "User not found");
+        assert!(resp.user.is_none());
+        let _ = shutdown.send(());
+    }
+
+    #[tokio::test]
+    async fn authenticate_rejects_wrong_password() {
+        let keys = EncryptionService::generate_keypair().expect("keypair");
+        let user = User::new(
+            "bob".to_string(),
+            "Bob".to_string(),
+            "bob@example.com".to_string(),
+            shared::user::Role::ReadOnly,
+        );
+
+        let salt = SaltString::generate(&mut OsRng);
+        let hash = Argon2::default()
+            .hash_password(b"correct", &salt)
+            .expect("password hash")
+            .to_string();
+
+        let user_auth = UserAuth {
+            user_id: user.user_id,
+            password_hash: hash,
+            mfa_secret: None,
+            mfa_method: None,
+        };
+
+        let mut map = HashMap::new();
+        map.insert(
+            (
+                "auth".to_string(),
+                format!("auth:username:{}", user.username).into_bytes(),
+            ),
+            encrypt_json(&user_auth, &keys.0),
+        );
+        map.insert(
+            ("users".to_string(), user.user_id.as_bytes().to_vec()),
+            encrypt_json(&user, &keys.0),
+        );
+
+        let (addr, shutdown) =
+            start_mock_db(MockDb { values: Arc::new(RwLock::new(map)) }).await;
+        let db_client = connect_mock_db_with_retry(addr).await;
+        let svc = AuthServiceImpl::new(
+            Arc::new(Mutex::new(db_client)),
+            b"jwt-secret".to_vec(),
+            keys,
+        );
+
+        let auth = svc
+            .authenticate(Request::new(AuthenticateRequest {
+                username: "bob".to_string(),
+                password: "wrong".to_string(),
+                mfa_token: String::new(),
+            }))
+            .await
+            .expect("auth response")
+            .into_inner();
+
+        assert!(!auth.success);
+        assert_eq!(auth.error, "Invalid credentials");
+
+        let _ = shutdown.send(());
+    }
+}

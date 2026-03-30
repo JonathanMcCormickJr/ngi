@@ -58,3 +58,28 @@ impl DbClient {
         if r.found { Ok(Some(r.value)) } else { Ok(None) }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn connect_rejects_invalid_endpoint() {
+        let result = DbClient::connect("not-a-url".to_string()).await;
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn put_and_get_propagate_transport_errors() {
+        let channel = Channel::from_static("http://127.0.0.1:9").connect_lazy();
+        let mut client = DbClient {
+            inner: db::database_client::DatabaseClient::new(channel),
+        };
+
+        let put_result = client.put("tickets", b"k".to_vec(), b"v".to_vec()).await;
+        assert!(put_result.is_err());
+
+        let get_result = client.get("tickets", b"k".to_vec()).await;
+        assert!(get_result.is_err());
+    }
+}
