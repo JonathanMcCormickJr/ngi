@@ -294,8 +294,7 @@ mod tests {
         async fn logout(
             &self,
             _req: tonic::Request<crate::clients::auth::LogoutRequest>,
-        ) -> Result<tonic::Response<crate::clients::auth::LogoutResponse>, tonic::Status>
-        {
+        ) -> Result<tonic::Response<crate::clients::auth::LogoutResponse>, tonic::Status> {
             Err(tonic::Status::unimplemented("not needed"))
         }
     }
@@ -360,8 +359,7 @@ mod tests {
         async fn push_metrics(
             &self,
             _req: tonic::Request<crate::clients::admin::MetricsSnapshot>,
-        ) -> Result<tonic::Response<crate::clients::admin::PushAck>, tonic::Status>
-        {
+        ) -> Result<tonic::Response<crate::clients::admin::PushAck>, tonic::Status> {
             Err(tonic::Status::unimplemented("not needed"))
         }
     }
@@ -370,14 +368,11 @@ mod tests {
     struct MockCustodianSvc;
 
     #[tonic::async_trait]
-    impl crate::clients::custodian::custodian_service_server::CustodianService
-        for MockCustodianSvc
-    {
+    impl crate::clients::custodian::custodian_service_server::CustodianService for MockCustodianSvc {
         async fn create_ticket(
             &self,
             req: tonic::Request<crate::clients::custodian::CreateTicketRequest>,
-        ) -> Result<tonic::Response<crate::clients::custodian::Ticket>, tonic::Status>
-        {
+        ) -> Result<tonic::Response<crate::clients::custodian::Ticket>, tonic::Status> {
             let r = req.into_inner();
             Ok(tonic::Response::new(crate::clients::custodian::Ticket {
                 ticket_id: 1,
@@ -408,8 +403,7 @@ mod tests {
         async fn update_ticket(
             &self,
             _req: tonic::Request<crate::clients::custodian::UpdateTicketRequest>,
-        ) -> Result<tonic::Response<crate::clients::custodian::Ticket>, tonic::Status>
-        {
+        ) -> Result<tonic::Response<crate::clients::custodian::Ticket>, tonic::Status> {
             Ok(tonic::Response::new(crate::clients::custodian::Ticket {
                 ticket_id: 1,
                 title: "Updated".to_string(),
@@ -421,8 +415,7 @@ mod tests {
         async fn get_ticket(
             &self,
             req: tonic::Request<crate::clients::custodian::GetTicketRequest>,
-        ) -> Result<tonic::Response<crate::clients::custodian::Ticket>, tonic::Status>
-        {
+        ) -> Result<tonic::Response<crate::clients::custodian::Ticket>, tonic::Status> {
             Ok(tonic::Response::new(crate::clients::custodian::Ticket {
                 ticket_id: req.into_inner().ticket_id,
                 title: "Test Ticket".to_string(),
@@ -442,10 +435,8 @@ mod tests {
         async fn cluster_status(
             &self,
             _req: tonic::Request<crate::clients::custodian::ClusterStatusRequest>,
-        ) -> Result<
-            tonic::Response<crate::clients::custodian::ClusterStatusResponse>,
-            tonic::Status,
-        > {
+        ) -> Result<tonic::Response<crate::clients::custodian::ClusterStatusResponse>, tonic::Status>
+        {
             Err(tonic::Status::unimplemented("not needed"))
         }
     }
@@ -459,9 +450,7 @@ mod tests {
         let (tx, rx) = oneshot::channel::<()>();
         tokio::spawn(async move {
             let _ = Server::builder()
-                .add_service(
-                    crate::clients::auth::auth_service_server::AuthServiceServer::new(svc),
-                )
+                .add_service(crate::clients::auth::auth_service_server::AuthServiceServer::new(svc))
                 .serve_with_shutdown(addr, async {
                     let _ = rx.await;
                 })

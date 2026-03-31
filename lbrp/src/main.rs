@@ -13,7 +13,9 @@ use clients::{AdminClient, AuthClient, CustodianClient};
 use middleware::AuthState;
 use routes::AppState;
 
-pub(crate) fn parse_listen_addr(raw: Option<String>) -> Result<SocketAddr, std::net::AddrParseError> {
+pub(crate) fn parse_listen_addr(
+    raw: Option<String>,
+) -> Result<SocketAddr, std::net::AddrParseError> {
     raw.unwrap_or_else(|| "0.0.0.0:8080".to_string()).parse()
 }
 

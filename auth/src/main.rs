@@ -28,8 +28,8 @@ pub(crate) fn load_or_generate_encryption_keys(storage_path: &Path) -> Result<(V
     info!("Generating new encryption keys");
     let keys = EncryptionService::generate_keypair()
         .map_err(|e| anyhow::anyhow!("Failed to generate keys: {e}"))?;
-    let bytes: Vec<u8> = serde_json::to_vec(&keys)
-        .map_err(|e| anyhow::anyhow!("Failed to serialize keys: {e}"))?;
+    let bytes: Vec<u8> =
+        serde_json::to_vec(&keys).map_err(|e| anyhow::anyhow!("Failed to serialize keys: {e}"))?;
     fs::write(&keys_path, bytes)?;
     info!("Saved encryption keys to {:?}", keys_path);
     Ok(keys)

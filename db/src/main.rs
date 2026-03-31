@@ -106,11 +106,7 @@ pub(crate) async fn build_raft_node(
 ///
 /// Errors from [`openraft::Raft::initialize`] are treated as non-fatal because
 /// re-bootstrapping an already-initialised cluster returns a benign error on restart.
-pub(crate) async fn initialize_cluster_if_leader(
-    raft: &DbRaft,
-    node_id: u64,
-    all_peers: &[u64],
-) {
+pub(crate) async fn initialize_cluster_if_leader(raft: &DbRaft, node_id: u64, all_peers: &[u64]) {
     if should_initialize_cluster(node_id, all_peers) {
         let mut members = std::collections::BTreeSet::new();
         for peer_id in all_peers {

@@ -1,6 +1,8 @@
 #[cfg(test)]
 mod tests {
-    use crate::{load_or_generate_encryption_keys, load_or_generate_jwt_secret, resolve_jwt_secret};
+    use crate::{
+        load_or_generate_encryption_keys, load_or_generate_jwt_secret, resolve_jwt_secret,
+    };
     use jsonwebtoken::{DecodingKey, EncodingKey, Header, Validation, decode, encode};
     use serde::{Deserialize, Serialize};
 
@@ -119,8 +121,7 @@ mod tests {
     #[test]
     fn test_resolve_jwt_secret_generates_from_disk_when_none() {
         let dir = tempfile::tempdir().expect("tempdir");
-        let secret = resolve_jwt_secret(None, dir.path())
-            .expect("should generate from disk");
+        let secret = resolve_jwt_secret(None, dir.path()).expect("should generate from disk");
         assert_eq!(secret.len(), 32);
     }
 }

@@ -1,10 +1,12 @@
 use crate::api::{self, CreateTicketRequest, CreateUserRequest, Ticket, UpdateTicketRequest};
 use leptos::*;
+use leptos_router::use_navigate;
 use wasm_bindgen_futures::spawn_local;
 
 #[component]
 pub fn TicketList() -> impl IntoView {
     let token = api::get_token();
+    let navigate = use_navigate();
 
     let (ticket_id_input, set_ticket_id_input) = create_signal(String::new());
     let (ticket, set_ticket) = create_signal::<Option<Ticket>>(None);
@@ -205,10 +207,19 @@ pub fn TicketList() -> impl IntoView {
         }
     };
 
+    let on_sign_out = {
+        let navigate = navigate.clone();
+        move |_| {
+            api::clear_token();
+            navigate("/", leptos_router::NavigateOptions::default());
+        }
+    };
+
     view! {
         <div class="dashboard-container">
             <header class="dashboard-header">
                 <h2>"MVP Demo Console"</h2>
+                <button class="btn-secondary" on:click=on_sign_out>"Sign Out"</button>
             </header>
 
             {move || token.is_none().then(|| view! {

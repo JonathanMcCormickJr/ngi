@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod tests {
-    use crate::{env_or_default, jwt_secret_from_env, parse_listen_addr, resolve_backend_addrs};
     use crate::middleware::Claims;
+    use crate::{env_or_default, jwt_secret_from_env, parse_listen_addr, resolve_backend_addrs};
     use jsonwebtoken::{EncodingKey, Header, encode};
 
     #[test]
@@ -77,11 +77,8 @@ mod tests {
 
     #[test]
     fn resolve_backend_addrs_partial_override() {
-        let (auth, admin, custodian) = resolve_backend_addrs(
-            Some("http://my-auth:999".into()),
-            None,
-            None,
-        );
+        let (auth, admin, custodian) =
+            resolve_backend_addrs(Some("http://my-auth:999".into()), None, None);
         assert_eq!(auth, "http://my-auth:999");
         assert_eq!(admin, "http://admin:8083");
         assert_eq!(custodian, "http://custodian-leader:8081");
