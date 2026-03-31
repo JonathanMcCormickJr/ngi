@@ -491,7 +491,10 @@ mod tests {
         };
         assert!(
             client
-                .vote(vote_req, openraft::network::RPCOption::new(Duration::from_secs(1)))
+                .vote(
+                    vote_req,
+                    openraft::network::RPCOption::new(Duration::from_secs(1))
+                )
                 .await
                 .is_ok()
         );
@@ -569,7 +572,10 @@ mod tests {
         };
         assert!(
             client
-                .vote(vote_req, openraft::network::RPCOption::new(Duration::from_secs(1)))
+                .vote(
+                    vote_req,
+                    openraft::network::RPCOption::new(Duration::from_secs(1))
+                )
                 .await
                 .is_err()
         );
@@ -642,7 +648,10 @@ mod tests {
 
         assert!(
             client
-                .vote(vote_req, openraft::network::RPCOption::new(Duration::from_millis(100)))
+                .vote(
+                    vote_req,
+                    openraft::network::RPCOption::new(Duration::from_millis(100))
+                )
                 .await
                 .is_err()
         );

@@ -233,11 +233,7 @@ mod tests {
 
     async fn test_service() -> RaftServiceImpl {
         let store = DbStore::new_temp().expect("temp store");
-        let cfg = Arc::new(
-            openraft::Config::default()
-                .validate()
-                .expect("raft config"),
-        );
+        let cfg = Arc::new(openraft::Config::default().validate().expect("raft config"));
         let network_factory = DbNetworkFactory::new();
         let (log_store, state_machine) = Adaptor::new(store);
         let raft = Arc::new(
@@ -329,7 +325,10 @@ mod tests {
         let service = test_service().await;
         let entry = openraft::Entry::<DbTypeConfig> {
             log_id: openraft::LogId {
-                leader_id: openraft::LeaderId { term: 1, node_id: 1 },
+                leader_id: openraft::LeaderId {
+                    term: 1,
+                    node_id: 1,
+                },
                 index: 1,
             },
             payload: openraft::EntryPayload::Normal(LogEntry::Put {

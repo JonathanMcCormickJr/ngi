@@ -1060,8 +1060,7 @@ mod tests {
             mac_address: None, // no MAC → should render as "N/A"
             serial_number: None,
         });
-        let update =
-            ticket.format_tracking_update("Tech", "SITE-1", "123 Main St", "Notes");
+        let update = ticket.format_tracking_update("Tech", "SITE-1", "123 Main St", "Notes");
         assert!(update.contains("ASUS DSL-N14U"));
         assert!(update.contains("N/A"));
     }

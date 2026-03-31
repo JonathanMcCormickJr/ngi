@@ -91,9 +91,7 @@ pub(crate) fn build_network_factory_and_peers(
 ///
 /// # Errors
 /// Returns an error if key generation, serialization, or I/O fails.
-pub(crate) fn load_or_generate_keys(
-    keys_path: &Path,
-) -> Result<(Vec<u8>, Vec<u8>)> {
+pub(crate) fn load_or_generate_keys(keys_path: &Path) -> Result<(Vec<u8>, Vec<u8>)> {
     if keys_path.exists() {
         let bytes = fs::read(keys_path)?;
         let keys: (Vec<u8>, Vec<u8>) = postcard::from_bytes(&bytes)?;

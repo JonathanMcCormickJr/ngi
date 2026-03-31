@@ -279,11 +279,11 @@ mod tests {
     use std::collections::HashMap;
     use std::net::SocketAddr;
     use std::sync::Arc;
-    use tokio::sync::RwLock;
     use tokio::sync::Mutex;
+    use tokio::sync::RwLock;
     use tokio::sync::oneshot;
-    use tonic::transport::Server;
     use tonic::transport::Channel;
+    use tonic::transport::Server;
 
     #[derive(Clone, Default)]
     struct MockDb {
@@ -391,7 +391,9 @@ mod tests {
         (addr, tx)
     }
 
-    async fn connect_mock_db_with_retry(addr: SocketAddr) -> DatabaseClient<tonic::transport::Channel> {
+    async fn connect_mock_db_with_retry(
+        addr: SocketAddr,
+    ) -> DatabaseClient<tonic::transport::Channel> {
         let endpoint = format!("http://{addr}");
         let mut last_err = None;
 
@@ -665,8 +667,10 @@ mod tests {
             encrypt_json(&user, &keys.0),
         );
 
-        let (addr, shutdown) =
-            start_mock_db(MockDb { values: Arc::new(RwLock::new(map)) }).await;
+        let (addr, shutdown) = start_mock_db(MockDb {
+            values: Arc::new(RwLock::new(map)),
+        })
+        .await;
         let db_client = connect_mock_db_with_retry(addr).await;
         let svc = AuthServiceImpl::new(
             Arc::new(Mutex::new(db_client)),

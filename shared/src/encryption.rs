@@ -30,11 +30,12 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::fmt::{self};
 
 /// Encryption algorithm options
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Default)]
 pub enum EncryptionAlgorithm {
     /// AES-256-GCM (hardware accelerated on many platforms)
     Aes256Gcm,
     /// ChaCha20-Poly1305 (constant-time, no hardware acceleration needed)
+    #[default]
     ChaCha20Poly1305,
 }
 
@@ -61,12 +62,6 @@ impl<'de> Deserialize<'de> for EncryptionAlgorithm {
             1 => Ok(EncryptionAlgorithm::ChaCha20Poly1305),
             _ => Err(serde::de::Error::custom(format!("Invalid algorithm: {v}"))),
         }
-    }
-}
-
-impl Default for EncryptionAlgorithm {
-    fn default() -> Self {
-        Self::ChaCha20Poly1305 // More secure default, constant-time
     }
 }
 
@@ -128,10 +123,7 @@ impl EncryptionService {
         // Generate a random salt
         let mut salt = [0u8; 32];
         rand::rng().try_fill_bytes(&mut salt).map_err(|e| {
-            EncryptionError::RandomNumberGeneration(format!(
-                "Error generating random number: {}",
-                e
-            ))
+            EncryptionError::RandomNumberGeneration(format!("Error generating random number: {e}"))
         })?;
 
         // Derive key from password and salt

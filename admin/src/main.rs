@@ -3,7 +3,6 @@
 
 mod server;
 
-use anyhow;
 use server::AdminServiceImpl;
 use server::admin::admin_service_server::AdminServiceServer;
 use shared::encryption::EncryptionService;

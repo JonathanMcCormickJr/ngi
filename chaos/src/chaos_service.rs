@@ -51,6 +51,71 @@ pub enum ChaosScenario {
     },
 }
 
+impl ChaosServiceImpl {
+    /// Parses a [`ChaosRequest`] into a typed [`ChaosScenario`].
+    fn parse_scenario(req: &ChaosRequest) -> Result<ChaosScenario, Status> {
+        let p = &req.parameters;
+        let duration_ms = |default| {
+            p.get("duration_ms")
+                .and_then(|v| v.parse().ok())
+                .unwrap_or(default)
+        };
+
+        match req.scenario_type.as_str() {
+            "network_latency" => Ok(ChaosScenario::NetworkLatency {
+                target_service: p
+                    .get("target_service")
+                    .cloned()
+                    .unwrap_or_else(|| "all".to_string()),
+                delay_ms: p
+                    .get("delay_ms")
+                    .and_then(|v| v.parse().ok())
+                    .unwrap_or(100),
+                duration_ms: duration_ms(30_000),
+            }),
+            "service_crash" => Ok(ChaosScenario::ServiceCrash {
+                target_service: p
+                    .get("target_service")
+                    .cloned()
+                    .unwrap_or_else(|| "random".to_string()),
+                crash_probability: p
+                    .get("crash_probability")
+                    .and_then(|v| v.parse().ok())
+                    .unwrap_or(0.1),
+                duration_ms: duration_ms(30_000),
+            }),
+            "disk_io_delay" => Ok(ChaosScenario::DiskIODelay {
+                target_service: p
+                    .get("target_service")
+                    .cloned()
+                    .unwrap_or_else(|| "db".to_string()),
+                delay_ms: p.get("delay_ms").and_then(|v| v.parse().ok()).unwrap_or(50),
+                duration_ms: duration_ms(30_000),
+            }),
+            "raft_leader_failure" => Ok(ChaosScenario::RaftLeaderFailure {
+                node_id: p.get("node_id").and_then(|v| v.parse().ok()).unwrap_or(1),
+                duration_ms: duration_ms(10_000),
+            }),
+            "network_partition" => Ok(ChaosScenario::NetworkPartition {
+                // Simplified two-group partition; a production implementation would parse these
+                // from the request parameters.
+                partition_groups: vec![
+                    vec!["node-1".to_string(), "node-2".to_string()],
+                    vec![
+                        "node-3".to_string(),
+                        "node-4".to_string(),
+                        "node-5".to_string(),
+                    ],
+                ],
+                duration_ms: duration_ms(15_000),
+            }),
+            unknown => Err(Status::invalid_argument(format!(
+                "Unknown scenario type: {unknown}"
+            ))),
+        }
+    }
+}
+
 #[tonic::async_trait]
 impl ChaosService for ChaosServiceImpl {
     async fn inject_scenario(
@@ -58,136 +123,17 @@ impl ChaosService for ChaosServiceImpl {
         request: Request<ChaosRequest>,
     ) -> Result<Response<ChaosAck>, Status> {
         let req = request.into_inner();
+        let scenario = Self::parse_scenario(&req)?;
 
-        let scenario = match req.scenario_type.as_str() {
-            "network_latency" => {
-                let delay_ms = req
-                    .parameters
-                    .get("delay_ms")
-                    .and_then(|v| v.parse().ok())
-                    .unwrap_or(100);
-                let duration_ms = req
-                    .parameters
-                    .get("duration_ms")
-                    .and_then(|v| v.parse().ok())
-                    .unwrap_or(30000);
-                let target_service = req
-                    .parameters
-                    .get("target_service")
-                    .cloned()
-                    .unwrap_or_else(|| "all".to_string());
-
-                ChaosScenario::NetworkLatency {
-                    target_service,
-                    delay_ms,
-                    duration_ms,
-                }
-            }
-            "service_crash" => {
-                let crash_probability = req
-                    .parameters
-                    .get("crash_probability")
-                    .and_then(|v| v.parse().ok())
-                    .unwrap_or(0.1);
-                let duration_ms = req
-                    .parameters
-                    .get("duration_ms")
-                    .and_then(|v| v.parse().ok())
-                    .unwrap_or(30000);
-                let target_service = req
-                    .parameters
-                    .get("target_service")
-                    .cloned()
-                    .unwrap_or_else(|| "random".to_string());
-
-                ChaosScenario::ServiceCrash {
-                    target_service,
-                    crash_probability,
-                    duration_ms,
-                }
-            }
-            "disk_io_delay" => {
-                let delay_ms = req
-                    .parameters
-                    .get("delay_ms")
-                    .and_then(|v| v.parse().ok())
-                    .unwrap_or(50);
-                let duration_ms = req
-                    .parameters
-                    .get("duration_ms")
-                    .and_then(|v| v.parse().ok())
-                    .unwrap_or(30000);
-                let target_service = req
-                    .parameters
-                    .get("target_service")
-                    .cloned()
-                    .unwrap_or_else(|| "db".to_string());
-
-                ChaosScenario::DiskIODelay {
-                    target_service,
-                    delay_ms,
-                    duration_ms,
-                }
-            }
-            "raft_leader_failure" => {
-                let node_id = req
-                    .parameters
-                    .get("node_id")
-                    .and_then(|v| v.parse().ok())
-                    .unwrap_or(1);
-                let duration_ms = req
-                    .parameters
-                    .get("duration_ms")
-                    .and_then(|v| v.parse().ok())
-                    .unwrap_or(10000);
-
-                ChaosScenario::RaftLeaderFailure {
-                    node_id,
-                    duration_ms,
-                }
-            }
-            "network_partition" => {
-                // Parse partition groups from parameters
-                // This is a simplified implementation
-                let partition_groups = vec![
-                    vec!["node-1".to_string(), "node-2".to_string()],
-                    vec![
-                        "node-3".to_string(),
-                        "node-4".to_string(),
-                        "node-5".to_string(),
-                    ],
-                ];
-                let duration_ms = req
-                    .parameters
-                    .get("duration_ms")
-                    .and_then(|v| v.parse().ok())
-                    .unwrap_or(15000);
-
-                ChaosScenario::NetworkPartition {
-                    partition_groups,
-                    duration_ms,
-                }
-            }
-            _ => {
-                return Err(Status::invalid_argument(format!(
-                    "Unknown scenario type: {}",
-                    req.scenario_type
-                )));
-            }
-        };
-
-        // Store the active scenario
+        // Store the active scenario.
         let scenario_id = format!("{}_{}", req.scenario_type, chrono::Utc::now().timestamp());
         self.active_scenarios
             .write()
             .await
             .insert(scenario_id.clone(), scenario);
 
-        // Start the scenario (in a real implementation, this would spawn background tasks)
-        println!(
-            "Injected chaos scenario: {} (ID: {})",
-            req.scenario_type, scenario_id
-        );
+        // In a full implementation this would spawn background tasks to apply the fault.
+        tracing::info!(scenario_type = %req.scenario_type, id = %scenario_id, "chaos scenario injected");
 
         Ok(Response::new(ChaosAck {
             scenario_id,
