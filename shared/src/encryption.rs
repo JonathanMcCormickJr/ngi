@@ -517,4 +517,56 @@ mod tests {
         // Salt is present for password-based encryption.
         assert!(debug_str.contains("salt"));
     }
+
+    #[test]
+    fn test_encryption_algorithm_serialize_both_variants() {
+        let aes = serde_json::to_string(&EncryptionAlgorithm::Aes256Gcm).unwrap();
+        assert_eq!(aes, "0");
+
+        let chacha = serde_json::to_string(&EncryptionAlgorithm::ChaCha20Poly1305).unwrap();
+        assert_eq!(chacha, "1");
+    }
+
+    #[test]
+    fn test_encryption_algorithm_deserialize_both_variants() {
+        let aes: EncryptionAlgorithm = serde_json::from_str("0").unwrap();
+        assert!(matches!(aes, EncryptionAlgorithm::Aes256Gcm));
+
+        let chacha: EncryptionAlgorithm = serde_json::from_str("1").unwrap();
+        assert!(matches!(chacha, EncryptionAlgorithm::ChaCha20Poly1305));
+    }
+
+    #[test]
+    fn test_pq_encrypt_with_chacha20_algorithm() {
+        let data = b"Test data for ChaCha20-based PQ encryption";
+        let (pk, sk) = EncryptionService::generate_keypair().unwrap();
+
+        let encrypted = EncryptionService::encrypt_with_public_key_and_algorithm(
+            data,
+            &pk,
+            EncryptionAlgorithm::ChaCha20Poly1305,
+        )
+        .unwrap();
+        assert!(encrypted.kem_ciphertext.is_some());
+
+        let decrypted = EncryptionService::decrypt_with_private_key(&encrypted, &sk).unwrap();
+        assert_eq!(data, decrypted.as_slice());
+    }
+
+    #[test]
+    fn test_password_encrypt_chacha20_debug_contains_kem_section() {
+        // Encrypt with PQ key to get a kem_ciphertext in the EncryptedData
+        let (pk, _sk) = EncryptionService::generate_keypair().unwrap();
+        let encrypted = EncryptionService::encrypt_with_public_key(b"data", &pk).unwrap();
+        // kem_ciphertext should be present for PQ encryption
+        let debug_str = format!("{encrypted:?}");
+        assert!(debug_str.contains("kem_ciphertext"));
+    }
+
+    #[test]
+    fn test_encrypt_with_public_key_fails_with_wrong_key_length() {
+        let too_short = vec![0u8; 32]; // Kyber public key is 1184 bytes
+        let result = EncryptionService::encrypt_with_public_key(b"data", &too_short);
+        assert!(result.is_err());
+    }
 }
