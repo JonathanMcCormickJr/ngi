@@ -8,3 +8,9 @@
 exclude = [
     "*/main.rs:main",
 ]
+
+# Exclude the web (WASM) crate: cargo-tarpaulin cannot instrument WebAssembly
+# targets compiled with wasm32-unknown-unknown, so web/* always reports 0%.
+exclude-files = [
+    "web/src/*",
+]

@@ -73,6 +73,208 @@ impl CustodianServiceImpl {
 }
 
 impl CustodianServiceImpl {
+    /// Convert a [`chrono::DateTime<Utc>`] to a [`prost_types::Timestamp`].
+    fn dt_to_proto(dt: chrono::DateTime<chrono::Utc>) -> prost_types::Timestamp {
+        prost_types::Timestamp::from(std::time::SystemTime::from(dt))
+    }
+
+    /// Map a domain [`NextAction`] to the corresponding protobuf `NextAction` integer.
+    ///
+    /// The domain type carries rich scheduling data (timestamps, auto-close schedules)
+    /// that the current protobuf enum cannot represent. The mapping is best-effort:
+    /// - `None` → `NEXT_ACTION_UNSPECIFIED`
+    /// - `FollowUp(_)` → `CONTACT_CUSTOMER` (follow-ups typically involve customer contact)
+    /// - `Appointment(_)` → `DIAGNOSE_ISSUE` (appointments are typically on-site visits)
+    /// - `AutoClose(_)` → `CLOSE_TICKET`
+    ///
+    /// The scheduling timestamp is not preserved. A future proto revision should add an
+    /// optional `next_action_scheduled_at` timestamp field to carry this information.
+    fn map_next_action(next_action: &domain::NextAction) -> i32 {
+        match next_action {
+            domain::NextAction::None => custodian::NextAction::Unspecified as i32,
+            domain::NextAction::FollowUp(_) => custodian::NextAction::ContactCustomer as i32,
+            domain::NextAction::Appointment(_) => custodian::NextAction::DiagnoseIssue as i32,
+            domain::NextAction::AutoClose(_) => custodian::NextAction::CloseTicket as i32,
+            // Non-exhaustive enum: any future variants are treated as unspecified
+            _ => custodian::NextAction::Unspecified as i32,
+        }
+    }
+
+    /// Convert a domain [`HistoryEntry`] to the corresponding protobuf message.
+    fn map_history_entry(entry: &domain::HistoryEntry) -> custodian::HistoryEntry {
+        let details = match (&entry.old_value, &entry.new_value) {
+            (Some(old), Some(new)) => format!("{}: {} → {}", entry.field_changed, old, new),
+            (Some(old), None) => format!("{}: {} → (removed)", entry.field_changed, old),
+            (None, Some(new)) => format!("{}: (new) → {}", entry.field_changed, new),
+            (None, None) => entry.field_changed.clone(),
+        };
+        custodian::HistoryEntry {
+            user_uuid: entry.user_id.to_string(),
+            timestamp: Some(Self::dt_to_proto(entry.timestamp)),
+            action: entry.field_changed.clone(),
+            details,
+        }
+    }
+
+    /// Convert a domain [`NetworkDevice`] to the corresponding protobuf message.
+    fn map_network_device(device: &domain::NetworkDevice) -> custodian::NetworkDevice {
+        use custodian::network_device::DeviceType;
+
+        let make_proto_fields =
+            |make: &str, model: &str, mac: Option<&domain::MacAddress>, sn: Option<&String>| {
+                (
+                    make.to_string(),
+                    model.to_string(),
+                    mac.map(ToString::to_string),
+                    sn.cloned(),
+                )
+            };
+
+        let device_type = match device {
+            domain::NetworkDevice::DslModem {
+                make,
+                model,
+                mac_address,
+                serial_number,
+            } => {
+                let (make, model, mac_address, serial_number) =
+                    make_proto_fields(make, model, mac_address.as_ref(), serial_number.as_ref());
+                DeviceType::DslModem(custodian::DslModem {
+                    make,
+                    model,
+                    mac_address,
+                    serial_number,
+                })
+            }
+            domain::NetworkDevice::CoaxModem {
+                make,
+                model,
+                mac_address,
+                serial_number,
+            } => {
+                let (make, model, mac_address, serial_number) =
+                    make_proto_fields(make, model, mac_address.as_ref(), serial_number.as_ref());
+                DeviceType::CoaxModem(custodian::CoaxModem {
+                    make,
+                    model,
+                    mac_address,
+                    serial_number,
+                })
+            }
+            domain::NetworkDevice::Ont {
+                make,
+                model,
+                mac_address,
+                serial_number,
+            } => {
+                let (make, model, mac_address, serial_number) =
+                    make_proto_fields(make, model, mac_address.as_ref(), serial_number.as_ref());
+                DeviceType::Ont(custodian::Ont {
+                    make,
+                    model,
+                    mac_address,
+                    serial_number,
+                })
+            }
+            domain::NetworkDevice::FixedWirelessAntenna {
+                make,
+                model,
+                mac_address,
+                serial_number,
+            } => {
+                let (make, model, mac_address, serial_number) =
+                    make_proto_fields(make, model, mac_address.as_ref(), serial_number.as_ref());
+                DeviceType::FixedWirelessAntenna(custodian::FixedWirelessAntenna {
+                    make,
+                    model,
+                    mac_address,
+                    serial_number,
+                })
+            }
+            domain::NetworkDevice::VpnGw {
+                make,
+                model,
+                mac_address,
+                serial_number,
+            } => {
+                let (make, model, mac_address, serial_number) =
+                    make_proto_fields(make, model, mac_address.as_ref(), serial_number.as_ref());
+                DeviceType::VpnGw(custodian::VpnGw {
+                    make,
+                    model,
+                    mac_address,
+                    serial_number,
+                })
+            }
+            domain::NetworkDevice::Switch {
+                make,
+                model,
+                mac_address,
+                serial_number,
+            } => {
+                let (make, model, mac_address, serial_number) =
+                    make_proto_fields(make, model, mac_address.as_ref(), serial_number.as_ref());
+                DeviceType::Switch(custodian::Switch {
+                    make,
+                    model,
+                    mac_address,
+                    serial_number,
+                })
+            }
+            domain::NetworkDevice::Router {
+                make,
+                model,
+                mac_address,
+                serial_number,
+            } => {
+                let (make, model, mac_address, serial_number) =
+                    make_proto_fields(make, model, mac_address.as_ref(), serial_number.as_ref());
+                DeviceType::Router(custodian::Router {
+                    make,
+                    model,
+                    mac_address,
+                    serial_number,
+                })
+            }
+            domain::NetworkDevice::Firewall {
+                make,
+                model,
+                mac_address,
+                serial_number,
+            } => {
+                let (make, model, mac_address, serial_number) =
+                    make_proto_fields(make, model, mac_address.as_ref(), serial_number.as_ref());
+                DeviceType::Firewall(custodian::Firewall {
+                    make,
+                    model,
+                    mac_address,
+                    serial_number,
+                })
+            }
+            // Non-exhaustive enum: log a warning and fall through with the make/model
+            // encoded as the make field. This ensures future device types are not silently
+            // dropped, even if the proto cannot represent them precisely until the schema
+            // is updated to include the new variant.
+            _ => {
+                tracing::warn!(
+                    device_type = device.device_type(),
+                    make_model = %device.make_model(),
+                    "Unknown NetworkDevice variant; encoding as Router until proto is updated"
+                );
+                DeviceType::Router(custodian::Router {
+                    make: device.make_model(),
+                    model: String::new(),
+                    mac_address: device.mac_address().map(ToString::to_string),
+                    serial_number: None,
+                })
+            }
+        };
+
+        custodian::NetworkDevice {
+            device_type: Some(device_type),
+        }
+    }
+
     /// Convert our domain Ticket to protobuf
     fn domain_to_proto(ticket: &domain::Ticket) -> custodian::Ticket {
         custodian::Ticket {
@@ -86,22 +288,26 @@ impl CustodianServiceImpl {
             symptom: ticket.symptom as i32,
             priority: ticket.priority as i32,
             status: ticket.status as i32,
-            next_action: 0, // TODO: Map NextAction properly
+            next_action: Self::map_next_action(&ticket.next_action),
             resolution: ticket.resolution.map(|r| r as i32),
             locked_by_uuid: ticket.locked_by.map(|u| u.to_string()),
             assigned_to_uuid: ticket.assigned_to.map(|u| u.to_string()),
             created_by_uuid: ticket.created_by.to_string(),
-            created_at: Some(prost_types::Timestamp::from(std::time::SystemTime::from(
-                ticket.created_at,
-            ))),
+            created_at: Some(Self::dt_to_proto(ticket.created_at)),
             updated_by_uuid: ticket.updated_by.to_string(),
-            updated_at: Some(prost_types::Timestamp::from(std::time::SystemTime::from(
-                ticket.updated_at,
-            ))),
-            history: vec![], // TODO: Convert history
+            updated_at: Some(Self::dt_to_proto(ticket.updated_at)),
+            history: ticket
+                .history
+                .iter()
+                .map(Self::map_history_entry)
+                .collect(),
             ebond: ticket.ebond.clone(),
             tracking_url: ticket.tracking_url.clone(),
-            network_devices: vec![], // TODO: Convert devices
+            network_devices: ticket
+                .network_devices
+                .iter()
+                .map(Self::map_network_device)
+                .collect(),
             schema_version: ticket.schema_version,
         }
     }
@@ -791,5 +997,258 @@ mod tests {
             .expect_err("must fail without lock");
 
         assert_eq!(err.code(), tonic::Code::PermissionDenied);
+    }
+
+    // ── map_next_action ───────────────────────────────────────────────────────
+
+    #[test]
+    fn map_next_action_none_maps_to_unspecified() {
+        let result = CustodianServiceImpl::map_next_action(&domain::NextAction::None);
+        assert_eq!(result, custodian::NextAction::Unspecified as i32);
+    }
+
+    #[test]
+    fn map_next_action_follow_up_maps_to_contact_customer() {
+        let result = CustodianServiceImpl::map_next_action(&domain::NextAction::FollowUp(
+            chrono::Utc::now(),
+        ));
+        assert_eq!(result, custodian::NextAction::ContactCustomer as i32);
+    }
+
+    #[test]
+    fn map_next_action_appointment_maps_to_diagnose_issue() {
+        let result = CustodianServiceImpl::map_next_action(&domain::NextAction::Appointment(
+            chrono::Utc::now(),
+        ));
+        assert_eq!(result, custodian::NextAction::DiagnoseIssue as i32);
+    }
+
+    #[test]
+    fn map_next_action_auto_close_maps_to_close_ticket() {
+        let result = CustodianServiceImpl::map_next_action(&domain::NextAction::AutoClose(
+            domain::AutoCloseSchedule::Hours24,
+        ));
+        assert_eq!(result, custodian::NextAction::CloseTicket as i32);
+    }
+
+    // ── map_history_entry ─────────────────────────────────────────────────────
+
+    #[test]
+    fn map_history_entry_formats_change_with_old_and_new_values() {
+        let entry = domain::HistoryEntry {
+            timestamp: chrono::Utc::now(),
+            user_id: uuid::Uuid::nil(),
+            field_changed: "status".to_string(),
+            old_value: Some("Open".to_string()),
+            new_value: Some("Closed".to_string()),
+        };
+        let proto = CustodianServiceImpl::map_history_entry(&entry);
+        assert_eq!(proto.action, "status");
+        assert!(proto.details.contains("Open"));
+        assert!(proto.details.contains("Closed"));
+        assert_eq!(proto.user_uuid, uuid::Uuid::nil().to_string());
+        assert!(proto.timestamp.is_some());
+    }
+
+    #[test]
+    fn map_history_entry_handles_removal() {
+        let entry = domain::HistoryEntry {
+            timestamp: chrono::Utc::now(),
+            user_id: uuid::Uuid::nil(),
+            field_changed: "assigned_to".to_string(),
+            old_value: Some("Alice".to_string()),
+            new_value: None,
+        };
+        let proto = CustodianServiceImpl::map_history_entry(&entry);
+        assert!(proto.details.contains("removed"));
+    }
+
+    #[test]
+    fn map_history_entry_handles_new_value_only() {
+        let entry = domain::HistoryEntry {
+            timestamp: chrono::Utc::now(),
+            user_id: uuid::Uuid::nil(),
+            field_changed: "tracking_url".to_string(),
+            old_value: None,
+            new_value: Some("https://example.com".to_string()),
+        };
+        let proto = CustodianServiceImpl::map_history_entry(&entry);
+        assert!(proto.details.contains("example.com"));
+    }
+
+    #[test]
+    fn map_history_entry_handles_no_values() {
+        let entry = domain::HistoryEntry {
+            timestamp: chrono::Utc::now(),
+            user_id: uuid::Uuid::nil(),
+            field_changed: "ticket_created".to_string(),
+            old_value: None,
+            new_value: None,
+        };
+        let proto = CustodianServiceImpl::map_history_entry(&entry);
+        assert_eq!(proto.details, "ticket_created");
+    }
+
+    // ── map_network_device ────────────────────────────────────────────────────
+
+    #[test]
+    fn map_network_device_dsl_modem() {
+        use custodian::network_device::DeviceType;
+        let device = domain::NetworkDevice::DslModem {
+            make: "Cisco".to_string(),
+            model: "DPC3825".to_string(),
+            mac_address: None,
+            serial_number: Some("SN123".to_string()),
+        };
+        let proto = CustodianServiceImpl::map_network_device(&device);
+        assert!(matches!(
+            proto.device_type,
+            Some(DeviceType::DslModem(ref d)) if d.make == "Cisco"
+        ));
+    }
+
+    #[test]
+    fn map_network_device_coax_modem_with_mac() {
+        use custodian::network_device::DeviceType;
+        let mac = domain::MacAddress::new("AA:BB:CC:DD:EE:FF").expect("valid MAC");
+        let device = domain::NetworkDevice::CoaxModem {
+            make: "Arris".to_string(),
+            model: "SB6141".to_string(),
+            mac_address: Some(mac),
+            serial_number: None,
+        };
+        let proto = CustodianServiceImpl::map_network_device(&device);
+        assert!(matches!(
+            proto.device_type,
+            Some(DeviceType::CoaxModem(ref d)) if d.mac_address.is_some()
+        ));
+    }
+
+    #[test]
+    fn map_network_device_ont() {
+        use custodian::network_device::DeviceType;
+        let device = domain::NetworkDevice::Ont {
+            make: "Calix".to_string(),
+            model: "GigaPoint".to_string(),
+            mac_address: None,
+            serial_number: None,
+        };
+        let proto = CustodianServiceImpl::map_network_device(&device);
+        assert!(matches!(proto.device_type, Some(DeviceType::Ont(_))));
+    }
+
+    #[test]
+    fn map_network_device_fixed_wireless_antenna() {
+        use custodian::network_device::DeviceType;
+        let device = domain::NetworkDevice::FixedWirelessAntenna {
+            make: "Cambium".to_string(),
+            model: "PMP450".to_string(),
+            mac_address: None,
+            serial_number: None,
+        };
+        let proto = CustodianServiceImpl::map_network_device(&device);
+        assert!(matches!(
+            proto.device_type,
+            Some(DeviceType::FixedWirelessAntenna(_))
+        ));
+    }
+
+    #[test]
+    fn map_network_device_vpn_gw() {
+        use custodian::network_device::DeviceType;
+        let device = domain::NetworkDevice::VpnGw {
+            make: "Cisco".to_string(),
+            model: "ASA5505".to_string(),
+            mac_address: None,
+            serial_number: None,
+        };
+        let proto = CustodianServiceImpl::map_network_device(&device);
+        assert!(matches!(proto.device_type, Some(DeviceType::VpnGw(_))));
+    }
+
+    #[test]
+    fn map_network_device_switch() {
+        use custodian::network_device::DeviceType;
+        let device = domain::NetworkDevice::Switch {
+            make: "Cisco".to_string(),
+            model: "SG300".to_string(),
+            mac_address: None,
+            serial_number: None,
+        };
+        let proto = CustodianServiceImpl::map_network_device(&device);
+        assert!(matches!(proto.device_type, Some(DeviceType::Switch(_))));
+    }
+
+    #[test]
+    fn map_network_device_router() {
+        use custodian::network_device::DeviceType;
+        let device = domain::NetworkDevice::Router {
+            make: "Netgear".to_string(),
+            model: "R7000".to_string(),
+            mac_address: None,
+            serial_number: None,
+        };
+        let proto = CustodianServiceImpl::map_network_device(&device);
+        assert!(matches!(proto.device_type, Some(DeviceType::Router(_))));
+    }
+
+    #[test]
+    fn map_network_device_firewall() {
+        use custodian::network_device::DeviceType;
+        let device = domain::NetworkDevice::Firewall {
+            make: "Palo Alto".to_string(),
+            model: "PA-220".to_string(),
+            mac_address: None,
+            serial_number: None,
+        };
+        let proto = CustodianServiceImpl::map_network_device(&device);
+        assert!(matches!(proto.device_type, Some(DeviceType::Firewall(_))));
+    }
+
+    // ── domain_to_proto round-trip tests ─────────────────────────────────────
+
+    #[test]
+    fn domain_to_proto_preserves_next_action_and_history() {
+        let owner = uuid::Uuid::new_v4();
+        let mut ticket = domain::Ticket::new(
+            1,
+            "Test".to_string(),
+            "Project".to_string(),
+            uuid::Uuid::new_v4(),
+            domain::Symptom::BroadbandDown,
+            owner,
+        );
+        ticket.next_action = domain::NextAction::FollowUp(chrono::Utc::now());
+        ticket.history.push(domain::HistoryEntry {
+            timestamp: chrono::Utc::now(),
+            user_id: owner,
+            field_changed: "status".to_string(),
+            old_value: Some("Open".to_string()),
+            new_value: Some("Closed".to_string()),
+        });
+        let proto = CustodianServiceImpl::domain_to_proto(&ticket);
+        assert_eq!(proto.next_action, custodian::NextAction::ContactCustomer as i32);
+        assert_eq!(proto.history.len(), 1);
+        assert_eq!(proto.history[0].action, "status");
+    }
+
+    #[test]
+    fn domain_to_proto_preserves_network_devices() {
+        let mut ticket = domain::Ticket::new(
+            2,
+            "Net Test".to_string(),
+            "Project".to_string(),
+            uuid::Uuid::new_v4(),
+            domain::Symptom::BroadbandDown,
+            uuid::Uuid::new_v4(),
+        );
+        ticket.network_devices.push(domain::NetworkDevice::Router {
+            make: "Netgear".to_string(),
+            model: "R7000".to_string(),
+            mac_address: None,
+            serial_number: None,
+        });
+        let proto = CustodianServiceImpl::domain_to_proto(&ticket);
+        assert_eq!(proto.network_devices.len(), 1);
     }
 }
