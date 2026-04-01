@@ -24,6 +24,15 @@ impl DbClient {
         })
     }
 
+    /// Create a client with a lazy channel (connects on first use).
+    /// Useful for tests and situations where the endpoint may not be reachable immediately.
+    pub(crate) fn new_lazy(endpoint: &'static str) -> Self {
+        let channel = Channel::from_static(endpoint).connect_lazy();
+        Self {
+            inner: db::database_client::DatabaseClient::new(channel),
+        }
+    }
+
     /// Put a value into the database
     ///
     /// # Errors

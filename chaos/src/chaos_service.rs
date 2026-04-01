@@ -285,4 +285,98 @@ mod tests {
                 .contains(&"raft_leader_failure".to_string())
         );
     }
+
+    #[tokio::test]
+    async fn test_inject_disk_io_delay_scenario() {
+        let service = ChaosServiceImpl::default();
+
+        let request = Request::new(ChaosRequest {
+            scenario_type: "disk_io_delay".to_string(),
+            parameters: vec![
+                ("delay_ms".to_string(), "50".to_string()),
+                ("target_service".to_string(), "db".to_string()),
+            ]
+            .into_iter()
+            .collect(),
+        });
+
+        let response = service.inject_scenario(request).await.unwrap();
+        let ack = response.into_inner();
+
+        assert!(ack.scenario_id.starts_with("disk_io_delay_"));
+        assert_eq!(ack.status, "injected");
+    }
+
+    #[tokio::test]
+    async fn test_inject_raft_leader_failure_scenario() {
+        let service = ChaosServiceImpl::default();
+
+        let request = Request::new(ChaosRequest {
+            scenario_type: "raft_leader_failure".to_string(),
+            parameters: vec![("node_id".to_string(), "2".to_string())]
+                .into_iter()
+                .collect(),
+        });
+
+        let response = service.inject_scenario(request).await.unwrap();
+        let ack = response.into_inner();
+
+        assert!(ack.scenario_id.starts_with("raft_leader_failure_"));
+        assert_eq!(ack.status, "injected");
+    }
+
+    #[tokio::test]
+    async fn test_inject_network_partition_scenario() {
+        let service = ChaosServiceImpl::default();
+
+        let request = Request::new(ChaosRequest {
+            scenario_type: "network_partition".to_string(),
+            parameters: HashMap::new(),
+        });
+
+        let response = service.inject_scenario(request).await.unwrap();
+        let ack = response.into_inner();
+
+        assert!(ack.scenario_id.starts_with("network_partition_"));
+        assert_eq!(ack.status, "injected");
+    }
+
+    #[tokio::test]
+    async fn test_inject_service_crash_with_defaults() {
+        let service = ChaosServiceImpl::default();
+
+        // Test service_crash with no parameters (all defaults)
+        let request = Request::new(ChaosRequest {
+            scenario_type: "service_crash".to_string(),
+            parameters: HashMap::new(),
+        });
+
+        let response = service.inject_scenario(request).await.unwrap();
+        let ack = response.into_inner();
+
+        assert!(ack.scenario_id.starts_with("service_crash_"));
+        assert_eq!(ack.status, "injected");
+    }
+
+    #[tokio::test]
+    async fn test_list_scenarios_after_injecting() {
+        let service = ChaosServiceImpl::default();
+
+        // Inject a scenario first
+        let request = Request::new(ChaosRequest {
+            scenario_type: "network_latency".to_string(),
+            parameters: HashMap::new(),
+        });
+        service.inject_scenario(request).await.unwrap();
+
+        // List should now show one active scenario
+        let list_response = service
+            .list_scenarios(Request::new(ListRequest {}))
+            .await
+            .unwrap();
+        let catalog = list_response.into_inner();
+
+        assert_eq!(catalog.scenario_ids.len(), 1);
+        assert_eq!(catalog.available_types.len(), 5);
+    }
 }

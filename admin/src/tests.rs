@@ -1,6 +1,6 @@
 #[cfg(test)]
 mod tests {
-    use crate::server::AdminServiceImpl;
+    use crate::{load_or_generate_keys, parse_listen_addr};
     use chrono::Utc;
     use shared::user::Role;
     use shared::user::User;
@@ -40,5 +40,34 @@ mod tests {
 
         assert_eq!(user.username, decoded.username);
         assert_eq!(user.role, decoded.role);
+    }
+
+    #[test]
+    fn parse_listen_addr_defaults_to_0_0_0_0_8083() {
+        let addr = parse_listen_addr(None).expect("default addr");
+        assert_eq!(addr.to_string(), "0.0.0.0:8083");
+    }
+
+    #[test]
+    fn parse_listen_addr_uses_provided_value() {
+        let addr = parse_listen_addr(Some("127.0.0.1:9090".to_string())).expect("custom addr");
+        assert_eq!(addr.port(), 9090);
+    }
+
+    #[test]
+    fn parse_listen_addr_rejects_invalid() {
+        assert!(parse_listen_addr(Some("not-an-addr".to_string())).is_err());
+    }
+
+    #[test]
+    fn load_or_generate_keys_creates_keys_when_absent() {
+        let dir = tempfile::tempdir().expect("temp dir");
+        let keys1 = load_or_generate_keys(dir.path()).expect("generate keys");
+        assert!(!keys1.0.is_empty(), "public key must not be empty");
+        assert!(!keys1.1.is_empty(), "private key must not be empty");
+
+        // Second call should load the same keys from disk
+        let keys2 = load_or_generate_keys(dir.path()).expect("load keys");
+        assert_eq!(keys1, keys2, "round-trip keys must match");
     }
 }

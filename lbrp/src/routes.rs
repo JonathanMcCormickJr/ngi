@@ -890,4 +890,28 @@ mod tests {
 
         assert_eq!(response.status(), StatusCode::INTERNAL_SERVER_ERROR);
     }
+
+    #[tokio::test]
+    async fn login_maps_other_grpc_error_to_500() {
+        let (addr, shutdown) = start_mock_auth(MockAuthSvc {
+            error_code: Some(tonic::Code::Internal),
+            auth_success: false,
+        })
+        .await;
+        let ch = connect_retry(addr).await;
+        let result = login(
+            State(make_state_with_auth_ch(ch)),
+            Json(LoginRequest {
+                username: "alice".into(),
+                password: "pass".into(),
+                mfa_token: None,
+            }),
+        )
+        .await;
+        let _ = shutdown.send(());
+        let Err((status, _)) = result else {
+            panic!("expected error when backend returns Internal");
+        };
+        assert_eq!(status, StatusCode::INTERNAL_SERVER_ERROR);
+    }
 }

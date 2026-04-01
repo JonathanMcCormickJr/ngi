@@ -146,6 +146,9 @@ impl DbClient {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::net::TcpListener;
+    use tokio::sync::oneshot;
+    use tonic::transport::Server;
 
     fn unreachable_channel() -> Channel {
         Channel::from_static("http://127.0.0.1:9").connect_lazy()
@@ -161,6 +164,255 @@ mod tests {
         }
     }
 
+    // ── Minimal mock implementations ─────────────────────────────────────────
+
+    #[derive(Clone, Default)]
+    struct MinimalCustodianSvc;
+
+    #[tonic::async_trait]
+    impl custodian::custodian_service_server::CustodianService for MinimalCustodianSvc {
+        async fn create_ticket(
+            &self,
+            _req: tonic::Request<custodian::CreateTicketRequest>,
+        ) -> Result<tonic::Response<custodian::Ticket>, tonic::Status> {
+            Ok(tonic::Response::new(custodian::Ticket::default()))
+        }
+        async fn acquire_lock(
+            &self,
+            _req: tonic::Request<custodian::LockRequest>,
+        ) -> Result<tonic::Response<custodian::LockResponse>, tonic::Status> {
+            Ok(tonic::Response::new(custodian::LockResponse {
+                success: true,
+                error: String::new(),
+                current_holder: None,
+            }))
+        }
+        async fn release_lock(
+            &self,
+            _req: tonic::Request<custodian::LockRelease>,
+        ) -> Result<tonic::Response<custodian::LockResponse>, tonic::Status> {
+            Ok(tonic::Response::new(custodian::LockResponse {
+                success: true,
+                error: String::new(),
+                current_holder: None,
+            }))
+        }
+        async fn update_ticket(
+            &self,
+            _req: tonic::Request<custodian::UpdateTicketRequest>,
+        ) -> Result<tonic::Response<custodian::Ticket>, tonic::Status> {
+            Ok(tonic::Response::new(custodian::Ticket::default()))
+        }
+        async fn get_ticket(
+            &self,
+            req: tonic::Request<custodian::GetTicketRequest>,
+        ) -> Result<tonic::Response<custodian::Ticket>, tonic::Status> {
+            Ok(tonic::Response::new(custodian::Ticket {
+                ticket_id: req.into_inner().ticket_id,
+                ..Default::default()
+            }))
+        }
+        async fn health(
+            &self,
+            _req: tonic::Request<custodian::HealthRequest>,
+        ) -> Result<tonic::Response<custodian::HealthResponse>, tonic::Status> {
+            Ok(tonic::Response::new(custodian::HealthResponse {
+                healthy: true,
+                status: "leader".to_string(),
+            }))
+        }
+        async fn cluster_status(
+            &self,
+            _req: tonic::Request<custodian::ClusterStatusRequest>,
+        ) -> Result<tonic::Response<custodian::ClusterStatusResponse>, tonic::Status> {
+            Ok(tonic::Response::new(custodian::ClusterStatusResponse {
+                leader_id: "1".to_string(),
+                follower_ids: vec![],
+                term: 1,
+                commit_index: 0,
+            }))
+        }
+    }
+
+    #[derive(Clone, Default)]
+    struct MinimalAuthSvc;
+
+    #[tonic::async_trait]
+    impl auth::auth_service_server::AuthService for MinimalAuthSvc {
+        async fn authenticate(
+            &self,
+            _req: tonic::Request<auth::AuthenticateRequest>,
+        ) -> Result<tonic::Response<auth::AuthenticateResponse>, tonic::Status> {
+            Ok(tonic::Response::new(auth::AuthenticateResponse {
+                success: true,
+                session_token: "tok".to_string(),
+                error: String::new(),
+                user: None,
+            }))
+        }
+        async fn validate_session(
+            &self,
+            _req: tonic::Request<auth::ValidateSessionRequest>,
+        ) -> Result<tonic::Response<auth::ValidateSessionResponse>, tonic::Status> {
+            Err(tonic::Status::unimplemented("not needed"))
+        }
+        async fn logout(
+            &self,
+            _req: tonic::Request<auth::LogoutRequest>,
+        ) -> Result<tonic::Response<auth::LogoutResponse>, tonic::Status> {
+            Err(tonic::Status::unimplemented("not needed"))
+        }
+    }
+
+    #[derive(Clone, Default)]
+    struct MinimalAdminSvc;
+
+    #[tonic::async_trait]
+    impl admin::admin_service_server::AdminService for MinimalAdminSvc {
+        async fn create_user(
+            &self,
+            _req: tonic::Request<admin::CreateUserRequest>,
+        ) -> Result<tonic::Response<admin::CreateUserResponse>, tonic::Status> {
+            Err(tonic::Status::unimplemented("not needed"))
+        }
+        async fn get_user(
+            &self,
+            _req: tonic::Request<admin::GetUserRequest>,
+        ) -> Result<tonic::Response<admin::GetUserResponse>, tonic::Status> {
+            Err(tonic::Status::unimplemented("not needed"))
+        }
+        async fn list_users(
+            &self,
+            _req: tonic::Request<admin::ListUsersRequest>,
+        ) -> Result<tonic::Response<admin::ListUsersResponse>, tonic::Status> {
+            Err(tonic::Status::unimplemented("not needed"))
+        }
+        async fn update_user(
+            &self,
+            _req: tonic::Request<admin::UpdateUserRequest>,
+        ) -> Result<tonic::Response<admin::UpdateUserResponse>, tonic::Status> {
+            Err(tonic::Status::unimplemented("not needed"))
+        }
+        async fn delete_user(
+            &self,
+            _req: tonic::Request<admin::DeleteUserRequest>,
+        ) -> Result<tonic::Response<admin::DeleteUserResponse>, tonic::Status> {
+            Err(tonic::Status::unimplemented("not needed"))
+        }
+        async fn push_metrics(
+            &self,
+            _req: tonic::Request<admin::MetricsSnapshot>,
+        ) -> Result<tonic::Response<admin::PushAck>, tonic::Status> {
+            Err(tonic::Status::unimplemented("not needed"))
+        }
+    }
+
+    #[derive(Clone, Default)]
+    struct MinimalDbSvc;
+
+    #[tonic::async_trait]
+    impl db::database_server::Database for MinimalDbSvc {
+        async fn put(&self, _req: tonic::Request<db::PutRequest>) -> Result<tonic::Response<db::PutResponse>, tonic::Status> {
+            Err(tonic::Status::unimplemented("not needed"))
+        }
+        async fn get(&self, _req: tonic::Request<db::GetRequest>) -> Result<tonic::Response<db::GetResponse>, tonic::Status> {
+            Err(tonic::Status::unimplemented("not needed"))
+        }
+        async fn delete(&self, _req: tonic::Request<db::DeleteRequest>) -> Result<tonic::Response<db::DeleteResponse>, tonic::Status> {
+            Err(tonic::Status::unimplemented("not needed"))
+        }
+        async fn list(&self, _req: tonic::Request<db::ListRequest>) -> Result<tonic::Response<db::ListResponse>, tonic::Status> {
+            Err(tonic::Status::unimplemented("not needed"))
+        }
+        async fn exists(&self, _req: tonic::Request<db::ExistsRequest>) -> Result<tonic::Response<db::ExistsResponse>, tonic::Status> {
+            Err(tonic::Status::unimplemented("not needed"))
+        }
+        async fn batch_put(&self, _req: tonic::Request<db::BatchPutRequest>) -> Result<tonic::Response<db::BatchPutResponse>, tonic::Status> {
+            Err(tonic::Status::unimplemented("not needed"))
+        }
+        async fn health(&self, _req: tonic::Request<db::HealthRequest>) -> Result<tonic::Response<db::HealthResponse>, tonic::Status> {
+            Err(tonic::Status::unimplemented("not needed"))
+        }
+        async fn cluster_status(&self, _req: tonic::Request<db::ClusterStatusRequest>) -> Result<tonic::Response<db::ClusterStatusResponse>, tonic::Status> {
+            Err(tonic::Status::unimplemented("not needed"))
+        }
+    }
+
+    // ── Server start helpers ──────────────────────────────────────────────────
+
+    async fn start_custodian(svc: MinimalCustodianSvc) -> (std::net::SocketAddr, oneshot::Sender<()>) {
+        let listener = TcpListener::bind("127.0.0.1:0").expect("bind");
+        let addr = listener.local_addr().expect("local addr");
+        drop(listener);
+        let (tx, rx) = oneshot::channel();
+        tokio::spawn(async move {
+            let _ = Server::builder()
+                .add_service(custodian::custodian_service_server::CustodianServiceServer::new(svc))
+                .serve_with_shutdown(addr, async { let _ = rx.await; })
+                .await;
+        });
+        (addr, tx)
+    }
+
+    async fn start_auth(svc: MinimalAuthSvc) -> (std::net::SocketAddr, oneshot::Sender<()>) {
+        let listener = TcpListener::bind("127.0.0.1:0").expect("bind");
+        let addr = listener.local_addr().expect("local addr");
+        drop(listener);
+        let (tx, rx) = oneshot::channel();
+        tokio::spawn(async move {
+            let _ = Server::builder()
+                .add_service(auth::auth_service_server::AuthServiceServer::new(svc))
+                .serve_with_shutdown(addr, async { let _ = rx.await; })
+                .await;
+        });
+        (addr, tx)
+    }
+
+    async fn start_admin(svc: MinimalAdminSvc) -> (std::net::SocketAddr, oneshot::Sender<()>) {
+        let listener = TcpListener::bind("127.0.0.1:0").expect("bind");
+        let addr = listener.local_addr().expect("local addr");
+        drop(listener);
+        let (tx, rx) = oneshot::channel();
+        tokio::spawn(async move {
+            let _ = Server::builder()
+                .add_service(admin::admin_service_server::AdminServiceServer::new(svc))
+                .serve_with_shutdown(addr, async { let _ = rx.await; })
+                .await;
+        });
+        (addr, tx)
+    }
+
+    async fn start_db(svc: MinimalDbSvc) -> (std::net::SocketAddr, oneshot::Sender<()>) {
+        let listener = TcpListener::bind("127.0.0.1:0").expect("bind");
+        let addr = listener.local_addr().expect("local addr");
+        drop(listener);
+        let (tx, rx) = oneshot::channel();
+        tokio::spawn(async move {
+            let _ = Server::builder()
+                .add_service(db::database_server::DatabaseServer::new(svc))
+                .serve_with_shutdown(addr, async { let _ = rx.await; })
+                .await;
+        });
+        (addr, tx)
+    }
+
+    async fn connect_retry(addr: std::net::SocketAddr) -> Channel {
+        let endpoint = format!("http://{addr}");
+        for _ in 0..20 {
+            if let Ok(ch) = Channel::from_shared(endpoint.clone())
+                .expect("valid uri")
+                .connect()
+                .await
+            {
+                return ch;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(25)).await;
+        }
+        panic!("could not connect to {addr}");
+    }
+
+    // ── Tests ─────────────────────────────────────────────────────────────────
+
     #[tokio::test]
     async fn connect_rejects_invalid_address_format() {
         assert!(
@@ -171,6 +423,42 @@ mod tests {
         assert!(AuthClient::connect("not-a-url".to_string()).await.is_err());
         assert!(AdminClient::connect("not-a-url".to_string()).await.is_err());
         assert!(DbClient::connect("not-a-url".to_string()).await.is_err());
+    }
+
+    #[tokio::test]
+    async fn connect_succeeds_with_valid_custodian_server() {
+        let (addr, shutdown) = start_custodian(MinimalCustodianSvc).await;
+        let _ = connect_retry(addr).await;
+        let result = CustodianClient::connect(format!("http://{addr}")).await;
+        let _ = shutdown.send(());
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn connect_succeeds_with_valid_auth_server() {
+        let (addr, shutdown) = start_auth(MinimalAuthSvc).await;
+        let _ = connect_retry(addr).await;
+        let result = AuthClient::connect(format!("http://{addr}")).await;
+        let _ = shutdown.send(());
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn connect_succeeds_with_valid_admin_server() {
+        let (addr, shutdown) = start_admin(MinimalAdminSvc).await;
+        let _ = connect_retry(addr).await;
+        let result = AdminClient::connect(format!("http://{addr}")).await;
+        let _ = shutdown.send(());
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn connect_succeeds_with_valid_db_server() {
+        let (addr, shutdown) = start_db(MinimalDbSvc).await;
+        let _ = connect_retry(addr).await;
+        let result = DbClient::connect(format!("http://{addr}")).await;
+        let _ = shutdown.send(());
+        assert!(result.is_ok());
     }
 
     #[tokio::test]
@@ -246,5 +534,40 @@ mod tests {
         );
 
         assert!(client.cluster_status().await.is_err());
+    }
+
+    #[tokio::test]
+    async fn custodian_wrappers_return_ok_with_working_server() {
+        let (addr, shutdown) = start_custodian(MinimalCustodianSvc).await;
+        let ch = connect_retry(addr).await;
+        let client = CustodianClient {
+            client: Arc::new(Mutex::new(
+                custodian::custodian_service_client::CustodianServiceClient::new(ch),
+            )),
+        };
+
+        assert!(
+            client
+                .acquire_lock(custodian::LockRequest {
+                    ticket_id: 1,
+                    user_uuid: "00000000-0000-0000-0000-000000000001".to_string(),
+                })
+                .await
+                .is_ok()
+        );
+
+        assert!(
+            client
+                .release_lock(custodian::LockRelease {
+                    ticket_id: 1,
+                    user_uuid: "00000000-0000-0000-0000-000000000001".to_string(),
+                })
+                .await
+                .is_ok()
+        );
+
+        assert!(client.cluster_status().await.is_ok());
+
+        let _ = shutdown.send(());
     }
 }
