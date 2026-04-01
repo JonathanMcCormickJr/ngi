@@ -36,6 +36,37 @@ mod tests {
     }
 
     #[test]
+    fn test_intrusion_event_report_does_not_panic() {
+        let event = IntrusionEvent::new(
+            "192.168.1.1".to_string(),
+            "/api/admin".to_string(),
+            "DELETE".to_string(),
+        );
+        // report() writes to stderr; just verify it doesn't panic
+        event.report();
+    }
+
+    #[test]
+    fn test_intrusion_event_optional_fields() {
+        let mut event = IntrusionEvent::new(
+            "10.10.10.10".to_string(),
+            "/secret".to_string(),
+            "GET".to_string(),
+        );
+        // Verify optional fields default to None
+        assert!(event.user_agent.is_none());
+        assert!(event.request_body.is_none());
+        assert!(event.tls_fingerprint.is_none());
+
+        // Set optional fields and verify
+        event.user_agent = Some("Mozilla/5.0".to_string());
+        event.request_body = Some("key=value".to_string());
+        event.tls_fingerprint = Some("JA3_FINGERPRINT".to_string());
+        event.report(); // should not panic with all fields populated
+        assert_eq!(event.user_agent.as_deref(), Some("Mozilla/5.0"));
+    }
+
+    #[test]
     fn test_fake_wallet_generation() {
         let wallet = traps::generate_fake_wallet();
         assert!(!wallet.is_empty());

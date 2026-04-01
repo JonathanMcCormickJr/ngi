@@ -467,6 +467,75 @@ mod tests {
         assert!(factory.get_peer_address(99).is_none());
     }
 
+    #[test]
+    fn test_network_factory_add_node() {
+        let mut factory = DbNetworkFactory::new();
+        assert!(factory.get_peer_address(42).is_none());
+
+        factory.add_node(42, "http://127.0.0.1:50042".to_string());
+        assert_eq!(
+            factory.get_peer_address(42).as_deref(),
+            Some("http://127.0.0.1:50042")
+        );
+
+        // Overwrite existing node
+        factory.add_node(42, "http://127.0.0.1:50043".to_string());
+        assert_eq!(
+            factory.get_peer_address(42).as_deref(),
+            Some("http://127.0.0.1:50043")
+        );
+    }
+
+    #[test]
+    fn test_network_factory_default_is_empty() {
+        let factory = DbNetworkFactory::default();
+        assert!(factory.get_peer_address(1).is_none());
+    }
+
+    #[tokio::test]
+    async fn test_new_client_falls_back_to_node_addr() {
+        // When the node_id is not in the peers map, the factory should fall back
+        // to the node's addr field.
+        let factory = DbNetworkFactory::new();
+        // Use a mutable reference for `new_client`.
+        let mut factory = factory;
+        let node = openraft::BasicNode {
+            addr: "127.0.0.1:19999".to_string(),
+        };
+        // Should use node.addr since node_id 99 is not in peers
+        let _client = factory.new_client(99, &node).await;
+        // Just verify no panic; we can't easily inspect the address field.
+    }
+
+    #[tokio::test]
+    async fn full_snapshot_always_returns_closed_error() {
+        let mut peers = HashMap::new();
+        peers.insert(1, "http://127.0.0.1:59998".to_string());
+        let mut factory = DbNetworkFactory::with_peers(peers);
+        let mut client = factory.new_client(1, &openraft::BasicNode::default()).await;
+
+        // full_snapshot is documented to be unimplemented and returns Err.
+        let (cancel_tx, cancel_rx) = tokio::sync::oneshot::channel::<()>();
+        drop(cancel_tx); // close immediately so the future resolves
+
+        let result = client
+            .full_snapshot(
+                openraft::Vote::default(),
+                openraft::Snapshot {
+                    meta: openraft::SnapshotMeta::default(),
+                    snapshot: Box::new(std::io::Cursor::new(vec![])),
+                },
+                async move {
+                    let _ = cancel_rx.await;
+                    openraft::error::ReplicationClosed::new(std::io::Error::other("cancelled"))
+                },
+                openraft::network::RPCOption::new(std::time::Duration::from_secs(1)),
+            )
+            .await;
+
+        assert!(result.is_err());
+    }
+
     #[tokio::test]
     async fn test_network_vote_append_and_install_snapshot_success() {
         let svc = TestRaftSvc::new();

@@ -721,9 +721,155 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_state_machine_apply_batch_put() {
+        let storage = Storage::new_temp().unwrap();
+        let mut sm = DbStateMachine::new(storage.clone());
+        let collection = "batch_coll";
+
+        let entry = LogEntry::BatchPut {
+            collection: collection.to_string(),
+            pairs: vec![
+                (b"k1".to_vec(), b"v1".to_vec()),
+                (b"k2".to_vec(), b"v2".to_vec()),
+            ],
+        };
+
+        let response = sm.apply(&entry).unwrap();
+        assert!(response.success);
+
+        assert_eq!(storage.get(collection, b"k1").unwrap(), Some(b"v1".to_vec()));
+        assert_eq!(storage.get(collection, b"k2").unwrap(), Some(b"v2".to_vec()));
+    }
+
+    #[tokio::test]
     async fn test_store_creation() {
         let store = DbStore::new_temp().unwrap();
         let sm = store.state_machine.read().await;
         assert_eq!(sm.last_applied_log, None);
     }
+
+    #[tokio::test]
+    async fn test_snapshot_builder_builds_and_current_snapshot_returns_none() {
+        let mut store = DbStore::new_temp().unwrap();
+
+        // get_current_snapshot should return None (not yet implemented)
+        let snap = store.get_current_snapshot().await.unwrap();
+        assert!(snap.is_none());
+
+        // build_snapshot should produce a valid snapshot
+        let mut builder = store.get_snapshot_builder().await;
+        let snapshot = builder.build_snapshot().await.unwrap();
+        assert!(!snapshot.meta.snapshot_id.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_raft_storage_save_and_read_vote() {
+        let mut store = DbStore::new_temp().unwrap();
+
+        // Initially no vote
+        let vote = store.read_vote().await.unwrap();
+        assert!(vote.is_none());
+
+        // Save a vote
+        let v = openraft::Vote {
+            leader_id: openraft::LeaderId {
+                term: 1,
+                node_id: 1,
+            },
+            committed: false,
+        };
+        store.save_vote(&v).await.unwrap();
+
+        // Read it back
+        let read_back = store.read_vote().await.unwrap();
+        assert_eq!(read_back, Some(v));
+    }
+
+    #[tokio::test]
+    async fn test_raft_storage_log_state_and_entries() {
+        let mut store = DbStore::new_temp().unwrap();
+
+        // Empty state
+        let state = store.get_log_state().await.unwrap();
+        assert!(state.last_log_id.is_none());
+
+        // Append an entry
+        let entry = openraft::Entry::<DbTypeConfig> {
+            log_id: openraft::LogId {
+                leader_id: openraft::LeaderId {
+                    term: 1,
+                    node_id: 1,
+                },
+                index: 1,
+            },
+            payload: openraft::EntryPayload::Normal(LogEntry::Put {
+                collection: "c".to_string(),
+                key: b"k".to_vec(),
+                value: b"v".to_vec(),
+            }),
+        };
+        store.append_to_log([entry.clone()]).await.unwrap();
+
+        let state2 = store.get_log_state().await.unwrap();
+        assert_eq!(state2.last_log_id, Some(entry.log_id));
+
+        // Read entries
+        let entries = store.try_get_log_entries(1..=1).await.unwrap();
+        assert_eq!(entries.len(), 1);
+
+        // Delete conflicts since index 1
+        store
+            .delete_conflict_logs_since(openraft::LogId {
+                leader_id: openraft::LeaderId {
+                    term: 1,
+                    node_id: 1,
+                },
+                index: 1,
+            })
+            .await
+            .unwrap();
+
+        let state3 = store.get_log_state().await.unwrap();
+        assert!(state3.last_log_id.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_raft_storage_purge_logs() {
+        let mut store = DbStore::new_temp().unwrap();
+
+        // Append two entries
+        for i in 1u64..=2 {
+            let entry = openraft::Entry::<DbTypeConfig> {
+                log_id: openraft::LogId {
+                    leader_id: openraft::LeaderId {
+                        term: 1,
+                        node_id: 1,
+                    },
+                    index: i,
+                },
+                payload: openraft::EntryPayload::Normal(LogEntry::Put {
+                    collection: "col".to_string(),
+                    key: i.to_be_bytes().to_vec(),
+                    value: b"val".to_vec(),
+                }),
+            };
+            store.append_to_log([entry]).await.unwrap();
+        }
+
+        // Purge up to index 1
+        store
+            .purge_logs_upto(openraft::LogId {
+                leader_id: openraft::LeaderId {
+                    term: 1,
+                    node_id: 1,
+                },
+                index: 1,
+            })
+            .await
+            .unwrap();
+
+        let state = store.get_log_state().await.unwrap();
+        assert_eq!(state.last_purged_log_id.map(|l| l.index), Some(1));
+    }
+
 }
