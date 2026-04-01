@@ -569,4 +569,20 @@ mod tests {
         let result = EncryptionService::encrypt_with_public_key(b"data", &too_short);
         assert!(result.is_err());
     }
+
+    #[test]
+    fn test_decrypt_with_password_fails_when_salt_is_missing() {
+        // Construct an EncryptedData without a salt (simulating PQ-encrypted data).
+        let encrypted_without_salt = EncryptedData {
+            algorithm: EncryptionAlgorithm::Aes256Gcm,
+            salt: None,
+            kem_ciphertext: Some(vec![0u8; 8]),
+            nonce: vec![0u8; 12],
+            ciphertext: vec![0u8; 16],
+        };
+        let result = EncryptionService::decrypt_with_password(&encrypted_without_salt, "pass");
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(err.to_string().contains("Missing salt"));
+    }
 }

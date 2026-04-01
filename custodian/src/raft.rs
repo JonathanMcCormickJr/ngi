@@ -875,4 +875,231 @@ mod tests {
             .expect("get_lock_info");
         assert!(got.is_some());
     }
+
+    #[tokio::test]
+    async fn test_apply_to_state_machine_blank_and_normal() {
+        use openraft::{CommittedLeaderId, Entry, EntryPayload, LeaderId, LogId};
+
+        let mut store = CustodianStore::new_temp().unwrap();
+        let user_id = uuid::Uuid::new_v4();
+
+        // Blank entry
+        let blank = Entry::<CustodianTypeConfig> {
+            log_id: LogId {
+                leader_id: LeaderId { term: 1, node_id: 1 },
+                index: 1,
+            },
+            payload: EntryPayload::Blank,
+        };
+
+        // Normal entry (AcquireLock)
+        let normal = Entry::<CustodianTypeConfig> {
+            log_id: LogId {
+                leader_id: LeaderId { term: 1, node_id: 1 },
+                index: 2,
+            },
+            payload: EntryPayload::Normal(LockCommand::AcquireLock {
+                ticket_id: 55,
+                user_id,
+            }),
+        };
+
+        let responses = store
+            .apply_to_state_machine(&[blank, normal])
+            .await
+            .unwrap();
+        assert_eq!(responses.len(), 2);
+        assert!(responses[0].success);
+        assert!(responses[1].success);
+
+        // Verify the lock was actually acquired
+        assert!(store.storage.is_locked(55).unwrap());
+    }
+
+    #[tokio::test]
+    async fn test_apply_to_state_machine_membership() {
+        use openraft::{
+            CommittedLeaderId, Entry, EntryPayload, LeaderId, LogId, Membership,
+        };
+        use std::collections::BTreeMap;
+
+        let mut store = CustodianStore::new_temp().unwrap();
+
+        let mut nodes = BTreeMap::new();
+        nodes.insert(1u64, openraft::BasicNode::default());
+        let membership = Membership::new(vec![nodes.keys().cloned().collect()], nodes);
+
+        let entry = Entry::<CustodianTypeConfig> {
+            log_id: LogId {
+                leader_id: LeaderId { term: 1, node_id: 1 },
+                index: 1,
+            },
+            payload: EntryPayload::Membership(membership),
+        };
+
+        let responses = store.apply_to_state_machine(&[entry]).await.unwrap();
+        assert_eq!(responses.len(), 1);
+        assert!(responses[0].success);
+
+        let (last_applied, _) = store.last_applied_state().await.unwrap();
+        assert!(last_applied.is_some());
+        assert_eq!(last_applied.unwrap().index, 1);
+    }
+
+    #[tokio::test]
+    async fn test_last_applied_state_initial() {
+        let mut store = CustodianStore::new_temp().unwrap();
+        let (last_applied, _membership) = store.last_applied_state().await.unwrap();
+        assert!(last_applied.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_begin_receiving_snapshot() {
+        let mut store = CustodianStore::new_temp().unwrap();
+        let cursor = store.begin_receiving_snapshot().await.unwrap();
+        assert!(cursor.into_inner().is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_try_get_log_entries_excluded_end_bound() {
+        let mut store = CustodianStore::new_temp().unwrap();
+        let user_id = uuid::Uuid::new_v4();
+
+        // Append 3 entries
+        for i in 1u64..=3 {
+            let entry = openraft::Entry::<CustodianTypeConfig> {
+                log_id: openraft::LogId {
+                    leader_id: openraft::LeaderId { term: 1, node_id: 1 },
+                    index: i,
+                },
+                payload: openraft::EntryPayload::Normal(LockCommand::AcquireLock {
+                    ticket_id: i,
+                    user_id,
+                }),
+            };
+            store.append_to_log(vec![entry]).await.unwrap();
+        }
+
+        // Excluded end: 1..3 means indices 1 and 2 only
+        let entries = store.try_get_log_entries(1..3).await.unwrap();
+        assert_eq!(entries.len(), 2);
+        assert_eq!(entries[0].log_id.index, 1);
+        assert_eq!(entries[1].log_id.index, 2);
+    }
+
+    #[tokio::test]
+    async fn test_try_get_log_entries_unbounded() {
+        let mut store = CustodianStore::new_temp().unwrap();
+        let user_id = uuid::Uuid::new_v4();
+
+        for i in 1u64..=3 {
+            let entry = openraft::Entry::<CustodianTypeConfig> {
+                log_id: openraft::LogId {
+                    leader_id: openraft::LeaderId { term: 1, node_id: 1 },
+                    index: i,
+                },
+                payload: openraft::EntryPayload::Normal(LockCommand::AcquireLock {
+                    ticket_id: i,
+                    user_id,
+                }),
+            };
+            store.append_to_log(vec![entry]).await.unwrap();
+        }
+
+        // Fully unbounded should return all entries
+        let entries = store.try_get_log_entries(..).await.unwrap();
+        assert_eq!(entries.len(), 3);
+    }
+
+    #[tokio::test]
+    async fn test_raft_metadata_loads_from_existing_storage() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().to_str().unwrap().to_string();
+
+        {
+            let mut store = CustodianStore::new(&path).unwrap();
+
+            // Save a vote
+            let vote = openraft::Vote {
+                leader_id: openraft::LeaderId { term: 3, node_id: 7 },
+                committed: false,
+            };
+            store.save_vote(&vote).await.unwrap();
+
+            // Append and purge to set last_purged
+            let user_id = uuid::Uuid::new_v4();
+            let entry = openraft::Entry::<CustodianTypeConfig> {
+                log_id: openraft::LogId {
+                    leader_id: openraft::LeaderId { term: 1, node_id: 1 },
+                    index: 1,
+                },
+                payload: openraft::EntryPayload::Normal(LockCommand::AcquireLock {
+                    ticket_id: 1,
+                    user_id,
+                }),
+            };
+            store.append_to_log(vec![entry]).await.unwrap();
+            store
+                .purge_logs_upto(openraft::LogId {
+                    leader_id: openraft::LeaderId { term: 1, node_id: 1 },
+                    index: 1,
+                })
+                .await
+                .unwrap();
+        }
+
+        // Recreate from same path – exercises loading from disk
+        let mut store2 = CustodianStore::new(&path).unwrap();
+        let vote = store2.read_vote().await.unwrap();
+        assert!(vote.is_some());
+        assert_eq!(vote.unwrap().leader_id.term, 3);
+
+        let state = store2.get_log_state().await.unwrap();
+        assert_eq!(state.last_purged_log_id.map(|l| l.index), Some(1));
+    }
+
+    #[tokio::test]
+    async fn test_persist_vote_none_clears_vote() {
+        let mut store = CustodianStore::new_temp().unwrap();
+
+        let vote = openraft::Vote {
+            leader_id: openraft::LeaderId { term: 1, node_id: 1 },
+            committed: false,
+        };
+        store.save_vote(&vote).await.unwrap();
+        assert!(store.read_vote().await.unwrap().is_some());
+
+        // Directly call persist_vote(None) to exercise the else branch
+        {
+            let mut meta = store.raft_storage.write().await;
+            meta.vote = None;
+            meta.persist_vote(None).unwrap();
+        }
+
+        assert!(store.read_vote().await.unwrap().is_none());
+    }
+
+    #[tokio::test]
+    async fn test_log_reader_via_get_log_reader() {
+        let mut store = CustodianStore::new_temp().unwrap();
+        let user_id = uuid::Uuid::new_v4();
+
+        for i in 1u64..=2 {
+            let entry = openraft::Entry::<CustodianTypeConfig> {
+                log_id: openraft::LogId {
+                    leader_id: openraft::LeaderId { term: 1, node_id: 1 },
+                    index: i,
+                },
+                payload: openraft::EntryPayload::Normal(LockCommand::AcquireLock {
+                    ticket_id: i,
+                    user_id,
+                }),
+            };
+            store.append_to_log(vec![entry]).await.unwrap();
+        }
+
+        let mut reader = store.get_log_reader().await;
+        let entries = reader.try_get_log_entries(1..=2).await.unwrap();
+        assert_eq!(entries.len(), 2);
+    }
 }
