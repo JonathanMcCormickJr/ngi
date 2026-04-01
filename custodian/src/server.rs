@@ -1427,4 +1427,167 @@ mod tests {
 
         assert_eq!(err.code(), tonic::Code::PermissionDenied);
     }
+
+    /// Create a minimal single-node service for tests that don't need a running Raft cluster.
+    async fn make_simple_svc() -> CustodianServiceImpl {
+        let store = crate::raft::CustodianStore::new_temp().expect("store");
+        let storage = store.storage();
+        let raft = crate::raft::CustodianRaft::new(
+            1,
+            Arc::new(Config::default()),
+            crate::network::CustodianNetworkFactory::new(),
+            Adaptor::new(store.clone()).0,
+            Adaptor::new(store).1,
+        )
+        .await
+        .expect("raft");
+        CustodianServiceImpl::new(raft, storage, (vec![0; 1184], vec![0; 2400]))
+    }
+
+    #[tokio::test]
+    async fn acquire_lock_rejects_invalid_user_uuid() {
+        let svc = make_simple_svc().await;
+        let err = svc
+            .acquire_lock(Request::new(custodian::LockRequest {
+                ticket_id: 1,
+                user_uuid: "not-a-uuid".to_string(),
+            }))
+            .await
+            .expect_err("invalid UUID should fail");
+        assert_eq!(err.code(), tonic::Code::InvalidArgument);
+    }
+
+    #[tokio::test]
+    async fn release_lock_rejects_invalid_user_uuid() {
+        let svc = make_simple_svc().await;
+        let err = svc
+            .release_lock(Request::new(custodian::LockRelease {
+                ticket_id: 1,
+                user_uuid: "not-a-uuid".to_string(),
+            }))
+            .await
+            .expect_err("invalid UUID should fail");
+        assert_eq!(err.code(), tonic::Code::InvalidArgument);
+    }
+
+    #[tokio::test]
+    async fn create_ticket_rejects_invalid_account_uuid() {
+        let svc = make_simple_svc().await;
+        let err = svc
+            .create_ticket(Request::new(custodian::CreateTicketRequest {
+                title: "Valid Title".to_string(),
+                project: "proj".to_string(),
+                account_uuid: "bad-uuid".to_string(),
+                symptom: 0,
+                priority: 0,
+                created_by_uuid: uuid::Uuid::new_v4().to_string(),
+                customer_ticket_number: None,
+                isp_ticket_number: None,
+                other_ticket_number: None,
+                ebond: None,
+                tracking_url: None,
+                network_devices: vec![],
+            }))
+            .await
+            .expect_err("invalid account UUID should fail");
+        assert_eq!(err.code(), tonic::Code::InvalidArgument);
+    }
+
+    #[tokio::test]
+    async fn create_ticket_rejects_invalid_created_by_uuid() {
+        let svc = make_simple_svc().await;
+        let err = svc
+            .create_ticket(Request::new(custodian::CreateTicketRequest {
+                title: "Valid Title".to_string(),
+                project: "proj".to_string(),
+                account_uuid: uuid::Uuid::new_v4().to_string(),
+                symptom: 0,
+                priority: 0,
+                created_by_uuid: "bad-uuid".to_string(),
+                customer_ticket_number: None,
+                isp_ticket_number: None,
+                other_ticket_number: None,
+                ebond: None,
+                tracking_url: None,
+                network_devices: vec![],
+            }))
+            .await
+            .expect_err("invalid created_by UUID should fail");
+        assert_eq!(err.code(), tonic::Code::InvalidArgument);
+    }
+
+    #[tokio::test]
+    async fn update_ticket_rejects_invalid_updated_by_uuid_format() {
+        let svc = make_simple_svc().await;
+        let err = svc
+            .update_ticket(Request::new(custodian::UpdateTicketRequest {
+                ticket_id: 1,
+                title: None,
+                project: None,
+                symptom: None,
+                priority: None,
+                status: None,
+                next_action: None,
+                resolution: None,
+                assigned_to_uuid: None,
+                updated_by_uuid: Some("not-a-uuid".to_string()),
+                ebond: None,
+                tracking_url: None,
+                network_devices: vec![],
+            }))
+            .await
+            .expect_err("invalid UUID should fail");
+        assert_eq!(err.code(), tonic::Code::InvalidArgument);
+    }
+
+    #[tokio::test]
+    async fn update_ticket_without_db_client_returns_unavailable() {
+        let store = crate::raft::CustodianStore::new_temp().expect("store");
+        let storage = store.storage().clone();
+        let cfg = Arc::new(Config::default().validate().expect("validated config"));
+        let raft = crate::raft::CustodianRaft::new(
+            1,
+            cfg,
+            crate::network::CustodianNetworkFactory::new(),
+            Adaptor::new(store.clone()).0,
+            Adaptor::new(store).1,
+        )
+        .await
+        .expect("raft");
+
+        // Initialize so lock check works
+        let mut members = std::collections::BTreeSet::new();
+        members.insert(1u64);
+        let _ = raft.initialize(members).await;
+
+        let user_id = uuid::Uuid::new_v4();
+        // Directly acquire a lock in storage so the lock check passes
+        storage
+            .acquire_lock(1, user_id)
+            .expect("acquire lock in storage");
+
+        let svc = CustodianServiceImpl::new(raft, storage, (vec![0; 1184], vec![0; 2400]));
+        // No db_client set → update_ticket returns Unavailable
+
+        let err = svc
+            .update_ticket(Request::new(custodian::UpdateTicketRequest {
+                ticket_id: 1,
+                title: Some("new title".to_string()),
+                project: None,
+                symptom: None,
+                priority: None,
+                status: None,
+                next_action: None,
+                resolution: None,
+                assigned_to_uuid: None,
+                updated_by_uuid: Some(user_id.to_string()),
+                ebond: None,
+                tracking_url: None,
+                network_devices: vec![],
+            }))
+            .await
+            .expect_err("no db_client should return error");
+
+        assert_eq!(err.code(), tonic::Code::Unavailable);
+    }
 }

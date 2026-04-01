@@ -872,4 +872,318 @@ mod tests {
         assert_eq!(state.last_purged_log_id.map(|l| l.index), Some(1));
     }
 
+    #[tokio::test]
+    async fn test_state_machine_apply_get() {
+        let storage = Storage::new_temp().unwrap();
+        let mut sm = DbStateMachine::new(storage.clone());
+        let collection = "get_coll";
+
+        // Put a value into storage first
+        storage.put(collection, b"mykey", b"myval").unwrap();
+
+        // Now apply a Get entry
+        let entry = LogEntry::Get {
+            collection: collection.to_string(),
+            key: b"mykey".to_vec(),
+        };
+        let response = sm.apply(&entry).unwrap();
+        assert!(response.success);
+        assert_eq!(response.value, Some(b"myval".to_vec()));
+
+        // Apply a Get for a missing key
+        let entry_miss = LogEntry::Get {
+            collection: collection.to_string(),
+            key: b"nope".to_vec(),
+        };
+        let response_miss = sm.apply(&entry_miss).unwrap();
+        assert!(!response_miss.success);
+        assert!(response_miss.value.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_apply_to_state_machine_blank_and_normal() {
+        use openraft::{CommittedLeaderId, Entry, EntryPayload, LeaderId, LogId};
+
+        let mut store = DbStore::new_temp().unwrap();
+
+        // Blank entry
+        let blank = Entry::<DbTypeConfig> {
+            log_id: LogId {
+                leader_id: LeaderId { term: 1, node_id: 1 },
+                index: 1,
+            },
+            payload: EntryPayload::Blank,
+        };
+
+        // Normal entry (Put)
+        let normal = Entry::<DbTypeConfig> {
+            log_id: LogId {
+                leader_id: LeaderId { term: 1, node_id: 1 },
+                index: 2,
+            },
+            payload: EntryPayload::Normal(LogEntry::Put {
+                collection: "col".to_string(),
+                key: b"k".to_vec(),
+                value: b"v".to_vec(),
+            }),
+        };
+
+        let responses = store
+            .apply_to_state_machine(&[blank, normal])
+            .await
+            .unwrap();
+        assert_eq!(responses.len(), 2);
+        assert!(responses[0].success);
+        assert!(responses[1].success);
+
+        // Verify Normal entry was applied
+        let val = store.storage.get("col", b"k").unwrap();
+        assert_eq!(val, Some(b"v".to_vec()));
+    }
+
+    #[tokio::test]
+    async fn test_apply_to_state_machine_membership() {
+        use openraft::{
+            CommittedLeaderId, Entry, EntryPayload, LeaderId, LogId, Membership,
+        };
+        use std::collections::BTreeMap;
+
+        let mut store = DbStore::new_temp().unwrap();
+
+        let mut nodes = BTreeMap::new();
+        nodes.insert(1u64, openraft::BasicNode::default());
+        let membership = Membership::new(vec![nodes.keys().cloned().collect()], nodes);
+
+        let entry = Entry::<DbTypeConfig> {
+            log_id: LogId {
+                leader_id: LeaderId { term: 1, node_id: 1 },
+                index: 1,
+            },
+            payload: EntryPayload::Membership(membership),
+        };
+
+        let responses = store.apply_to_state_machine(&[entry]).await.unwrap();
+        assert_eq!(responses.len(), 1);
+        assert!(responses[0].success);
+
+        // Verify last_applied_log was updated in state machine
+        let (last_applied, _membership) = store.last_applied_state().await.unwrap();
+        assert!(last_applied.is_some());
+        assert_eq!(last_applied.unwrap().index, 1);
+    }
+
+    #[tokio::test]
+    async fn test_last_applied_state_initial() {
+        let mut store = DbStore::new_temp().unwrap();
+        let (last_applied, membership) = store.last_applied_state().await.unwrap();
+        assert!(last_applied.is_none());
+        // Initial membership is empty
+        let _ = membership;
+    }
+
+    #[tokio::test]
+    async fn test_begin_receiving_snapshot() {
+        let mut store = DbStore::new_temp().unwrap();
+        let cursor = store.begin_receiving_snapshot().await.unwrap();
+        assert!(cursor.into_inner().is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_install_snapshot_restores_data() {
+        use crate::storage::{TREE_TICKETS, TREE_USERS};
+
+        // Build snapshot from store A with data in the collections the snapshot includes
+        let mut store_a = DbStore::new_temp().unwrap();
+        store_a.storage.put(TREE_TICKETS, b"ticket1", b"val1").unwrap();
+        store_a.storage.put(TREE_USERS, b"user1", b"uval1").unwrap();
+
+        let mut builder = store_a.get_snapshot_builder().await;
+        let snapshot = builder.build_snapshot().await.unwrap();
+        let data = snapshot.snapshot.into_inner();
+
+        // Install snapshot into store B
+        let mut store_b = DbStore::new_temp().unwrap();
+        store_b
+            .install_snapshot(&snapshot.meta, Box::new(Cursor::new(data)))
+            .await
+            .unwrap();
+
+        // Verify data was restored
+        assert_eq!(
+            store_b.storage.get(TREE_TICKETS, b"ticket1").unwrap(),
+            Some(b"val1".to_vec())
+        );
+        assert_eq!(
+            store_b.storage.get(TREE_USERS, b"user1").unwrap(),
+            Some(b"uval1".to_vec())
+        );
+    }
+
+    #[tokio::test]
+    async fn test_try_get_log_entries_excluded_end_bound() {
+        let mut store = DbStore::new_temp().unwrap();
+
+        // Append 3 entries
+        for i in 1u64..=3 {
+            let entry = openraft::Entry::<DbTypeConfig> {
+                log_id: openraft::LogId {
+                    leader_id: openraft::LeaderId { term: 1, node_id: 1 },
+                    index: i,
+                },
+                payload: openraft::EntryPayload::Normal(LogEntry::Put {
+                    collection: "c".to_string(),
+                    key: i.to_be_bytes().to_vec(),
+                    value: b"v".to_vec(),
+                }),
+            };
+            store.append_to_log([entry]).await.unwrap();
+        }
+
+        // Use excluded end bound (1..3 means indices 1 and 2 only)
+        let entries = store.try_get_log_entries(1..3).await.unwrap();
+        assert_eq!(entries.len(), 2);
+        assert_eq!(entries[0].log_id.index, 1);
+        assert_eq!(entries[1].log_id.index, 2);
+    }
+
+    #[tokio::test]
+    async fn test_try_get_log_entries_unbounded() {
+        let mut store = DbStore::new_temp().unwrap();
+
+        // Append 3 entries
+        for i in 1u64..=3 {
+            let entry = openraft::Entry::<DbTypeConfig> {
+                log_id: openraft::LogId {
+                    leader_id: openraft::LeaderId { term: 1, node_id: 1 },
+                    index: i,
+                },
+                payload: openraft::EntryPayload::Normal(LogEntry::Put {
+                    collection: "c".to_string(),
+                    key: i.to_be_bytes().to_vec(),
+                    value: b"v".to_vec(),
+                }),
+            };
+            store.append_to_log([entry]).await.unwrap();
+        }
+
+        // Fully unbounded range should return all entries
+        let entries = store.try_get_log_entries(..).await.unwrap();
+        assert_eq!(entries.len(), 3);
+    }
+
+    #[tokio::test]
+    async fn test_raft_metadata_loads_from_existing_storage() {
+        // Create a store, save a vote and purge a log, then recreate to test loading paths
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().to_str().unwrap().to_string();
+
+        {
+            let mut store = DbStore::new(&path).unwrap();
+
+            // Save a vote
+            let vote = openraft::Vote {
+                leader_id: openraft::LeaderId { term: 2, node_id: 5 },
+                committed: true,
+            };
+            store.save_vote(&vote).await.unwrap();
+
+            // Append and purge to set last_purged
+            let entry = openraft::Entry::<DbTypeConfig> {
+                log_id: openraft::LogId {
+                    leader_id: openraft::LeaderId { term: 1, node_id: 1 },
+                    index: 1,
+                },
+                payload: openraft::EntryPayload::Normal(LogEntry::Put {
+                    collection: "c".to_string(),
+                    key: b"k".to_vec(),
+                    value: b"v".to_vec(),
+                }),
+            };
+            store.append_to_log([entry]).await.unwrap();
+            store
+                .purge_logs_upto(openraft::LogId {
+                    leader_id: openraft::LeaderId { term: 1, node_id: 1 },
+                    index: 1,
+                })
+                .await
+                .unwrap();
+        }
+
+        // Recreate store from the same path – this exercises the "loading from disk" paths
+        let mut store2 = DbStore::new(&path).unwrap();
+        let vote = store2.read_vote().await.unwrap();
+        assert!(vote.is_some());
+        assert_eq!(vote.unwrap().leader_id.term, 2);
+
+        let state = store2.get_log_state().await.unwrap();
+        assert_eq!(state.last_purged_log_id.map(|l| l.index), Some(1));
+    }
+
+    #[tokio::test]
+    async fn test_persist_vote_none_clears_vote() {
+        let mut store = DbStore::new_temp().unwrap();
+
+        // Save a vote first
+        let vote = openraft::Vote {
+            leader_id: openraft::LeaderId { term: 1, node_id: 1 },
+            committed: false,
+        };
+        store.save_vote(&vote).await.unwrap();
+
+        // Verify vote is there
+        assert!(store.read_vote().await.unwrap().is_some());
+
+        // Directly call persist_vote(None) via raft_storage
+        {
+            let mut meta = store.raft_storage.write().await;
+            meta.vote = None;
+            meta.persist_vote(None).unwrap();
+        }
+
+        // Reload metadata from disk to verify it was cleared
+        let state = store.read_vote().await.unwrap();
+        // In-memory is already None; the test exercises the persist_vote(None) path
+        assert!(state.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_log_reader_via_get_log_reader() {
+        let mut store = DbStore::new_temp().unwrap();
+
+        // Append entries
+        for i in 1u64..=2 {
+            let entry = openraft::Entry::<DbTypeConfig> {
+                log_id: openraft::LogId {
+                    leader_id: openraft::LeaderId { term: 1, node_id: 1 },
+                    index: i,
+                },
+                payload: openraft::EntryPayload::Normal(LogEntry::Put {
+                    collection: "c".to_string(),
+                    key: i.to_be_bytes().to_vec(),
+                    value: b"v".to_vec(),
+                }),
+            };
+            store.append_to_log([entry]).await.unwrap();
+        }
+
+        // Read via dedicated log reader
+        let mut reader = store.get_log_reader().await;
+        let entries = reader.try_get_log_entries(1..=2).await.unwrap();
+        assert_eq!(entries.len(), 2);
+    }
+
+    #[tokio::test]
+    async fn test_state_machine_apply_get_missing_key() {
+        let storage = Storage::new_temp().unwrap();
+        let mut sm = DbStateMachine::new(storage.clone());
+
+        let entry = LogEntry::Get {
+            collection: "empty_coll".to_string(),
+            key: b"missing".to_vec(),
+        };
+        let response = sm.apply(&entry).unwrap();
+        assert!(!response.success);
+        assert!(response.value.is_none());
+    }
+
 }

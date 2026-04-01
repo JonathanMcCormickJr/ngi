@@ -693,4 +693,161 @@ mod tests {
 
         let _ = shutdown.send(());
     }
+
+    /// A mock DB that always returns a gRPC internal error for `get` calls.
+    #[derive(Clone, Default)]
+    struct ErrorDb;
+
+    #[tonic::async_trait]
+    impl db::database_server::Database for ErrorDb {
+        async fn put(
+            &self,
+            _request: Request<db::PutRequest>,
+        ) -> Result<Response<db::PutResponse>, Status> {
+            Err(Status::unimplemented("not needed"))
+        }
+        async fn get(
+            &self,
+            _request: Request<db::GetRequest>,
+        ) -> Result<Response<db::GetResponse>, Status> {
+            Err(Status::internal("simulated database error"))
+        }
+        async fn delete(
+            &self,
+            _request: Request<db::DeleteRequest>,
+        ) -> Result<Response<db::DeleteResponse>, Status> {
+            Err(Status::unimplemented("not needed"))
+        }
+        async fn list(
+            &self,
+            _request: Request<db::ListRequest>,
+        ) -> Result<Response<db::ListResponse>, Status> {
+            Err(Status::unimplemented("not needed"))
+        }
+        async fn exists(
+            &self,
+            _request: Request<db::ExistsRequest>,
+        ) -> Result<Response<db::ExistsResponse>, Status> {
+            Err(Status::unimplemented("not needed"))
+        }
+        async fn batch_put(
+            &self,
+            _request: Request<db::BatchPutRequest>,
+        ) -> Result<Response<db::BatchPutResponse>, Status> {
+            Err(Status::unimplemented("not needed"))
+        }
+        async fn health(
+            &self,
+            _request: Request<db::HealthRequest>,
+        ) -> Result<Response<db::HealthResponse>, Status> {
+            Err(Status::unimplemented("not needed"))
+        }
+        async fn cluster_status(
+            &self,
+            _request: Request<db::ClusterStatusRequest>,
+        ) -> Result<Response<db::ClusterStatusResponse>, Status> {
+            Err(Status::unimplemented("not needed"))
+        }
+    }
+
+    #[tokio::test]
+    async fn authenticate_propagates_db_error_from_get_user_auth() {
+        // When the DB returns an error, authenticate must propagate it.
+        let keys = EncryptionService::generate_keypair().expect("keypair");
+        let (addr, shutdown) = start_mock_db_impl::<ErrorDb>(ErrorDb).await;
+        let db_client = connect_mock_db_with_retry(addr).await;
+        let svc = AuthServiceImpl::new(
+            Arc::new(Mutex::new(db_client)),
+            b"jwt-secret".to_vec(),
+            keys,
+        );
+
+        let err = svc
+            .authenticate(Request::new(AuthenticateRequest {
+                username: "alice".to_string(),
+                password: "pass".to_string(),
+                mfa_token: String::new(),
+            }))
+            .await
+            .expect_err("DB error should propagate");
+
+        assert_eq!(err.code(), tonic::Code::Internal);
+        let _ = shutdown.send(());
+    }
+
+    #[tokio::test]
+    async fn authenticate_returns_internal_when_user_profile_missing() {
+        // user_auth is present and password is correct, but user profile is absent.
+        let keys = EncryptionService::generate_keypair().expect("keypair");
+
+        let salt = SaltString::generate(&mut OsRng);
+        let hash = Argon2::default()
+            .hash_password(b"pass", &salt)
+            .expect("hash")
+            .to_string();
+
+        let user_id = Uuid::new_v4();
+        let user_auth = UserAuth {
+            user_id,
+            password_hash: hash,
+            mfa_secret: None,
+            mfa_method: None,
+        };
+
+        // Store auth data but NO user profile
+        let mut map = HashMap::new();
+        map.insert(
+            (
+                "auth".to_string(),
+                b"auth:username:dave".to_vec(),
+            ),
+            encrypt_json(&user_auth, &keys.0),
+        );
+        // Intentionally omit the user profile entry
+
+        let (addr, shutdown) = start_mock_db(MockDb {
+            values: Arc::new(RwLock::new(map)),
+        })
+        .await;
+        let db_client = connect_mock_db_with_retry(addr).await;
+        let svc = AuthServiceImpl::new(
+            Arc::new(Mutex::new(db_client)),
+            b"jwt-secret".to_vec(),
+            keys,
+        );
+
+        let err = svc
+            .authenticate(Request::new(AuthenticateRequest {
+                username: "dave".to_string(),
+                password: "pass".to_string(),
+                mfa_token: String::new(),
+            }))
+            .await
+            .expect_err("missing profile should be an error");
+
+        assert_eq!(err.code(), tonic::Code::Internal);
+        assert!(err.message().contains("User profile missing"));
+        let _ = shutdown.send(());
+    }
+
+    // Helpers for the ErrorDb variant (wraps the generic start_mock_db logic).
+    async fn start_mock_db_impl<S>(svc: S) -> (SocketAddr, oneshot::Sender<()>)
+    where
+        S: db::database_server::Database + Send + Sync + Clone + 'static,
+    {
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("bind listener");
+        let addr = listener.local_addr().expect("local addr");
+        drop(listener);
+
+        let (tx, rx) = oneshot::channel();
+        tokio::spawn(async move {
+            let _ = Server::builder()
+                .add_service(db::database_server::DatabaseServer::new(svc))
+                .serve_with_shutdown(addr, async {
+                    let _ = rx.await;
+                })
+                .await;
+        });
+        (addr, tx)
+    }
 }
