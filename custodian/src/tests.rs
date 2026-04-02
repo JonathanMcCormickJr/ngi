@@ -239,4 +239,19 @@ mod tests {
         let result = maybe_connect_db(Some("http://127.0.0.1:9".to_string())).await;
         assert!(result.is_none());
     }
+
+    #[tokio::test]
+    async fn test_maybe_connect_db_returns_none_without_endpoint() {
+        let result = maybe_connect_db(None).await;
+        assert!(result.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_maybe_connect_db_returns_none_on_connection_failure() {
+        let result = maybe_connect_db(Some(
+            "http://invalid-host-that-does-not-exist:99999".to_string(),
+        ))
+        .await;
+        assert!(result.is_none());
+    }
 }

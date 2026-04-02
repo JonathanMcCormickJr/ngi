@@ -8,30 +8,30 @@ Goal: a working single-node demo of the full ticket lifecycle:
 
 ## Critical — Demo Does Not Work Without These
 
-- [ ] **Implement snapshot streaming in DB network layer**
+- [x] **Implement snapshot streaming in DB network layer**
   `db/src/network.rs:266` returns an unimplemented error for snapshot streaming.
   Raft followers cannot receive snapshots, so multi-node clusters break during
   log recovery. Single-node works, but the architecture requires 3-node minimum.
 
-- [ ] **Implement snapshot streaming in Custodian network layer**
+- [x] **Implement snapshot streaming in Custodian network layer**
   Same issue as DB — `custodian/src/raft.rs:671` has an incomplete snapshot
   implementation. Both Raft services need functioning snapshot transfer for
   any multi-node deployment.
 
-- [ ] **Ensure Custodian persists tickets to DB**
+- [x] **Ensure Custodian persists tickets to DB**
   `custodian/src/main.rs:223` makes `DB_LEADER_ADDR` optional (defaults to None).
   When unset, the custodian stores tickets in its local Raft log only — they
   aren't persisted to the DB service. The demo must set `DB_LEADER_ADDR` or the
   E2E flow (LBRP -> Custodian -> DB) is broken. Either make it required at startup
   or document the required env var in a demo launch script.
 
-- [ ] **Create a demo launch script**
+- [x] **Create a demo launch script**
   No turnkey way to start the MVP services with correct env vars. Need a script
   (e.g., `scripts/demo.sh`) that starts DB, Custodian, Auth, and LBRP with
   compatible addresses, ports, shared JWT secret, storage paths, and Raft peer
   configs. Should support single-node mode for simplicity.
 
-- [ ] **Build the web frontend and serve via LBRP**
+- [x] **Build the web frontend and serve via LBRP**
   The web crate compiles to WASM but there's no build step integrated with the
   demo. LBRP serves static files from `../web/dist` (fallback route). Need:
   (1) `trunk build` or equivalent to produce `web/dist/`, (2) verify LBRP

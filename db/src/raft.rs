@@ -632,11 +632,15 @@ pub struct DbSnapshotBuilder {
 impl RaftSnapshotBuilder<DbTypeConfig> for DbSnapshotBuilder {
     async fn build_snapshot(&mut self) -> Result<Snapshot<DbTypeConfig>, StorageError<u64>> {
         // Get all data from storage
-        // TODO: Iterate all collections. For now just tickets and users.
-        // This is a simplified snapshot implementation.
+        // Snapshot all data collections (excluding Raft-internal trees).
         let mut all_data = Vec::new();
 
-        for collection in [crate::storage::TREE_TICKETS, crate::storage::TREE_USERS] {
+        for collection in [
+            crate::storage::TREE_TICKETS,
+            crate::storage::TREE_USERS,
+            crate::storage::TREE_SESSIONS,
+            crate::storage::TREE_AUDIT,
+        ] {
             let pairs = self.storage.list(collection, b"", None).map_err(|e| {
                 openraft::StorageIOError::new(
                     openraft::ErrorSubject::StateMachine,

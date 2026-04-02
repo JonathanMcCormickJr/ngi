@@ -222,6 +222,13 @@ async fn main() -> Result<()> {
     // Create gRPC service; optionally connect to DB leader
     let db_client = maybe_connect_db(std::env::var("DB_LEADER_ADDR").ok()).await;
 
+    if db_client.is_none() {
+        tracing::warn!(
+            "DB_LEADER_ADDR not set or connection failed — tickets will NOT be persisted to the database. \
+             Set DB_LEADER_ADDR=http://<db-host>:<port> for full functionality."
+        );
+    }
+
     let custodian_service = if let Some(db) = db_client {
         CustodianServiceImpl::with_db_client((*raft).clone(), storage.clone(), db, keys)
     } else {

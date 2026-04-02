@@ -668,8 +668,7 @@ pub struct CustodianSnapshotBuilder {
 impl RaftSnapshotBuilder<CustodianTypeConfig> for CustodianSnapshotBuilder {
     async fn build_snapshot(&mut self) -> Result<Snapshot<CustodianTypeConfig>, StorageError<u64>> {
         // Get all data from storage
-        // TODO: Iterate all collections. For now just tickets and users.
-        // This is a simplified snapshot implementation.
+        // Snapshot all data collections (locks are the only custodian data tree).
         let mut all_data = Vec::new();
 
         for collection in [crate::storage::TREE_LOCKS] {

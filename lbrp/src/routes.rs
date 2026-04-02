@@ -885,6 +885,109 @@ mod tests {
         assert_eq!(response.status(), StatusCode::INTERNAL_SERVER_ERROR);
     }
 
+    // ===== Static file fallback tests =====
+
+    #[tokio::test]
+    async fn test_static_file_serving_when_root_requested_returns_index_html() {
+        let tmp = tempfile::tempdir().expect("create temp dir");
+        let index_content = "<html><body>NGI Test App</body></html>";
+        std::fs::write(tmp.path().join("index.html"), index_content).expect("write index.html");
+
+        let app = app(test_state()).fallback_service(
+            tower_http::services::ServeDir::new(tmp.path()).fallback(
+                tower_http::services::ServeFile::new(tmp.path().join("index.html")),
+            ),
+        );
+
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/")
+                    .body(Body::empty())
+                    .expect("request build"),
+            )
+            .await
+            .expect("router response");
+
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .expect("read body");
+        let body_str = String::from_utf8(body.to_vec()).expect("utf8 body");
+        assert!(
+            body_str.contains("NGI Test App"),
+            "expected body to contain test content, got: {body_str}"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_static_file_serving_when_spa_route_requested_falls_back_to_index() {
+        let tmp = tempfile::tempdir().expect("create temp dir");
+        let index_content = "<html><body>SPA Fallback Content</body></html>";
+        std::fs::write(tmp.path().join("index.html"), index_content).expect("write index.html");
+
+        let app = app(test_state()).fallback_service(
+            tower_http::services::ServeDir::new(tmp.path()).fallback(
+                tower_http::services::ServeFile::new(tmp.path().join("index.html")),
+            ),
+        );
+
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/some/spa/route")
+                    .body(Body::empty())
+                    .expect("request build"),
+            )
+            .await
+            .expect("router response");
+
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .expect("read body");
+        let body_str = String::from_utf8(body.to_vec()).expect("utf8 body");
+        assert!(
+            body_str.contains("SPA Fallback Content"),
+            "expected SPA route to fall back to index.html, got: {body_str}"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_static_file_serving_when_specific_file_requested_returns_that_file() {
+        let tmp = tempfile::tempdir().expect("create temp dir");
+        let index_content = "<html><body>Index</body></html>";
+        let css_content = "body { color: red; }";
+        std::fs::write(tmp.path().join("index.html"), index_content).expect("write index.html");
+        std::fs::write(tmp.path().join("style.css"), css_content).expect("write style.css");
+
+        let app = app(test_state()).fallback_service(
+            tower_http::services::ServeDir::new(tmp.path()).fallback(
+                tower_http::services::ServeFile::new(tmp.path().join("index.html")),
+            ),
+        );
+
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/style.css")
+                    .body(Body::empty())
+                    .expect("request build"),
+            )
+            .await
+            .expect("router response");
+
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .expect("read body");
+        let body_str = String::from_utf8(body.to_vec()).expect("utf8 body");
+        assert!(
+            body_str.contains("color: red"),
+            "expected specific file content, got: {body_str}"
+        );
+    }
+
     #[tokio::test]
     async fn login_maps_other_grpc_error_to_500() {
         let (addr, shutdown) = start_mock_auth(MockAuthSvc {

@@ -336,6 +336,59 @@ async fn test_snapshot_builder() {
 }
 
 #[tokio::test]
+async fn test_snapshot_includes_all_data_trees() {
+    use db::storage::{TREE_AUDIT, TREE_SESSIONS, TREE_TICKETS, TREE_USERS};
+    use openraft::{RaftSnapshotBuilder, RaftStorage};
+
+    let mut store = DbStore::new_temp().unwrap();
+    let storage = store.state_machine().read().await.storage.clone();
+
+    // Write test data into all 4 data trees
+    storage
+        .put(TREE_TICKETS, b"ticket:1", b"test ticket data")
+        .unwrap();
+    storage
+        .put(TREE_USERS, b"user:1", b"test user data")
+        .unwrap();
+    storage
+        .put(TREE_SESSIONS, b"session:1", b"test session data")
+        .unwrap();
+    storage
+        .put(TREE_AUDIT, b"audit:1", b"test audit data")
+        .unwrap();
+
+    // Build snapshot
+    let mut builder = store.get_snapshot_builder().await;
+    let snapshot = builder.build_snapshot().await.unwrap();
+
+    // Deserialize snapshot data
+    let snapshot_bytes = snapshot.snapshot.into_inner();
+    let entries: Vec<(String, Vec<u8>, Vec<u8>)> = serde_json::from_slice(&snapshot_bytes).unwrap();
+
+    // Verify all 4 trees are represented
+    let collections: Vec<&str> = entries.iter().map(|(c, _, _)| c.as_str()).collect();
+    assert!(
+        collections.contains(&TREE_TICKETS),
+        "snapshot missing tickets tree"
+    );
+    assert!(
+        collections.contains(&TREE_USERS),
+        "snapshot missing users tree"
+    );
+    assert!(
+        collections.contains(&TREE_SESSIONS),
+        "snapshot missing sessions tree"
+    );
+    assert!(
+        collections.contains(&TREE_AUDIT),
+        "snapshot missing audit tree"
+    );
+
+    // Verify we have exactly 4 entries (one per tree)
+    assert_eq!(entries.len(), 4);
+}
+
+#[tokio::test]
 async fn test_error_handling() {
     let store = DbStore::new_temp().unwrap();
     let storage = store.state_machine().read().await.storage.clone();

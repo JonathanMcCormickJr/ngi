@@ -255,18 +255,89 @@ impl RaftNetwork<DbTypeConfig> for DbNetwork {
 
     async fn full_snapshot(
         &mut self,
-        _vote: openraft::Vote<u64>,
-        _snapshot: openraft::Snapshot<DbTypeConfig>,
-        _cancel: impl std::future::Future<Output = openraft::error::ReplicationClosed> + Send + 'static,
+        vote: openraft::Vote<u64>,
+        snapshot: openraft::Snapshot<DbTypeConfig>,
+        cancel: impl std::future::Future<Output = openraft::error::ReplicationClosed> + Send + 'static,
         _opt: openraft::network::RPCOption,
     ) -> Result<
         openraft::raft::SnapshotResponse<u64>,
         openraft::error::StreamingError<DbTypeConfig, openraft::error::Fatal<u64>>,
     > {
-        // TODO: Implement snapshot streaming
-        Err(openraft::error::StreamingError::Closed(
-            openraft::error::ReplicationClosed::new(std::io::Error::other("not implemented")),
-        ))
+        // Pin the cancel future so we can poll it in tokio::select!
+        let cancel = std::pin::pin!(cancel);
+
+        // Extract snapshot data
+        let data = snapshot.snapshot.into_inner();
+
+        // Build the proto request (same structure as install_snapshot)
+        let proto_req = crate::server::db::InstallSnapshotRequest {
+            vote: Some(crate::server::db::ProtoVote {
+                term: vote.leader_id.term,
+                node_id: vote.leader_id.node_id,
+                committed: vote.committed,
+            }),
+            meta: Some(crate::server::db::SnapshotMeta {
+                last_log_id: snapshot.meta.last_log_id.map(|log_id| {
+                    crate::server::db::ProtoLogId {
+                        term: log_id.leader_id.term,
+                        index: log_id.index,
+                    }
+                }),
+                last_applied: snapshot.meta.last_log_id.map_or(0, |log_id| log_id.index),
+                last_membership: u32::try_from(
+                    snapshot
+                        .meta
+                        .last_membership
+                        .log_id()
+                        .map(|log_id| log_id.index)
+                        .unwrap_or(0),
+                )
+                .unwrap_or(u32::MAX),
+                snapshot_id: snapshot.meta.snapshot_id,
+            }),
+            offset: 0,
+            data,
+            done: true,
+        };
+
+        // Race the gRPC call against the cancellation future
+        tokio::select! {
+            closed = cancel => {
+                Err(openraft::error::StreamingError::Closed(closed))
+            }
+            client_result = self.get_client() => {
+                let client = client_result.map_err(|e| {
+                    openraft::error::StreamingError::Network(e)
+                })?;
+
+                let response = client.install_snapshot(proto_req).await.map_err(|e| {
+                    openraft::error::StreamingError::Network(
+                        openraft::error::NetworkError::new(&e),
+                    )
+                })?;
+
+                let resp = response.into_inner();
+
+                let proto_vote = resp.vote.ok_or_else(|| {
+                    openraft::error::StreamingError::Network(
+                        openraft::error::NetworkError::new(&std::io::Error::new(
+                            std::io::ErrorKind::InvalidData,
+                            "missing vote in snapshot response",
+                        )),
+                    )
+                })?;
+
+                let response_vote = openraft::Vote {
+                    leader_id: openraft::LeaderId {
+                        term: proto_vote.term,
+                        node_id: proto_vote.node_id,
+                    },
+                    committed: proto_vote.committed,
+                };
+
+                Ok(openraft::raft::SnapshotResponse::new(response_vote))
+            }
+        }
     }
 
     fn install_snapshot(
@@ -508,15 +579,123 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn full_snapshot_always_returns_closed_error() {
+    async fn test_full_snapshot_when_server_running_returns_snapshot_response() {
+        let svc = TestRaftSvc::new();
+        let server = start_test_server("127.0.0.1:50070", svc);
+
+        tokio::time::sleep(Duration::from_millis(50)).await;
+
         let mut peers = HashMap::new();
-        peers.insert(1, "http://127.0.0.1:59998".to_string());
+        peers.insert(1, "http://127.0.0.1:50070".to_string());
         let mut factory = DbNetworkFactory::with_peers(peers);
         let mut client = factory.new_client(1, &openraft::BasicNode::default()).await;
 
-        // full_snapshot is documented to be unimplemented and returns Err.
+        let vote = openraft::Vote {
+            leader_id: openraft::LeaderId {
+                term: 2,
+                node_id: 1,
+            },
+            committed: true,
+        };
+
+        let snapshot_data = b"full snapshot data".to_vec();
+
+        // cancel future that never resolves (no cancellation)
+        let (_cancel_tx, cancel_rx) = tokio::sync::oneshot::channel::<()>();
+        let result = client
+            .full_snapshot(
+                vote,
+                openraft::Snapshot {
+                    meta: openraft::SnapshotMeta::default(),
+                    snapshot: Box::new(std::io::Cursor::new(snapshot_data)),
+                },
+                async move {
+                    let _ = cancel_rx.await;
+                    openraft::error::ReplicationClosed::new(std::io::Error::other("cancelled"))
+                },
+                openraft::network::RPCOption::new(Duration::from_secs(5)),
+            )
+            .await;
+
+        assert!(result.is_ok());
+        let resp = result.unwrap();
+        assert_eq!(resp.vote.leader_id.term, 2);
+        assert_eq!(resp.vote.leader_id.node_id, 1);
+
+        server.abort();
+    }
+
+    #[tokio::test]
+    async fn test_full_snapshot_when_no_server_returns_network_error() {
+        let mut peers = HashMap::new();
+        peers.insert(1, "http://127.0.0.1:59997".to_string());
+        let mut factory = DbNetworkFactory::with_peers(peers);
+        let mut client = factory.new_client(1, &openraft::BasicNode::default()).await;
+
+        let (_cancel_tx, cancel_rx) = tokio::sync::oneshot::channel::<()>();
+        let result = client
+            .full_snapshot(
+                openraft::Vote::default(),
+                openraft::Snapshot {
+                    meta: openraft::SnapshotMeta::default(),
+                    snapshot: Box::new(std::io::Cursor::new(vec![1, 2, 3])),
+                },
+                async move {
+                    let _ = cancel_rx.await;
+                    openraft::error::ReplicationClosed::new(std::io::Error::other("cancelled"))
+                },
+                openraft::network::RPCOption::new(Duration::from_secs(1)),
+            )
+            .await;
+
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_full_snapshot_when_missing_vote_returns_error() {
+        let svc = TestRaftSvc::new();
+        *svc.missing_vote.write().await = true;
+        let server = start_test_server("127.0.0.1:50071", svc);
+
+        tokio::time::sleep(Duration::from_millis(50)).await;
+
+        let mut peers = HashMap::new();
+        peers.insert(1, "http://127.0.0.1:50071".to_string());
+        let mut factory = DbNetworkFactory::with_peers(peers);
+        let mut client = factory.new_client(1, &openraft::BasicNode::default()).await;
+
+        let (_cancel_tx, cancel_rx) = tokio::sync::oneshot::channel::<()>();
+        let result = client
+            .full_snapshot(
+                openraft::Vote::default(),
+                openraft::Snapshot {
+                    meta: openraft::SnapshotMeta::default(),
+                    snapshot: Box::new(std::io::Cursor::new(vec![])),
+                },
+                async move {
+                    let _ = cancel_rx.await;
+                    openraft::error::ReplicationClosed::new(std::io::Error::other("cancelled"))
+                },
+                openraft::network::RPCOption::new(Duration::from_secs(5)),
+            )
+            .await;
+
+        assert!(result.is_err());
+
+        server.abort();
+    }
+
+    #[tokio::test]
+    async fn test_full_snapshot_when_cancelled_returns_closed_error() {
+        // Use a port that will take time to connect (no server), but cancel fires first
+        let mut peers = HashMap::new();
+        peers.insert(1, "http://127.0.0.1:50072".to_string());
+        let mut factory = DbNetworkFactory::with_peers(peers);
+        let mut client = factory.new_client(1, &openraft::BasicNode::default()).await;
+
+        // Cancel fires immediately
         let (cancel_tx, cancel_rx) = tokio::sync::oneshot::channel::<()>();
-        drop(cancel_tx); // close immediately so the future resolves
+        drop(cancel_tx);
 
         let result = client
             .full_snapshot(
@@ -529,7 +708,7 @@ mod tests {
                     let _ = cancel_rx.await;
                     openraft::error::ReplicationClosed::new(std::io::Error::other("cancelled"))
                 },
-                openraft::network::RPCOption::new(std::time::Duration::from_secs(1)),
+                openraft::network::RPCOption::new(Duration::from_secs(1)),
             )
             .await;
 
