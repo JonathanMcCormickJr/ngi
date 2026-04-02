@@ -21,7 +21,7 @@
 
 ## Lower Impact
 
-- [ ] **Replace tokio `"full"` with granular features per crate**
+- [x] **Replace tokio `"full"` with granular features per crate**
   All 7 binary crates use `tokio = { features = ["full"] }`. Each crate likely only needs a subset (e.g., `rt-multi-thread`, `macros`, `net`, `time`, `sync`, `io-util`). Auditing and narrowing features reduces compile time. Impact: moderate compilation speedup, especially for clean builds that tarpaulin triggers.
 
 - [ ] **Exclude `web` crate from tarpaulin workspace**
