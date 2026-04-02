@@ -11,6 +11,21 @@ use std::sync::Arc;
 use std::time::Duration;
 use tokio::time::{sleep, timeout};
 
+/// Helper to wait for leader election with a tight polling loop
+async fn wait_for_leader(raft: &DbRaft) {
+    timeout(Duration::from_secs(2), async {
+        loop {
+            let metrics = raft.metrics().borrow().clone();
+            if metrics.current_leader.is_some() {
+                return;
+            }
+            sleep(Duration::from_millis(10)).await;
+        }
+    })
+    .await
+    .expect("Leader election timed out");
+}
+
 /// Helper to create a test Raft node
 async fn create_test_raft_node(node_id: u64) -> anyhow::Result<DbRaft> {
     let store = DbStore::new_temp()?;
@@ -41,17 +56,7 @@ async fn test_single_node_cluster_operations() {
     raft.initialize(members).await.unwrap();
 
     // Wait for leader election
-    timeout(Duration::from_secs(5), async {
-        loop {
-            let metrics = raft.metrics().borrow().clone();
-            if metrics.current_leader.is_some() {
-                break;
-            }
-            sleep(Duration::from_millis(50)).await;
-        }
-    })
-    .await
-    .expect("Leader election timeout");
+    wait_for_leader(&raft).await;
 
     let metrics = raft.metrics().borrow().clone();
     assert_eq!(metrics.id, 1);
@@ -70,17 +75,7 @@ async fn test_consensus_write_operations() {
     raft.initialize(members).await.unwrap();
 
     // Wait for leader
-    timeout(Duration::from_secs(5), async {
-        loop {
-            let metrics = raft.metrics().borrow().clone();
-            if metrics.current_leader.is_some() {
-                break;
-            }
-            sleep(Duration::from_millis(50)).await;
-        }
-    })
-    .await
-    .expect("Leader election timeout");
+    wait_for_leader(&raft).await;
 
     // Test various write operations
     let test_cases = vec![
@@ -184,17 +179,7 @@ async fn test_log_persistence_and_recovery() {
     raft.initialize(members).await.unwrap();
 
     // Wait for leader
-    timeout(Duration::from_secs(5), async {
-        loop {
-            let metrics = raft.metrics().borrow().clone();
-            if metrics.current_leader.is_some() {
-                break;
-            }
-            sleep(Duration::from_millis(50)).await;
-        }
-    })
-    .await
-    .expect("Leader election timeout");
+    wait_for_leader(&raft).await;
 
     // Write some data
     let entry = LogEntry::Put {

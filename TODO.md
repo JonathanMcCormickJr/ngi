@@ -16,7 +16,7 @@
 - [x] **Move performance benchmarks out of `cargo test`**
   `db/tests/performance_test.rs` contains write/read/concurrent benchmarks with thread spawning. These are benchmarks, not correctness tests, but tarpaulin instruments and runs them. Move to `benches/` using criterion or gate behind `#[ignore]`/feature flag. Impact: removes unnecessary instrumented work from tarpaulin.
 
-- [ ] **Reduce Raft test sleep/polling overhead**
+- [x] **Reduce Raft test sleep/polling overhead**
   `db/tests/consensus_test.rs` has 3 tests with 5-second timeout loops polling every 50ms for leader election. `db/tests/integration_test.rs` has fixed 200ms sleeps. Tighten election timeouts further in test configs and/or reduce poll intervals. Consider using Raft metrics notifications instead of polling. Impact: saves seconds of idle waiting across ~7 tests.
 
 ## Lower Impact

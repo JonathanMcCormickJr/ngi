@@ -9,8 +9,6 @@
 use db::raft::{DbRaft, DbStore};
 use openraft::{Config, storage::Adaptor};
 use std::sync::Arc;
-use std::time::Duration;
-use tokio::time::sleep;
 
 // Re-export network module access
 mod helpers {
@@ -36,6 +34,20 @@ mod helpers {
 
         Ok(DbRaft::new(node_id, config, network, log_store, state_machine).await?)
     }
+
+    pub async fn wait_for_leader(raft: &DbRaft) {
+        tokio::time::timeout(std::time::Duration::from_secs(2), async {
+            loop {
+                let metrics = raft.metrics().borrow().clone();
+                if metrics.current_leader.is_some() {
+                    return;
+                }
+                tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+            }
+        })
+        .await
+        .expect("Leader election timed out");
+    }
 }
 
 #[tokio::test]
@@ -47,8 +59,8 @@ async fn test_single_node_initialization() {
     nodes.insert(1);
     raft.initialize(nodes).await.unwrap();
 
-    // Give it a moment to become leader
-    sleep(Duration::from_millis(200)).await;
+    // Wait for leader election
+    helpers::wait_for_leader(&raft).await;
 
     // Check metrics
     let metrics = raft.metrics().borrow().clone();
@@ -82,7 +94,7 @@ async fn test_raft_state_machine_operations() {
     nodes.insert(1);
     raft.initialize(nodes).await.unwrap();
 
-    sleep(Duration::from_millis(200)).await;
+    helpers::wait_for_leader(&raft).await;
 
     // Test write operation through Raft
     let entry = db::storage::LogEntry::Put {
@@ -252,7 +264,7 @@ async fn test_raft_metrics() {
     nodes.insert(42);
     raft.initialize(nodes).await.unwrap();
 
-    sleep(Duration::from_millis(200)).await;
+    helpers::wait_for_leader(&raft).await;
 
     let metrics = raft.metrics().borrow().clone();
 
