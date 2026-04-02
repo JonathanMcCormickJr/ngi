@@ -13,7 +13,7 @@
 
 ## Medium Impact
 
-- [ ] **Move performance benchmarks out of `cargo test`**
+- [x] **Move performance benchmarks out of `cargo test`**
   `db/tests/performance_test.rs` contains write/read/concurrent benchmarks with thread spawning. These are benchmarks, not correctness tests, but tarpaulin instruments and runs them. Move to `benches/` using criterion or gate behind `#[ignore]`/feature flag. Impact: removes unnecessary instrumented work from tarpaulin.
 
 - [ ] **Reduce Raft test sleep/polling overhead**

@@ -222,6 +222,7 @@ mod tests {
     use super::*;
 
     #[test]
+    #[ignore = "benchmark — run explicitly with --ignored"]
     fn test_write_performance() {
         let harness = PerformanceHarness::new();
         let results = harness.benchmark_writes(10);
@@ -236,6 +237,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "benchmark — run explicitly with --ignored"]
     fn test_read_performance() {
         let harness = PerformanceHarness::new();
         let results = harness.benchmark_reads(10);
@@ -247,6 +249,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "benchmark — run explicitly with --ignored"]
     fn test_concurrent_performance() {
         let harness = PerformanceHarness::new();
         let results = harness.benchmark_concurrent_operations(20, 2);
@@ -257,6 +260,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "benchmark — run explicitly with --ignored"]
     fn test_comprehensive_benchmark() {
         let harness = PerformanceHarness::new();
         let results = harness.run_comprehensive_benchmark();
