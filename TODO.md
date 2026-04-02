@@ -1,31 +1,31 @@
-# TODO: Reduce `cargo tarpaulin --workspace` Execution Time
+# TODO: Reduce `cargo tarpaulin --workspace` Compile Time
+
+Profiling with `cargo build --timings` on a clean build (2m 37s total) revealed
+that compilation dominates tarpaulin runtime. The top bottlenecks:
+
+| Time | Crate | Cause |
+|------|-------|-------|
+| 69.1s | `aws-lc-sys` build script | C/ASM crypto library compiled from source |
+| 15.2s | `web-sys` | WASM bindings — web crate deps still compiled despite tarpaulin exclude |
+| ~12s | `leptos*` + `gloo*` | More web crate deps compiled unnecessarily |
+| 10.9s | `openraft` | Raft consensus library (unavoidable) |
+| 9.2s | `protobuf` | Protobuf runtime (unavoidable) |
 
 ## High Impact
 
-- [x] **Exclude or gate the E2E test from tarpaulin runs**
-  `tests/src/e2e.rs::test_e2e_flow` builds 5 binaries via `cargo build` and spawns 5 services with port polling (up to 50s cumulative). This is the single biggest time sink. Options: (1) Add `#[ignore]` and run separately, (2) exclude `tests` crate from tarpaulin via `--exclude tests` or `tarpaulin.toml`, (3) gate behind a feature flag like `e2e`. Impact: saves minutes per run.
+- [x] **Switch `jsonwebtoken` from `aws_lc_rs` to `rust_crypto` backend**
+  `aws-lc-sys` takes **69s** to compile its C/ASM build script — the single largest bottleneck (44% of total build time). It's pulled in by `jsonwebtoken = { features = ["aws_lc_rs"] }` in `auth/Cargo.toml` and `lbrp/Cargo.toml`. The `ring` crate is already compiled (used by `rustls`), so `aws-lc-rs` is redundant. Switch both crates to `jsonwebtoken = { version = "10.2", default-features = false, features = ["rust_crypto"] }` which uses pure-Rust crypto. Verify all JWT sign/verify tests still pass. Impact: **~69s saved**.
 
-- [x] **Use lighter Argon2 params in test builds**
-  `shared/src/encryption.rs:275` uses OWASP-strength Argon2id params (19,456 KiB memory, 2 iterations) for every password derivation. Tests across `shared`, `auth`, and `admin` call this multiple times. Add a `#[cfg(test)]` path with minimal params (e.g., m=256, t=1, p=1) to make test-time crypto fast while keeping production params unchanged. Impact: significant CPU/memory savings across ~10+ tests.
+- [x] **Use explicit `--packages` list in tarpaulin instead of `--workspace`**
+  Even with `packages = { exclude = ["tests", "web"] }` in `tarpaulin.toml`, tarpaulin still compiles the `web` crate and all its dependencies (`web-sys` 15.2s, `leptos*` ~12s, `gloo*`). The `exclude` config only skips coverage collection, not compilation. Switch to an explicit packages list: `packages = { include = ["shared", "db", "custodian", "auth", "lbrp", "admin", "chaos", "honeypot", "proto"] }`. Impact: **~27s saved** (web-sys + leptos + gloo).
 
-- [x] **Consolidate protobuf compilation into a shared crate**
-  7 `build.rs` files independently compile proto files. `db.proto` is compiled 6 times, `admin.proto` 4 times, `custodian.proto` 3 times. Create a `proto` library crate that compiles all protos once and re-exports the generated modules. All service crates depend on it instead of each running their own `build.rs`. Impact: eliminates redundant protoc invocations during compilation.
+- [x] **Remove unused `rustls` direct dependency from `lbrp`**
+  `lbrp/Cargo.toml` lists `rustls = "0.23"` as a direct dependency, but it's never imported or used in any lbrp source file (grep confirms zero references). Removing it may allow the dependency resolver to avoid pulling in `rustls`'s default `aws-lc-rs` feature if no other crate needs it. Impact: may eliminate redundant crypto backend compilation.
 
 ## Medium Impact
 
-- [x] **Move performance benchmarks out of `cargo test`**
-  `db/tests/performance_test.rs` contains write/read/concurrent benchmarks with thread spawning. These are benchmarks, not correctness tests, but tarpaulin instruments and runs them. Move to `benches/` using criterion or gate behind `#[ignore]`/feature flag. Impact: removes unnecessary instrumented work from tarpaulin.
+- [x] **Disable `rustls` default features to avoid dual crypto backends**
+  `rustls` is compiled with both `ring` AND `aws-lc-rs` features because its defaults include `aws_lc_rs`. Since `ring` is already being used (via `hyper-rustls`), configure rustls consumers to use `default-features = false, features = ["ring", "logging", "std", "tls12"]` where possible. This eliminates the `aws-lc-rs` → `aws-lc-sys` chain from rustls. Check `reqwest` and `tonic` feature flags for controlling this. Impact: helps ensure aws-lc-sys stays eliminated after the jsonwebtoken switch.
 
-- [x] **Reduce Raft test sleep/polling overhead**
-  `db/tests/consensus_test.rs` has 3 tests with 5-second timeout loops polling every 50ms for leader election. `db/tests/integration_test.rs` has fixed 200ms sleeps. Tighten election timeouts further in test configs and/or reduce poll intervals. Consider using Raft metrics notifications instead of polling. Impact: saves seconds of idle waiting across ~7 tests.
-
-## Lower Impact
-
-- [x] **Replace tokio `"full"` with granular features per crate**
-  All 7 binary crates use `tokio = { features = ["full"] }`. Each crate likely only needs a subset (e.g., `rt-multi-thread`, `macros`, `net`, `time`, `sync`, `io-util`). Auditing and narrowing features reduces compile time. Impact: moderate compilation speedup, especially for clean builds that tarpaulin triggers.
-
-- [x] **Exclude `web` crate from tarpaulin workspace**
-  `tarpaulin.toml` excludes web source files but doesn't exclude the crate itself. Tarpaulin may still attempt compilation of the WASM target. Add `--exclude web` to tarpaulin config or use `[workspace]` exclude. The web crate has 0% coverage and targets `wasm32-unknown-unknown` which tarpaulin can't instrument. Impact: avoids unnecessary compilation attempt.
-
-- [x] **Add tarpaulin config flags for parallelism and speed**
-  Review `tarpaulin.toml` for optimization flags: `--jobs` for parallel test execution, `--skip-clean` to avoid full rebuilds, `--engine llvm` (faster than ptrace on Linux), `--timeout` to cap runaway tests. Current config only has `exclude-files`. Impact: low-effort wins from better tarpaulin configuration.
+- [x] **Pre-build or cache the `proto` crate's build script output**
+  The `proto` crate's `build.rs` invokes `protoc` to compile 5 proto files on every clean build. The `protobuf` runtime crate itself takes 9.2s. Consider using `CARGO_RERUN_IF_CHANGED` directives to minimize unnecessary rebuilds, or explore vendoring the generated `.rs` files so protoc only runs when protos actually change. Impact: saves protoc invocation time on incremental builds.

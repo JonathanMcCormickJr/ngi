@@ -18,7 +18,7 @@ implicit-test-threads = true
 # glue and are not meaningful to test via unit tests.
 # Exclude the tests crate entirely: it contains E2E/integration infrastructure
 # (service spawning, port polling) — not business logic that needs coverage.
-packages = { exclude = ["tests", "web"] }
+packages = { include = ["shared", "proto", "db", "custodian", "auth", "lbrp", "admin", "chaos", "honeypot"] }
 
 exclude-files = [
     "web/src/*",

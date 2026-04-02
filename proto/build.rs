@@ -5,6 +5,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         std::env::set_var("PROTOC", protoc_bin_vendored::protoc_bin_path()?);
     }
 
+    // Only re-run protoc when proto files change.
+    println!("cargo:rerun-if-changed=../admin/proto/admin.proto");
+    println!("cargo:rerun-if-changed=../auth/proto/auth.proto");
+    println!("cargo:rerun-if-changed=../chaos/proto/chaos.proto");
+    println!("cargo:rerun-if-changed=../custodian/proto/custodian.proto");
+    println!("cargo:rerun-if-changed=../db/proto/db.proto");
+
     tonic_prost_build::configure()
         .build_server(true)
         .build_client(true)
