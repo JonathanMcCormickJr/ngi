@@ -1,16 +1,21 @@
-[report]
-# Require 90% coverage for code that matters
-# Skeleton main() functions are placeholders and will be replaced
-
-[exclude]
-# Exclude skeleton service main functions from coverage
-# These are "Hello, world!" placeholders
-exclude = [
-    "*/main.rs:main",
-]
+# Require 90% coverage for code that matters.
+# Skeleton main() functions are placeholders and will be replaced.
 
 # Exclude the web (WASM) crate: cargo-tarpaulin cannot instrument WebAssembly
 # targets compiled with wasm32-unknown-unknown, so web/* always reports 0%.
+# Also exclude all binary entry-point files: these contain only startup/config
+# glue and are not meaningful to test via unit tests.
+# Exclude the tests crate entirely: it contains E2E/integration infrastructure
+# (service spawning, port polling) — not business logic that needs coverage.
+packages = { exclude = ["tests"] }
+
 exclude-files = [
     "web/src/*",
+    "admin/src/main.rs",
+    "auth/src/main.rs",
+    "chaos/src/main.rs",
+    "custodian/src/main.rs",
+    "db/src/main.rs",
+    "honeypot/src/main.rs",
+    "lbrp/src/main.rs",
 ]

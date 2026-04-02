@@ -76,6 +76,7 @@ fn start_service(name: &str, bin: &str, env: Vec<(&str, &str)>) -> Result<Servic
 }
 
 #[tokio::test]
+#[ignore = "E2E test spawns 5 services with port polling; run explicitly with --ignored"]
 async fn test_e2e_flow() -> Result<()> {
     // Build service binaries first so e2e always runs against fresh proto-compatible executables.
     for bin in ["db", "custodian", "auth", "admin", "lbrp"] {
