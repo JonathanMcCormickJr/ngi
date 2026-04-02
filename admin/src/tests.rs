@@ -1,6 +1,6 @@
 #[cfg(test)]
 mod tests {
-    use crate::{load_or_generate_keys, parse_listen_addr};
+    use crate::parse_listen_addr;
     use chrono::Utc;
     use shared::user::Role;
     use shared::user::User;
@@ -60,14 +60,14 @@ mod tests {
     }
 
     #[test]
-    fn load_or_generate_keys_creates_keys_when_absent() {
+    fn load_or_generate_keypair_creates_keys_when_absent() {
         let dir = tempfile::tempdir().expect("temp dir");
-        let keys1 = load_or_generate_keys(dir.path()).expect("generate keys");
+        let keys1 = shared::key_store::load_or_generate_keypair(dir.path()).expect("generate keys");
         assert!(!keys1.0.is_empty(), "public key must not be empty");
         assert!(!keys1.1.is_empty(), "private key must not be empty");
 
         // Second call should load the same keys from disk
-        let keys2 = load_or_generate_keys(dir.path()).expect("load keys");
+        let keys2 = shared::key_store::load_or_generate_keypair(dir.path()).expect("load keys");
         assert_eq!(keys1, keys2, "round-trip keys must match");
     }
 }

@@ -384,8 +384,8 @@ mod tests {
 
     fn encrypt_json<T: Serialize>(value: &T, public_key: &[u8]) -> Vec<u8> {
         let plaintext = serde_json::to_vec(value).expect("serialize");
-        let encrypted = EncryptionService::encrypt_with_public_key(&plaintext, public_key)
-            .expect("encrypt");
+        let encrypted =
+            EncryptionService::encrypt_with_public_key(&plaintext, public_key).expect("encrypt");
         serde_json::to_vec(&encrypted).expect("serialize encrypted")
     }
 
@@ -417,7 +417,10 @@ mod tests {
 
     #[test]
     fn map_proto_role_covers_all_variants() {
-        assert_eq!(AdminServiceImpl::map_proto_role(Role::Admin), ProtoRole::Admin);
+        assert_eq!(
+            AdminServiceImpl::map_proto_role(Role::Admin),
+            ProtoRole::Admin
+        );
         assert_eq!(
             AdminServiceImpl::map_proto_role(Role::Manager),
             ProtoRole::Manager

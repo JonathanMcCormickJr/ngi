@@ -13,7 +13,10 @@ chrono = { version = "0.4", features = ["serde"] }
 thiserror = "2.0"
 
 # Post-quantum cryptography
-pqc_kyber = { version = "0.7.1", features = ["kyber768", "std"] }
+safe_pqc_kyber = { version = "0.6.3", features = ["kyber768", "std"] }
+
+# Key derivation
+argon2 = "0.5"
 
 # Symmetric encryption
 aes-gcm = "0.10"
@@ -22,5 +25,14 @@ chacha20poly1305 = "0.10"
 # Random number generation
 rand = "0.10.0"
 
-[dev-dependencies]
+# Serialization (used by key_store for keypair persistence)
 serde_json = "1.0"
+
+# Error handling
+anyhow = "1.0"
+
+# Logging
+tracing = "0.1"
+
+[dev-dependencies]
+tempfile = "3.23"

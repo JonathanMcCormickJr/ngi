@@ -737,8 +737,14 @@ mod tests {
         let response = sm.apply(&entry).unwrap();
         assert!(response.success);
 
-        assert_eq!(storage.get(collection, b"k1").unwrap(), Some(b"v1".to_vec()));
-        assert_eq!(storage.get(collection, b"k2").unwrap(), Some(b"v2".to_vec()));
+        assert_eq!(
+            storage.get(collection, b"k1").unwrap(),
+            Some(b"v1".to_vec())
+        );
+        assert_eq!(
+            storage.get(collection, b"k2").unwrap(),
+            Some(b"v2".to_vec())
+        );
     }
 
     #[tokio::test]
@@ -909,7 +915,10 @@ mod tests {
         // Blank entry
         let blank = Entry::<DbTypeConfig> {
             log_id: LogId {
-                leader_id: LeaderId { term: 1, node_id: 1 },
+                leader_id: LeaderId {
+                    term: 1,
+                    node_id: 1,
+                },
                 index: 1,
             },
             payload: EntryPayload::Blank,
@@ -918,7 +927,10 @@ mod tests {
         // Normal entry (Put)
         let normal = Entry::<DbTypeConfig> {
             log_id: LogId {
-                leader_id: LeaderId { term: 1, node_id: 1 },
+                leader_id: LeaderId {
+                    term: 1,
+                    node_id: 1,
+                },
                 index: 2,
             },
             payload: EntryPayload::Normal(LogEntry::Put {
@@ -943,9 +955,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_apply_to_state_machine_membership() {
-        use openraft::{
-            CommittedLeaderId, Entry, EntryPayload, LeaderId, LogId, Membership,
-        };
+        use openraft::{CommittedLeaderId, Entry, EntryPayload, LeaderId, LogId, Membership};
         use std::collections::BTreeMap;
 
         let mut store = DbStore::new_temp().unwrap();
@@ -956,7 +966,10 @@ mod tests {
 
         let entry = Entry::<DbTypeConfig> {
             log_id: LogId {
-                leader_id: LeaderId { term: 1, node_id: 1 },
+                leader_id: LeaderId {
+                    term: 1,
+                    node_id: 1,
+                },
                 index: 1,
             },
             payload: EntryPayload::Membership(membership),
@@ -994,7 +1007,10 @@ mod tests {
 
         // Build snapshot from store A with data in the collections the snapshot includes
         let mut store_a = DbStore::new_temp().unwrap();
-        store_a.storage.put(TREE_TICKETS, b"ticket1", b"val1").unwrap();
+        store_a
+            .storage
+            .put(TREE_TICKETS, b"ticket1", b"val1")
+            .unwrap();
         store_a.storage.put(TREE_USERS, b"user1", b"uval1").unwrap();
 
         let mut builder = store_a.get_snapshot_builder().await;
@@ -1027,7 +1043,10 @@ mod tests {
         for i in 1u64..=3 {
             let entry = openraft::Entry::<DbTypeConfig> {
                 log_id: openraft::LogId {
-                    leader_id: openraft::LeaderId { term: 1, node_id: 1 },
+                    leader_id: openraft::LeaderId {
+                        term: 1,
+                        node_id: 1,
+                    },
                     index: i,
                 },
                 payload: openraft::EntryPayload::Normal(LogEntry::Put {
@@ -1054,7 +1073,10 @@ mod tests {
         for i in 1u64..=3 {
             let entry = openraft::Entry::<DbTypeConfig> {
                 log_id: openraft::LogId {
-                    leader_id: openraft::LeaderId { term: 1, node_id: 1 },
+                    leader_id: openraft::LeaderId {
+                        term: 1,
+                        node_id: 1,
+                    },
                     index: i,
                 },
                 payload: openraft::EntryPayload::Normal(LogEntry::Put {
@@ -1082,7 +1104,10 @@ mod tests {
 
             // Save a vote
             let vote = openraft::Vote {
-                leader_id: openraft::LeaderId { term: 2, node_id: 5 },
+                leader_id: openraft::LeaderId {
+                    term: 2,
+                    node_id: 5,
+                },
                 committed: true,
             };
             store.save_vote(&vote).await.unwrap();
@@ -1090,7 +1115,10 @@ mod tests {
             // Append and purge to set last_purged
             let entry = openraft::Entry::<DbTypeConfig> {
                 log_id: openraft::LogId {
-                    leader_id: openraft::LeaderId { term: 1, node_id: 1 },
+                    leader_id: openraft::LeaderId {
+                        term: 1,
+                        node_id: 1,
+                    },
                     index: 1,
                 },
                 payload: openraft::EntryPayload::Normal(LogEntry::Put {
@@ -1102,7 +1130,10 @@ mod tests {
             store.append_to_log([entry]).await.unwrap();
             store
                 .purge_logs_upto(openraft::LogId {
-                    leader_id: openraft::LeaderId { term: 1, node_id: 1 },
+                    leader_id: openraft::LeaderId {
+                        term: 1,
+                        node_id: 1,
+                    },
                     index: 1,
                 })
                 .await
@@ -1125,7 +1156,10 @@ mod tests {
 
         // Save a vote first
         let vote = openraft::Vote {
-            leader_id: openraft::LeaderId { term: 1, node_id: 1 },
+            leader_id: openraft::LeaderId {
+                term: 1,
+                node_id: 1,
+            },
             committed: false,
         };
         store.save_vote(&vote).await.unwrap();
@@ -1154,7 +1188,10 @@ mod tests {
         for i in 1u64..=2 {
             let entry = openraft::Entry::<DbTypeConfig> {
                 log_id: openraft::LogId {
-                    leader_id: openraft::LeaderId { term: 1, node_id: 1 },
+                    leader_id: openraft::LeaderId {
+                        term: 1,
+                        node_id: 1,
+                    },
                     index: i,
                 },
                 payload: openraft::EntryPayload::Normal(LogEntry::Put {
@@ -1185,5 +1222,4 @@ mod tests {
         assert!(!response.success);
         assert!(response.value.is_none());
     }
-
 }

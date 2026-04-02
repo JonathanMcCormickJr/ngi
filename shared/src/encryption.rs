@@ -24,8 +24,10 @@ use aes_gcm::{
     aead::{Aead, AeadCore, KeyInit, OsRng},
 };
 use chacha20poly1305::ChaCha20Poly1305;
-use pqc_kyber::{KYBER_PUBLICKEYBYTES, KYBER_SECRETKEYBYTES, decapsulate, encapsulate, keypair};
 use rand::TryRng;
+use safe_pqc_kyber::{
+    KYBER_PUBLICKEYBYTES, KYBER_SECRETKEYBYTES, decapsulate, encapsulate, keypair,
+};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::fmt::{self};
 
@@ -127,7 +129,7 @@ impl EncryptionService {
         })?;
 
         // Derive key from password and salt
-        let key = Self::derive_key_from_password(password, &salt);
+        let key = Self::derive_key_from_password(password, &salt)?;
 
         // Encrypt the data
         let (nonce, ciphertext) = Self::encrypt_symmetric(&key, data, algorithm)?;
@@ -155,7 +157,7 @@ impl EncryptionService {
         })?;
 
         // Derive key from password and salt
-        let key = Self::derive_key_from_password(password, salt);
+        let key = Self::derive_key_from_password(password, salt)?;
 
         // Decrypt the data
         Self::decrypt_symmetric(&key, encrypted_data, encrypted_data.algorithm)
@@ -166,9 +168,7 @@ impl EncryptionService {
     /// # Errors
     /// Returns `EncryptionError` if key generation fails.
     pub fn generate_keypair() -> Result<(Vec<u8>, Vec<u8>), EncryptionError> {
-        let keys = keypair(&mut OsRng).map_err(|e| {
-            EncryptionError::KeyGeneration(format!("Kyber keypair generation failed: {e:?}"))
-        })?;
+        let keys = keypair(&mut OsRng);
 
         Ok((keys.public.to_vec(), keys.secret.to_vec()))
     }
@@ -263,26 +263,27 @@ impl EncryptionService {
         Self::decrypt_symmetric(&key, encrypted_data, encrypted_data.algorithm)
     }
 
-    /// Derive a 32-byte key from password and salt using a simple KDF
-    /// Note: In production, use a proper KDF like Argon2, PBKDF2, or scrypt
-    fn derive_key_from_password(password: &str, salt: &[u8]) -> [u8; 32] {
-        use std::collections::hash_map::DefaultHasher;
-        use std::hash::{Hash, Hasher};
+    /// Derive a 32-byte key from password and salt using Argon2id.
+    ///
+    /// Parameters follow OWASP minimums: m=19456 KiB, t=2 iterations, p=1 lane.
+    ///
+    /// # Errors
+    /// Returns `EncryptionError::KeyDerivation` if Argon2 hashing fails.
+    fn derive_key_from_password(password: &str, salt: &[u8]) -> Result<[u8; 32], EncryptionError> {
+        use argon2::{Algorithm, Argon2, Params, Version};
 
-        let mut hasher = DefaultHasher::new();
-        password.hash(&mut hasher);
-        salt.hash(&mut hasher);
-        let hash = hasher.finish();
+        let params = Params::new(19_456, 2, 1, Some(32))
+            .map_err(|e| EncryptionError::KeyDerivation(format!("Argon2 parameter error: {e}")))?;
+        let argon2 = Argon2::new(Algorithm::Argon2id, Version::V0x13, params);
 
-        // Convert hash to 32 bytes (simple approach - use proper KDF in production)
         let mut key = [0u8; 32];
-        let hash_bytes = hash.to_le_bytes();
-        key[..8].copy_from_slice(&hash_bytes);
-        key[8..16].copy_from_slice(&hash_bytes);
-        key[16..24].copy_from_slice(&hash_bytes);
-        key[24..32].copy_from_slice(&hash_bytes);
+        argon2
+            .hash_password_into(password.as_bytes(), salt, &mut key)
+            .map_err(|e| {
+                EncryptionError::KeyDerivation(format!("Argon2id key derivation failed: {e}"))
+            })?;
 
-        key
+        Ok(key)
     }
 
     /// Perform symmetric encryption
@@ -368,6 +369,9 @@ pub enum EncryptionError {
 
     #[error("Key generation failed: {0}")]
     KeyGeneration(String),
+
+    #[error("Key derivation failed: {0}")]
+    KeyDerivation(String),
 
     #[error("Key encapsulation failed: {0}")]
     KeyEncapsulation(String),
@@ -584,5 +588,67 @@ mod tests {
         assert!(result.is_err());
         let err = result.unwrap_err();
         assert!(err.to_string().contains("Missing salt"));
+    }
+
+    #[test]
+    fn test_derive_key_deterministic_for_same_password_and_salt() {
+        let password = "deterministic-test-password";
+        let salt = [0xABu8; 32];
+
+        let key1 = EncryptionService::derive_key_from_password(password, &salt).unwrap();
+        let key2 = EncryptionService::derive_key_from_password(password, &salt).unwrap();
+
+        assert_eq!(
+            key1, key2,
+            "Same password and salt must produce identical keys"
+        );
+    }
+
+    #[test]
+    fn test_derive_key_different_passwords_produce_different_keys() {
+        let salt = [0xCDu8; 32];
+
+        let key1 = EncryptionService::derive_key_from_password("password-one", &salt).unwrap();
+        let key2 = EncryptionService::derive_key_from_password("password-two", &salt).unwrap();
+
+        assert_ne!(
+            key1, key2,
+            "Different passwords must produce different keys"
+        );
+    }
+
+    #[test]
+    fn test_derive_key_different_salts_produce_different_keys() {
+        let password = "same-password";
+        let salt1 = [0x01u8; 32];
+        let salt2 = [0x02u8; 32];
+
+        let key1 = EncryptionService::derive_key_from_password(password, &salt1).unwrap();
+        let key2 = EncryptionService::derive_key_from_password(password, &salt2).unwrap();
+
+        assert_ne!(key1, key2, "Different salts must produce different keys");
+    }
+
+    #[test]
+    fn test_derive_key_returns_32_bytes() {
+        let key = EncryptionService::derive_key_from_password("test", &[0u8; 32]).unwrap();
+        assert_eq!(key.len(), 32);
+    }
+
+    #[test]
+    fn test_derive_key_not_trivially_repeated() {
+        // The old broken implementation repeated the same 8 bytes 4 times.
+        // Verify that the derived key does NOT have this pattern.
+        let key =
+            EncryptionService::derive_key_from_password("test-password", &[0x42u8; 32]).unwrap();
+        // Check that at least one of the 8-byte blocks differs from the first
+        let first_block = &key[..8];
+        let all_same = key[8..16] == *first_block
+            && key[16..24] == *first_block
+            && key[24..32] == *first_block;
+        assert!(
+            !all_same,
+            "Key must not consist of the same 8 bytes repeated 4 times"
+        );
     }
 }

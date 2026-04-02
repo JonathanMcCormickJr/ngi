@@ -4,7 +4,6 @@
 use anyhow::Result;
 use server::AuthServiceImpl;
 use server::auth::auth_service_server::AuthServiceServer;
-use shared::encryption::EncryptionService;
 use std::env;
 use std::fs;
 use std::path::Path;
@@ -15,25 +14,6 @@ use tracing::{Level, info};
 use tracing_subscriber::FmtSubscriber;
 
 mod server;
-
-pub(crate) fn load_or_generate_encryption_keys(storage_path: &Path) -> Result<(Vec<u8>, Vec<u8>)> {
-    let keys_path = storage_path.join("keys.bin");
-    if keys_path.exists() {
-        info!("Loading encryption keys from {:?}", keys_path);
-        let bytes = fs::read(&keys_path)?;
-        let keys: (Vec<u8>, Vec<u8>) = serde_json::from_slice(&bytes)?;
-        return Ok(keys);
-    }
-
-    info!("Generating new encryption keys");
-    let keys = EncryptionService::generate_keypair()
-        .map_err(|e| anyhow::anyhow!("Failed to generate keys: {e}"))?;
-    let bytes: Vec<u8> =
-        serde_json::to_vec(&keys).map_err(|e| anyhow::anyhow!("Failed to serialize keys: {e}"))?;
-    fs::write(&keys_path, bytes)?;
-    info!("Saved encryption keys to {:?}", keys_path);
-    Ok(keys)
-}
 
 pub(crate) fn load_or_generate_jwt_secret(storage_path: &Path) -> Result<Vec<u8>> {
     let jwt_secret_path = storage_path.join("jwt.secret");
@@ -81,8 +61,8 @@ async fn main() -> Result<()> {
     // Ensure storage path exists
     fs::create_dir_all(&storage_path)?;
 
-    // Load or generate encryption keys
-    let keys = load_or_generate_encryption_keys(Path::new(&storage_path))?;
+    // Load or generate encryption keys (shared with other services via key_store)
+    let keys = shared::key_store::load_or_generate_keypair(Path::new(&storage_path))?;
 
     // Load or generate JWT secret
     let jwt_secret = resolve_jwt_secret(env::var("JWT_SECRET").ok(), Path::new(&storage_path))?;

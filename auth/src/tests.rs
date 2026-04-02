@@ -1,8 +1,6 @@
 #[cfg(test)]
 mod tests {
-    use crate::{
-        load_or_generate_encryption_keys, load_or_generate_jwt_secret, resolve_jwt_secret,
-    };
+    use crate::{load_or_generate_jwt_secret, resolve_jwt_secret};
     use jsonwebtoken::{DecodingKey, EncodingKey, Header, Validation, decode, encode};
     use serde::{Deserialize, Serialize};
 
@@ -86,16 +84,16 @@ mod tests {
     }
 
     #[test]
-    fn test_load_or_generate_encryption_keys_round_trip() {
+    fn test_load_or_generate_keypair_round_trip() {
         let dir = tempfile::tempdir().expect("tempdir");
 
-        let first =
-            load_or_generate_encryption_keys(dir.path()).expect("first key generation should work");
+        let first = shared::key_store::load_or_generate_keypair(dir.path())
+            .expect("first key generation should work");
         assert!(!first.0.is_empty());
         assert!(!first.1.is_empty());
 
-        let second =
-            load_or_generate_encryption_keys(dir.path()).expect("second key load should work");
+        let second = shared::key_store::load_or_generate_keypair(dir.path())
+            .expect("second key load should work");
         assert_eq!(first, second);
     }
 

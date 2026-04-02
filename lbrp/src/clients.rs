@@ -312,35 +312,61 @@ mod tests {
 
     #[tonic::async_trait]
     impl db::database_server::Database for MinimalDbSvc {
-        async fn put(&self, _req: tonic::Request<db::PutRequest>) -> Result<tonic::Response<db::PutResponse>, tonic::Status> {
+        async fn put(
+            &self,
+            _req: tonic::Request<db::PutRequest>,
+        ) -> Result<tonic::Response<db::PutResponse>, tonic::Status> {
             Err(tonic::Status::unimplemented("not needed"))
         }
-        async fn get(&self, _req: tonic::Request<db::GetRequest>) -> Result<tonic::Response<db::GetResponse>, tonic::Status> {
+        async fn get(
+            &self,
+            _req: tonic::Request<db::GetRequest>,
+        ) -> Result<tonic::Response<db::GetResponse>, tonic::Status> {
             Err(tonic::Status::unimplemented("not needed"))
         }
-        async fn delete(&self, _req: tonic::Request<db::DeleteRequest>) -> Result<tonic::Response<db::DeleteResponse>, tonic::Status> {
+        async fn delete(
+            &self,
+            _req: tonic::Request<db::DeleteRequest>,
+        ) -> Result<tonic::Response<db::DeleteResponse>, tonic::Status> {
             Err(tonic::Status::unimplemented("not needed"))
         }
-        async fn list(&self, _req: tonic::Request<db::ListRequest>) -> Result<tonic::Response<db::ListResponse>, tonic::Status> {
+        async fn list(
+            &self,
+            _req: tonic::Request<db::ListRequest>,
+        ) -> Result<tonic::Response<db::ListResponse>, tonic::Status> {
             Err(tonic::Status::unimplemented("not needed"))
         }
-        async fn exists(&self, _req: tonic::Request<db::ExistsRequest>) -> Result<tonic::Response<db::ExistsResponse>, tonic::Status> {
+        async fn exists(
+            &self,
+            _req: tonic::Request<db::ExistsRequest>,
+        ) -> Result<tonic::Response<db::ExistsResponse>, tonic::Status> {
             Err(tonic::Status::unimplemented("not needed"))
         }
-        async fn batch_put(&self, _req: tonic::Request<db::BatchPutRequest>) -> Result<tonic::Response<db::BatchPutResponse>, tonic::Status> {
+        async fn batch_put(
+            &self,
+            _req: tonic::Request<db::BatchPutRequest>,
+        ) -> Result<tonic::Response<db::BatchPutResponse>, tonic::Status> {
             Err(tonic::Status::unimplemented("not needed"))
         }
-        async fn health(&self, _req: tonic::Request<db::HealthRequest>) -> Result<tonic::Response<db::HealthResponse>, tonic::Status> {
+        async fn health(
+            &self,
+            _req: tonic::Request<db::HealthRequest>,
+        ) -> Result<tonic::Response<db::HealthResponse>, tonic::Status> {
             Err(tonic::Status::unimplemented("not needed"))
         }
-        async fn cluster_status(&self, _req: tonic::Request<db::ClusterStatusRequest>) -> Result<tonic::Response<db::ClusterStatusResponse>, tonic::Status> {
+        async fn cluster_status(
+            &self,
+            _req: tonic::Request<db::ClusterStatusRequest>,
+        ) -> Result<tonic::Response<db::ClusterStatusResponse>, tonic::Status> {
             Err(tonic::Status::unimplemented("not needed"))
         }
     }
 
     // ── Server start helpers ──────────────────────────────────────────────────
 
-    async fn start_custodian(svc: MinimalCustodianSvc) -> (std::net::SocketAddr, oneshot::Sender<()>) {
+    async fn start_custodian(
+        svc: MinimalCustodianSvc,
+    ) -> (std::net::SocketAddr, oneshot::Sender<()>) {
         let listener = TcpListener::bind("127.0.0.1:0").expect("bind");
         let addr = listener.local_addr().expect("local addr");
         drop(listener);
@@ -348,7 +374,9 @@ mod tests {
         tokio::spawn(async move {
             let _ = Server::builder()
                 .add_service(custodian::custodian_service_server::CustodianServiceServer::new(svc))
-                .serve_with_shutdown(addr, async { let _ = rx.await; })
+                .serve_with_shutdown(addr, async {
+                    let _ = rx.await;
+                })
                 .await;
         });
         (addr, tx)
@@ -362,7 +390,9 @@ mod tests {
         tokio::spawn(async move {
             let _ = Server::builder()
                 .add_service(auth::auth_service_server::AuthServiceServer::new(svc))
-                .serve_with_shutdown(addr, async { let _ = rx.await; })
+                .serve_with_shutdown(addr, async {
+                    let _ = rx.await;
+                })
                 .await;
         });
         (addr, tx)
@@ -376,7 +406,9 @@ mod tests {
         tokio::spawn(async move {
             let _ = Server::builder()
                 .add_service(admin::admin_service_server::AdminServiceServer::new(svc))
-                .serve_with_shutdown(addr, async { let _ = rx.await; })
+                .serve_with_shutdown(addr, async {
+                    let _ = rx.await;
+                })
                 .await;
         });
         (addr, tx)
@@ -390,7 +422,9 @@ mod tests {
         tokio::spawn(async move {
             let _ = Server::builder()
                 .add_service(db::database_server::DatabaseServer::new(svc))
-                .serve_with_shutdown(addr, async { let _ = rx.await; })
+                .serve_with_shutdown(addr, async {
+                    let _ = rx.await;
+                })
                 .await;
         });
         (addr, tx)

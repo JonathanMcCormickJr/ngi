@@ -886,7 +886,10 @@ mod tests {
         // Blank entry
         let blank = Entry::<CustodianTypeConfig> {
             log_id: LogId {
-                leader_id: LeaderId { term: 1, node_id: 1 },
+                leader_id: LeaderId {
+                    term: 1,
+                    node_id: 1,
+                },
                 index: 1,
             },
             payload: EntryPayload::Blank,
@@ -895,7 +898,10 @@ mod tests {
         // Normal entry (AcquireLock)
         let normal = Entry::<CustodianTypeConfig> {
             log_id: LogId {
-                leader_id: LeaderId { term: 1, node_id: 1 },
+                leader_id: LeaderId {
+                    term: 1,
+                    node_id: 1,
+                },
                 index: 2,
             },
             payload: EntryPayload::Normal(LockCommand::AcquireLock {
@@ -918,9 +924,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_apply_to_state_machine_membership() {
-        use openraft::{
-            CommittedLeaderId, Entry, EntryPayload, LeaderId, LogId, Membership,
-        };
+        use openraft::{CommittedLeaderId, Entry, EntryPayload, LeaderId, LogId, Membership};
         use std::collections::BTreeMap;
 
         let mut store = CustodianStore::new_temp().unwrap();
@@ -931,7 +935,10 @@ mod tests {
 
         let entry = Entry::<CustodianTypeConfig> {
             log_id: LogId {
-                leader_id: LeaderId { term: 1, node_id: 1 },
+                leader_id: LeaderId {
+                    term: 1,
+                    node_id: 1,
+                },
                 index: 1,
             },
             payload: EntryPayload::Membership(membership),
@@ -969,7 +976,10 @@ mod tests {
         for i in 1u64..=3 {
             let entry = openraft::Entry::<CustodianTypeConfig> {
                 log_id: openraft::LogId {
-                    leader_id: openraft::LeaderId { term: 1, node_id: 1 },
+                    leader_id: openraft::LeaderId {
+                        term: 1,
+                        node_id: 1,
+                    },
                     index: i,
                 },
                 payload: openraft::EntryPayload::Normal(LockCommand::AcquireLock {
@@ -995,7 +1005,10 @@ mod tests {
         for i in 1u64..=3 {
             let entry = openraft::Entry::<CustodianTypeConfig> {
                 log_id: openraft::LogId {
-                    leader_id: openraft::LeaderId { term: 1, node_id: 1 },
+                    leader_id: openraft::LeaderId {
+                        term: 1,
+                        node_id: 1,
+                    },
                     index: i,
                 },
                 payload: openraft::EntryPayload::Normal(LockCommand::AcquireLock {
@@ -1021,7 +1034,10 @@ mod tests {
 
             // Save a vote
             let vote = openraft::Vote {
-                leader_id: openraft::LeaderId { term: 3, node_id: 7 },
+                leader_id: openraft::LeaderId {
+                    term: 3,
+                    node_id: 7,
+                },
                 committed: false,
             };
             store.save_vote(&vote).await.unwrap();
@@ -1030,7 +1046,10 @@ mod tests {
             let user_id = uuid::Uuid::new_v4();
             let entry = openraft::Entry::<CustodianTypeConfig> {
                 log_id: openraft::LogId {
-                    leader_id: openraft::LeaderId { term: 1, node_id: 1 },
+                    leader_id: openraft::LeaderId {
+                        term: 1,
+                        node_id: 1,
+                    },
                     index: 1,
                 },
                 payload: openraft::EntryPayload::Normal(LockCommand::AcquireLock {
@@ -1041,7 +1060,10 @@ mod tests {
             store.append_to_log(vec![entry]).await.unwrap();
             store
                 .purge_logs_upto(openraft::LogId {
-                    leader_id: openraft::LeaderId { term: 1, node_id: 1 },
+                    leader_id: openraft::LeaderId {
+                        term: 1,
+                        node_id: 1,
+                    },
                     index: 1,
                 })
                 .await
@@ -1063,7 +1085,10 @@ mod tests {
         let mut store = CustodianStore::new_temp().unwrap();
 
         let vote = openraft::Vote {
-            leader_id: openraft::LeaderId { term: 1, node_id: 1 },
+            leader_id: openraft::LeaderId {
+                term: 1,
+                node_id: 1,
+            },
             committed: false,
         };
         store.save_vote(&vote).await.unwrap();
@@ -1087,7 +1112,10 @@ mod tests {
         for i in 1u64..=2 {
             let entry = openraft::Entry::<CustodianTypeConfig> {
                 log_id: openraft::LogId {
-                    leader_id: openraft::LeaderId { term: 1, node_id: 1 },
+                    leader_id: openraft::LeaderId {
+                        term: 1,
+                        node_id: 1,
+                    },
                     index: i,
                 },
                 payload: openraft::EntryPayload::Normal(LockCommand::AcquireLock {

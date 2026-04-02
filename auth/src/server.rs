@@ -797,10 +797,7 @@ mod tests {
         // Store auth data but NO user profile
         let mut map = HashMap::new();
         map.insert(
-            (
-                "auth".to_string(),
-                b"auth:username:dave".to_vec(),
-            ),
+            ("auth".to_string(), b"auth:username:dave".to_vec()),
             encrypt_json(&user_auth, &keys.0),
         );
         // Intentionally omit the user profile entry

@@ -296,11 +296,7 @@ impl CustodianServiceImpl {
             created_at: Some(Self::dt_to_proto(ticket.created_at)),
             updated_by_uuid: ticket.updated_by.to_string(),
             updated_at: Some(Self::dt_to_proto(ticket.updated_at)),
-            history: ticket
-                .history
-                .iter()
-                .map(Self::map_history_entry)
-                .collect(),
+            history: ticket.history.iter().map(Self::map_history_entry).collect(),
             ebond: ticket.ebond.clone(),
             tracking_url: ticket.tracking_url.clone(),
             network_devices: ticket
@@ -1227,7 +1223,10 @@ mod tests {
             new_value: Some("Closed".to_string()),
         });
         let proto = CustodianServiceImpl::domain_to_proto(&ticket);
-        assert_eq!(proto.next_action, custodian::NextAction::ContactCustomer as i32);
+        assert_eq!(
+            proto.next_action,
+            custodian::NextAction::ContactCustomer as i32
+        );
         assert_eq!(proto.history.len(), 1);
         assert_eq!(proto.history[0].action, "status");
     }
@@ -1293,7 +1292,8 @@ mod tests {
         let db = Arc::new(tokio::sync::Mutex::new(
             crate::db_client::DbClient::new_lazy("http://127.0.0.1:9"),
         ));
-        let svc = CustodianServiceImpl::with_db_client(raft, storage, db, (vec![0; 1184], vec![0; 2400]));
+        let svc =
+            CustodianServiceImpl::with_db_client(raft, storage, db, (vec![0; 1184], vec![0; 2400]));
         // DB client IS set — get_ticket should return Internal (transport error), not Unavailable "no db client"
         let err = svc
             .get_ticket(Request::new(custodian::GetTicketRequest { ticket_id: 1 }))
@@ -1392,7 +1392,11 @@ mod tests {
         members.insert(1u64);
         let _ = raft.initialize(members).await;
 
-        let svc = CustodianServiceImpl::new(raft.clone(), storage.clone(), (vec![0; 1184], vec![0; 2400]));
+        let svc = CustodianServiceImpl::new(
+            raft.clone(),
+            storage.clone(),
+            (vec![0; 1184], vec![0; 2400]),
+        );
 
         let holder_uuid = uuid::Uuid::new_v4().to_string();
         let other_uuid = uuid::Uuid::new_v4().to_string();

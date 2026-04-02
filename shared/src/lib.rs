@@ -9,6 +9,7 @@
 
 pub mod encryption;
 pub mod error;
+pub mod key_store;
 pub mod ticket;
 pub mod user;
 
