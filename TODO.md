@@ -24,8 +24,8 @@
 - [x] **Replace tokio `"full"` with granular features per crate**
   All 7 binary crates use `tokio = { features = ["full"] }`. Each crate likely only needs a subset (e.g., `rt-multi-thread`, `macros`, `net`, `time`, `sync`, `io-util`). Auditing and narrowing features reduces compile time. Impact: moderate compilation speedup, especially for clean builds that tarpaulin triggers.
 
-- [ ] **Exclude `web` crate from tarpaulin workspace**
+- [x] **Exclude `web` crate from tarpaulin workspace**
   `tarpaulin.toml` excludes web source files but doesn't exclude the crate itself. Tarpaulin may still attempt compilation of the WASM target. Add `--exclude web` to tarpaulin config or use `[workspace]` exclude. The web crate has 0% coverage and targets `wasm32-unknown-unknown` which tarpaulin can't instrument. Impact: avoids unnecessary compilation attempt.
 
-- [ ] **Add tarpaulin config flags for parallelism and speed**
+- [x] **Add tarpaulin config flags for parallelism and speed**
   Review `tarpaulin.toml` for optimization flags: `--jobs` for parallel test execution, `--skip-clean` to avoid full rebuilds, `--engine llvm` (faster than ptrace on Linux), `--timeout` to cap runaway tests. Current config only has `exclude-files`. Impact: low-effort wins from better tarpaulin configuration.

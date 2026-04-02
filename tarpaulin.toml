@@ -1,13 +1,24 @@
 # Require 90% coverage for code that matters.
 # Skeleton main() functions are placeholders and will be replaced.
 
+# -- Performance flags --
+# Skip `cargo clean` between runs; reuse incremental build artifacts.
+skip-clean = true
+# Use LLVM instrumentation instead of ptrace — faster on Linux.
+engine = "Llvm"
+# Cap per-test timeout to 120s to catch runaways without wasting CI time.
+timeout = "120"
+# Avoid overriding the test-threads default so tests can run in parallel.
+implicit-test-threads = true
+
+# -- Package / file exclusions --
 # Exclude the web (WASM) crate: cargo-tarpaulin cannot instrument WebAssembly
 # targets compiled with wasm32-unknown-unknown, so web/* always reports 0%.
 # Also exclude all binary entry-point files: these contain only startup/config
 # glue and are not meaningful to test via unit tests.
 # Exclude the tests crate entirely: it contains E2E/integration infrastructure
 # (service spawning, port polling) — not business logic that needs coverage.
-packages = { exclude = ["tests"] }
+packages = { exclude = ["tests", "web"] }
 
 exclude-files = [
     "web/src/*",
