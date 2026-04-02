@@ -21,7 +21,7 @@ dependencies = [
  "prometheus",
  "prost",
  "prost-types",
- "protoc-bin-vendored",
+ "proto",
  "rand 0.10.0",
  "serde",
  "serde_json",
@@ -29,9 +29,6 @@ dependencies = [
  "tempfile",
  "tokio",
  "tonic",
- "tonic-build",
- "tonic-prost",
- "tonic-prost-build",
  "tracing",
  "tracing-subscriber",
  "uuid",
@@ -275,7 +272,7 @@ dependencies = [
  "postcard",
  "prost",
  "prost-types",
- "protoc-bin-vendored",
+ "proto",
  "rand 0.10.0",
  "serde",
  "serde_json",
@@ -284,8 +281,6 @@ dependencies = [
  "thiserror 2.0.17",
  "tokio",
  "tonic",
- "tonic-prost",
- "tonic-prost-build",
  "tracing",
  "tracing-subscriber",
  "uuid",
@@ -573,13 +568,11 @@ dependencies = [
  "anyhow",
  "chrono",
  "prost",
- "protoc-bin-vendored",
+ "proto",
  "serde",
  "thiserror 2.0.17",
  "tokio",
  "tonic",
- "tonic-prost",
- "tonic-prost-build",
  "tracing",
 ]
 
@@ -867,7 +860,7 @@ dependencies = [
  "prometheus",
  "prost",
  "prost-types",
- "protoc-bin-vendored",
+ "proto",
  "serde",
  "serde_json",
  "shared",
@@ -876,8 +869,6 @@ dependencies = [
  "thiserror 2.0.17",
  "tokio",
  "tonic",
- "tonic-prost",
- "tonic-prost-build",
  "tracing",
  "tracing-subscriber",
  "uuid",
@@ -906,7 +897,7 @@ dependencies = [
  "openraft",
  "postcard",
  "prost",
- "protoc-bin-vendored",
+ "proto",
  "serde",
  "serde_json",
  "shared",
@@ -915,8 +906,6 @@ dependencies = [
  "thiserror 2.0.17",
  "tokio",
  "tonic",
- "tonic-prost",
- "tonic-prost-build",
  "tracing",
  "tracing-subscriber",
 ]
@@ -1807,7 +1796,7 @@ dependencies = [
  "jsonwebtoken",
  "prost",
  "prost-types",
- "protoc-bin-vendored",
+ "proto",
  "rustls",
  "serde",
  "serde_json",
@@ -1815,8 +1804,6 @@ dependencies = [
  "thiserror 2.0.17",
  "tokio",
  "tonic",
- "tonic-prost",
- "tonic-prost-build",
  "tower",
  "tower-http",
  "tracing",
@@ -2595,6 +2582,18 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b9b4db3d6da204ed77bb26ba83b6122a73aeb2e87e25fbf7ad2e84c4ccbf8f72"
 dependencies = [
  "prost",
+]
+
+[[package]]
+name = "proto"
+version = "0.1.0-mvp.1"
+dependencies = [
+ "prost",
+ "prost-types",
+ "protoc-bin-vendored",
+ "tonic",
+ "tonic-prost",
+ "tonic-prost-build",
 ]
 
 [[package]]
@@ -3624,15 +3623,13 @@ dependencies = [
  "anyhow",
  "prost",
  "prost-types",
- "protoc-bin-vendored",
+ "proto",
  "reqwest",
  "serde",
  "serde_json",
  "tempfile",
  "tokio",
  "tonic",
- "tonic-prost",
- "tonic-prost-build",
  "uuid",
 ]
 

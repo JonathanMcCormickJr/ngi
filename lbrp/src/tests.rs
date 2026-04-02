@@ -1,4 +1,5 @@
 #[cfg(test)]
+#[allow(clippy::module_inception)]
 mod tests {
     use crate::middleware::Claims;
     use crate::{env_or_default, jwt_secret_from_env, parse_listen_addr, resolve_backend_addrs};
@@ -9,7 +10,7 @@ mod tests {
         let claims = Claims {
             sub: "user123".to_string(),
             role: "admin".to_string(),
-            exp: 10000000000,
+            exp: 10_000_000_000,
         };
 
         let token = encode(

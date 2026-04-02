@@ -771,12 +771,12 @@ mod tests {
     #[test]
     fn test_mac_address_display() {
         let mac = MacAddress::new("aa:bb:cc:dd:ee:ff").unwrap();
-        assert_eq!(format!("{}", mac), "AA:BB:CC:DD:EE:FF");
+        assert_eq!(format!("{mac}"), "AA:BB:CC:DD:EE:FF");
     }
 
     #[test]
     fn test_all_network_device_types() {
-        let devices = vec![
+        let devices = [
             NetworkDevice::DslModem {
                 make: "ZyXEL".to_string(),
                 model: "C3000Z".to_string(),

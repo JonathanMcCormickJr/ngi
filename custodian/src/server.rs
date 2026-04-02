@@ -9,11 +9,7 @@ use shared::encryption::EncryptionService;
 use tonic::{Request, Response, Status};
 use uuid::Uuid;
 
-// Include generated protobuf code
-pub mod custodian {
-    #![allow(clippy::all, clippy::pedantic)]
-    tonic::include_proto!("custodian");
-}
+pub use proto::custodian;
 
 use custodian::custodian_service_server::{CustodianService, CustodianServiceServer};
 use custodian::{
@@ -91,11 +87,10 @@ impl CustodianServiceImpl {
     /// optional `next_action_scheduled_at` timestamp field to carry this information.
     fn map_next_action(next_action: &domain::NextAction) -> i32 {
         match next_action {
-            domain::NextAction::None => custodian::NextAction::Unspecified as i32,
             domain::NextAction::FollowUp(_) => custodian::NextAction::ContactCustomer as i32,
             domain::NextAction::Appointment(_) => custodian::NextAction::DiagnoseIssue as i32,
             domain::NextAction::AutoClose(_) => custodian::NextAction::CloseTicket as i32,
-            // Non-exhaustive enum: any future variants are treated as unspecified
+            // Non-exhaustive enum: None and any future variants are treated as unspecified
             _ => custodian::NextAction::Unspecified as i32,
         }
     }
@@ -117,6 +112,7 @@ impl CustodianServiceImpl {
     }
 
     /// Convert a domain [`NetworkDevice`] to the corresponding protobuf message.
+    #[allow(clippy::too_many_lines)]
     fn map_network_device(device: &domain::NetworkDevice) -> custodian::NetworkDevice {
         use custodian::network_device::DeviceType;
 

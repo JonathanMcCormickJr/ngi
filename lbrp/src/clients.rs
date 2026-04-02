@@ -6,26 +6,7 @@ use std::sync::Arc;
 use tokio::sync::Mutex;
 use tonic::transport::Channel;
 
-// Include generated protobuf code
-pub mod custodian {
-    #![allow(clippy::all, clippy::pedantic)]
-    tonic::include_proto!("custodian");
-}
-
-pub mod db {
-    #![allow(clippy::all, clippy::pedantic)]
-    tonic::include_proto!("db");
-}
-
-pub mod auth {
-    #![allow(clippy::all, clippy::pedantic)]
-    tonic::include_proto!("auth");
-}
-
-pub mod admin {
-    #![allow(clippy::all, clippy::pedantic)]
-    tonic::include_proto!("admin");
-}
+pub use proto::{admin, auth, custodian, db};
 
 /// Custodian service client
 #[derive(Clone)]
@@ -364,9 +345,7 @@ mod tests {
 
     // ── Server start helpers ──────────────────────────────────────────────────
 
-    async fn start_custodian(
-        svc: MinimalCustodianSvc,
-    ) -> (std::net::SocketAddr, oneshot::Sender<()>) {
+    fn start_custodian(svc: MinimalCustodianSvc) -> (std::net::SocketAddr, oneshot::Sender<()>) {
         let listener = TcpListener::bind("127.0.0.1:0").expect("bind");
         let addr = listener.local_addr().expect("local addr");
         drop(listener);
@@ -382,7 +361,7 @@ mod tests {
         (addr, tx)
     }
 
-    async fn start_auth(svc: MinimalAuthSvc) -> (std::net::SocketAddr, oneshot::Sender<()>) {
+    fn start_auth(svc: MinimalAuthSvc) -> (std::net::SocketAddr, oneshot::Sender<()>) {
         let listener = TcpListener::bind("127.0.0.1:0").expect("bind");
         let addr = listener.local_addr().expect("local addr");
         drop(listener);
@@ -398,7 +377,7 @@ mod tests {
         (addr, tx)
     }
 
-    async fn start_admin(svc: MinimalAdminSvc) -> (std::net::SocketAddr, oneshot::Sender<()>) {
+    fn start_admin(svc: MinimalAdminSvc) -> (std::net::SocketAddr, oneshot::Sender<()>) {
         let listener = TcpListener::bind("127.0.0.1:0").expect("bind");
         let addr = listener.local_addr().expect("local addr");
         drop(listener);
@@ -414,7 +393,7 @@ mod tests {
         (addr, tx)
     }
 
-    async fn start_db(svc: MinimalDbSvc) -> (std::net::SocketAddr, oneshot::Sender<()>) {
+    fn start_db(svc: MinimalDbSvc) -> (std::net::SocketAddr, oneshot::Sender<()>) {
         let listener = TcpListener::bind("127.0.0.1:0").expect("bind");
         let addr = listener.local_addr().expect("local addr");
         drop(listener);
@@ -461,7 +440,7 @@ mod tests {
 
     #[tokio::test]
     async fn connect_succeeds_with_valid_custodian_server() {
-        let (addr, shutdown) = start_custodian(MinimalCustodianSvc).await;
+        let (addr, shutdown) = start_custodian(MinimalCustodianSvc);
         let _ = connect_retry(addr).await;
         let result = CustodianClient::connect(format!("http://{addr}")).await;
         let _ = shutdown.send(());
@@ -470,7 +449,7 @@ mod tests {
 
     #[tokio::test]
     async fn connect_succeeds_with_valid_auth_server() {
-        let (addr, shutdown) = start_auth(MinimalAuthSvc).await;
+        let (addr, shutdown) = start_auth(MinimalAuthSvc);
         let _ = connect_retry(addr).await;
         let result = AuthClient::connect(format!("http://{addr}")).await;
         let _ = shutdown.send(());
@@ -479,7 +458,7 @@ mod tests {
 
     #[tokio::test]
     async fn connect_succeeds_with_valid_admin_server() {
-        let (addr, shutdown) = start_admin(MinimalAdminSvc).await;
+        let (addr, shutdown) = start_admin(MinimalAdminSvc);
         let _ = connect_retry(addr).await;
         let result = AdminClient::connect(format!("http://{addr}")).await;
         let _ = shutdown.send(());
@@ -488,7 +467,7 @@ mod tests {
 
     #[tokio::test]
     async fn connect_succeeds_with_valid_db_server() {
-        let (addr, shutdown) = start_db(MinimalDbSvc).await;
+        let (addr, shutdown) = start_db(MinimalDbSvc);
         let _ = connect_retry(addr).await;
         let result = DbClient::connect(format!("http://{addr}")).await;
         let _ = shutdown.send(());
@@ -572,7 +551,7 @@ mod tests {
 
     #[tokio::test]
     async fn custodian_wrappers_return_ok_with_working_server() {
-        let (addr, shutdown) = start_custodian(MinimalCustodianSvc).await;
+        let (addr, shutdown) = start_custodian(MinimalCustodianSvc);
         let ch = connect_retry(addr).await;
         let client = CustodianClient {
             client: Arc::new(Mutex::new(

@@ -1,4 +1,5 @@
 #[cfg(test)]
+#[allow(clippy::module_inception)]
 mod tests {
     use crate::{load_or_generate_jwt_secret, resolve_jwt_secret};
     use jsonwebtoken::{DecodingKey, EncodingKey, Header, Validation, decode, encode};
@@ -15,7 +16,7 @@ mod tests {
     fn test_jwt_flow() {
         let my_claims = Claims {
             sub: "test_user".to_owned(),
-            exp: 10000000000,
+            exp: 10_000_000_000,
             role: "admin".to_owned(),
         };
         let key = b"secret";
@@ -73,13 +74,13 @@ mod tests {
 
         // Extend with zeros to avoid EOF
         let mut full_bytes = bytes.clone();
-        full_bytes.extend(std::iter::repeat(0).take(2000));
+        full_bytes.extend(std::iter::repeat_n(0, 2000));
 
         let result: Result<EncryptedData, _> = serde_json::from_slice(&full_bytes);
 
         match result {
             Ok(_) => println!("Success!"),
-            Err(e) => println!("Error: {}", e),
+            Err(e) => println!("Error: {e}"),
         }
     }
 

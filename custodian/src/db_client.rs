@@ -1,10 +1,7 @@
 use anyhow::Result;
 use tonic::transport::Channel;
 
-pub mod db {
-    #![allow(clippy::all, clippy::pedantic)]
-    tonic::include_proto!("db");
-}
+pub use proto::db;
 
 #[derive(Clone)]
 pub struct DbClient {
@@ -26,6 +23,7 @@ impl DbClient {
 
     /// Create a client with a lazy channel (connects on first use).
     /// Useful for tests and situations where the endpoint may not be reachable immediately.
+    #[cfg(test)]
     pub(crate) fn new_lazy(endpoint: &'static str) -> Self {
         let channel = Channel::from_static(endpoint).connect_lazy();
         Self {

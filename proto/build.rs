@@ -9,8 +9,20 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .build_server(true)
         .build_client(true)
         .compile_protos(
-            &["proto/auth.proto", "../db/proto/db.proto"],
-            &["proto", "../db/proto"],
+            &[
+                "../admin/proto/admin.proto",
+                "../auth/proto/auth.proto",
+                "../chaos/proto/chaos.proto",
+                "../custodian/proto/custodian.proto",
+                "../db/proto/db.proto",
+            ],
+            &[
+                "../admin/proto",
+                "../auth/proto",
+                "../chaos/proto",
+                "../custodian/proto",
+                "../db/proto",
+            ],
         )?;
     Ok(())
 }

@@ -444,7 +444,7 @@ mod tests {
         }
     }
 
-    async fn start_test_server(addr: &str, svc: TestRaftSvc) -> tokio::task::JoinHandle<()> {
+    fn start_test_server(addr: &str, svc: TestRaftSvc) -> tokio::task::JoinHandle<()> {
         let socket_addr = addr.parse().expect("parse test address");
         let service = crate::server::db::raft_service_server::RaftServiceServer::new(svc);
 
@@ -539,7 +539,7 @@ mod tests {
     #[tokio::test]
     async fn test_network_vote_append_and_install_snapshot_success() {
         let svc = TestRaftSvc::new();
-        let server = start_test_server("127.0.0.1:50061", svc).await;
+        let server = start_test_server("127.0.0.1:50061", svc);
 
         tokio::time::sleep(Duration::from_millis(50)).await;
 
@@ -620,7 +620,7 @@ mod tests {
     async fn test_network_rpc_reports_missing_vote_errors() {
         let svc = TestRaftSvc::new();
         *svc.missing_vote.write().await = true;
-        let server = start_test_server("127.0.0.1:50062", svc).await;
+        let server = start_test_server("127.0.0.1:50062", svc);
 
         tokio::time::sleep(Duration::from_millis(50)).await;
 

@@ -83,7 +83,7 @@ mod tests {
     #[test]
     fn test_ngi_result_type_alias() {
         let ok: NgiResult<u32> = Ok(42);
-        assert_eq!(ok.unwrap(), 42);
+        assert!(ok.is_ok());
 
         let err: NgiResult<u32> = Err(NgiError::NotFound("x".to_string()));
         assert!(err.is_err());

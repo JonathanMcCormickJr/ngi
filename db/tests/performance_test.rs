@@ -27,6 +27,12 @@ pub struct PerformanceHarness {
     storage: Storage,
 }
 
+impl Default for PerformanceHarness {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl PerformanceHarness {
     pub fn new() -> Self {
         let storage = Storage::new_temp().unwrap();
@@ -184,14 +190,20 @@ impl PerformanceHarness {
 /// Memory and CPU usage tracking
 pub struct ResourceMonitor {
     start_time: Instant,
-    start_memory: usize,
+    _start_memory: usize,
+}
+
+impl Default for ResourceMonitor {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl ResourceMonitor {
     pub fn new() -> Self {
         Self {
             start_time: Instant::now(),
-            start_memory: 0, // Would need platform-specific code to measure
+            _start_memory: 0, // Would need platform-specific code to measure
         }
     }
 

@@ -1,4 +1,5 @@
 #[cfg(test)]
+#[allow(clippy::module_inception)]
 mod tests {
     use crate::{
         build_network_factory_and_peers, build_raft_node, initialize_cluster_if_leader,

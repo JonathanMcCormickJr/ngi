@@ -8,11 +8,7 @@ use crate::raft::DbRaft;
 use crate::storage::{LogEntry, Storage};
 use tonic::{Request, Response, Status};
 
-// Include generated protobuf code
-pub mod db {
-    #![allow(clippy::all, clippy::pedantic)]
-    tonic::include_proto!("db");
-}
+pub use proto::db;
 
 use db::database_server::Database;
 use db::{

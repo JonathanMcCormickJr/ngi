@@ -8,10 +8,7 @@ use std::sync::Arc;
 use tokio::sync::RwLock;
 use tonic::{Request, Response, Status};
 
-pub mod chaos {
-    #![allow(clippy::all, clippy::pedantic)]
-    tonic::include_proto!("chaos");
-}
+pub use proto::chaos;
 
 use chaos::chaos_service_server::ChaosService;
 use chaos::{ChaosAck, ChaosRequest, ListRequest, ScenarioCatalog, StopRequest};

@@ -5,10 +5,10 @@
 - [x] **Exclude or gate the E2E test from tarpaulin runs**
   `tests/src/e2e.rs::test_e2e_flow` builds 5 binaries via `cargo build` and spawns 5 services with port polling (up to 50s cumulative). This is the single biggest time sink. Options: (1) Add `#[ignore]` and run separately, (2) exclude `tests` crate from tarpaulin via `--exclude tests` or `tarpaulin.toml`, (3) gate behind a feature flag like `e2e`. Impact: saves minutes per run.
 
-- [ ] **Use lighter Argon2 params in test builds**
+- [x] **Use lighter Argon2 params in test builds**
   `shared/src/encryption.rs:275` uses OWASP-strength Argon2id params (19,456 KiB memory, 2 iterations) for every password derivation. Tests across `shared`, `auth`, and `admin` call this multiple times. Add a `#[cfg(test)]` path with minimal params (e.g., m=256, t=1, p=1) to make test-time crypto fast while keeping production params unchanged. Impact: significant CPU/memory savings across ~10+ tests.
 
-- [ ] **Consolidate protobuf compilation into a shared crate**
+- [x] **Consolidate protobuf compilation into a shared crate**
   7 `build.rs` files independently compile proto files. `db.proto` is compiled 6 times, `admin.proto` 4 times, `custodian.proto` 3 times. Create a `proto` library crate that compiles all protos once and re-exports the generated modules. All service crates depend on it instead of each running their own `build.rs`. Impact: eliminates redundant protoc invocations during compilation.
 
 ## Medium Impact

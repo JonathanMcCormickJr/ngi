@@ -1,7 +1,4 @@
-pub mod admin {
-    #![allow(clippy::all, clippy::pedantic)]
-    tonic::include_proto!("admin");
-}
+pub use proto::admin;
 
 use admin::MetricsSnapshot;
 use admin::admin_service_client::AdminServiceClient;

@@ -7,15 +7,7 @@ use tokio::sync::Mutex;
 use tonic::{Request, Response, Status};
 use uuid::Uuid;
 
-// Include generated protobuf code
-pub mod auth {
-    #![allow(clippy::all, clippy::pedantic)]
-    tonic::include_proto!("auth");
-}
-pub mod db {
-    #![allow(clippy::all, clippy::pedantic)]
-    tonic::include_proto!("db");
-}
+pub use proto::{auth, db};
 
 use auth::auth_service_server::AuthService;
 use auth::{
@@ -285,9 +277,11 @@ mod tests {
     use tonic::transport::Channel;
     use tonic::transport::Server;
 
+    type MockStore = Arc<RwLock<HashMap<(String, Vec<u8>), Vec<u8>>>>;
+
     #[derive(Clone, Default)]
     struct MockDb {
-        values: Arc<RwLock<HashMap<(String, Vec<u8>), Vec<u8>>>>,
+        values: MockStore,
     }
 
     #[tonic::async_trait]
@@ -373,7 +367,7 @@ mod tests {
         }
     }
 
-    async fn start_mock_db(mock_db: MockDb) -> (SocketAddr, oneshot::Sender<()>) {
+    fn start_mock_db(mock_db: MockDb) -> (SocketAddr, oneshot::Sender<()>) {
         let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("bind listener");
         let addr = listener.local_addr().expect("local addr");
         drop(listener);
@@ -526,7 +520,7 @@ mod tests {
         let mock_db = MockDb {
             values: Arc::new(RwLock::new(map)),
         };
-        let (addr, shutdown) = start_mock_db(mock_db).await;
+        let (addr, shutdown) = start_mock_db(mock_db);
 
         let db_client = connect_mock_db_with_retry(addr).await;
         let svc = AuthServiceImpl::new(
@@ -567,7 +561,7 @@ mod tests {
     async fn authenticate_returns_invalid_credentials_for_unknown_user() {
         // Empty DB → get_user_auth returns Ok(None) → "Invalid credentials"
         let keys = EncryptionService::generate_keypair().expect("keypair");
-        let (addr, shutdown) = start_mock_db(MockDb::default()).await;
+        let (addr, shutdown) = start_mock_db(MockDb::default());
         let db_client = connect_mock_db_with_retry(addr).await;
         let svc = AuthServiceImpl::new(
             Arc::new(Mutex::new(db_client)),
@@ -596,7 +590,7 @@ mod tests {
     async fn validate_session_returns_user_not_found_when_profile_missing() {
         // Valid JWT for a UUID that has no profile in the DB → "User not found"
         let keys = EncryptionService::generate_keypair().expect("keypair");
-        let (addr, shutdown) = start_mock_db(MockDb::default()).await;
+        let (addr, shutdown) = start_mock_db(MockDb::default());
         let db_client = connect_mock_db_with_retry(addr).await;
         let svc = AuthServiceImpl::new(
             Arc::new(Mutex::new(db_client)),
@@ -669,8 +663,7 @@ mod tests {
 
         let (addr, shutdown) = start_mock_db(MockDb {
             values: Arc::new(RwLock::new(map)),
-        })
-        .await;
+        });
         let db_client = connect_mock_db_with_retry(addr).await;
         let svc = AuthServiceImpl::new(
             Arc::new(Mutex::new(db_client)),
@@ -754,7 +747,7 @@ mod tests {
     async fn authenticate_propagates_db_error_from_get_user_auth() {
         // When the DB returns an error, authenticate must propagate it.
         let keys = EncryptionService::generate_keypair().expect("keypair");
-        let (addr, shutdown) = start_mock_db_impl::<ErrorDb>(ErrorDb).await;
+        let (addr, shutdown) = start_mock_db_impl::<ErrorDb>(ErrorDb);
         let db_client = connect_mock_db_with_retry(addr).await;
         let svc = AuthServiceImpl::new(
             Arc::new(Mutex::new(db_client)),
@@ -804,8 +797,7 @@ mod tests {
 
         let (addr, shutdown) = start_mock_db(MockDb {
             values: Arc::new(RwLock::new(map)),
-        })
-        .await;
+        });
         let db_client = connect_mock_db_with_retry(addr).await;
         let svc = AuthServiceImpl::new(
             Arc::new(Mutex::new(db_client)),
@@ -828,7 +820,7 @@ mod tests {
     }
 
     // Helpers for the ErrorDb variant (wraps the generic start_mock_db logic).
-    async fn start_mock_db_impl<S>(svc: S) -> (SocketAddr, oneshot::Sender<()>)
+    fn start_mock_db_impl<S>(svc: S) -> (SocketAddr, oneshot::Sender<()>)
     where
         S: db::database_server::Database + Send + Sync + Clone + 'static,
     {

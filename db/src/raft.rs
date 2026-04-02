@@ -908,7 +908,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_apply_to_state_machine_blank_and_normal() {
-        use openraft::{CommittedLeaderId, Entry, EntryPayload, LeaderId, LogId};
+        use openraft::{Entry, EntryPayload, LeaderId, LogId};
 
         let mut store = DbStore::new_temp().unwrap();
 
@@ -955,14 +955,14 @@ mod tests {
 
     #[tokio::test]
     async fn test_apply_to_state_machine_membership() {
-        use openraft::{CommittedLeaderId, Entry, EntryPayload, LeaderId, LogId, Membership};
+        use openraft::{Entry, EntryPayload, LeaderId, LogId, Membership};
         use std::collections::BTreeMap;
 
         let mut store = DbStore::new_temp().unwrap();
 
         let mut nodes = BTreeMap::new();
         nodes.insert(1u64, openraft::BasicNode::default());
-        let membership = Membership::new(vec![nodes.keys().cloned().collect()], nodes);
+        let membership = Membership::new(vec![nodes.keys().copied().collect()], nodes);
 
         let entry = Entry::<DbTypeConfig> {
             log_id: LogId {

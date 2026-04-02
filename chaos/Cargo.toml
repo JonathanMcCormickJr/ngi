@@ -13,7 +13,9 @@ tokio = { version = "1.48", features = ["full"] }
 # gRPC framework
 tonic = { version = "0.14", features = ["default"] }
 prost = "0.14"
-tonic-prost = "0.14"
+
+# Proto definitions
+proto = { path = "../proto" }
 
 # Utilities
 chrono = { version = "0.4", features = ["serde"] }
@@ -28,6 +30,3 @@ thiserror = "2.0"
 # Logging
 tracing = "0.1"
 
-[build-dependencies]
-protoc-bin-vendored = "3.2.0"
-tonic-prost-build = "0.14"

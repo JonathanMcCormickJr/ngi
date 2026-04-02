@@ -443,7 +443,7 @@ mod tests {
 
     // ===== Server startup helpers =====
 
-    async fn start_mock_auth(svc: MockAuthSvc) -> (std::net::SocketAddr, oneshot::Sender<()>) {
+    fn start_mock_auth(svc: MockAuthSvc) -> (std::net::SocketAddr, oneshot::Sender<()>) {
         let listener = TcpListener::bind("127.0.0.1:0").expect("bind listener");
         let addr = listener.local_addr().expect("local addr");
         drop(listener);
@@ -459,7 +459,7 @@ mod tests {
         (addr, tx)
     }
 
-    async fn start_mock_admin(svc: MockAdminSvc) -> (std::net::SocketAddr, oneshot::Sender<()>) {
+    fn start_mock_admin(svc: MockAdminSvc) -> (std::net::SocketAddr, oneshot::Sender<()>) {
         let listener = TcpListener::bind("127.0.0.1:0").expect("bind listener");
         let addr = listener.local_addr().expect("local addr");
         drop(listener);
@@ -477,9 +477,7 @@ mod tests {
         (addr, tx)
     }
 
-    async fn start_mock_custodian(
-        svc: MockCustodianSvc,
-    ) -> (std::net::SocketAddr, oneshot::Sender<()>) {
+    fn start_mock_custodian(svc: MockCustodianSvc) -> (std::net::SocketAddr, oneshot::Sender<()>) {
         let listener = TcpListener::bind("127.0.0.1:0").expect("bind listener");
         let addr = listener.local_addr().expect("local addr");
         drop(listener);
@@ -562,8 +560,7 @@ mod tests {
         let (addr, shutdown) = start_mock_auth(MockAuthSvc {
             error_code: None,
             auth_success: true,
-        })
-        .await;
+        });
         let ch = connect_retry(addr).await;
         let result = login(
             State(make_state_with_auth_ch(ch)),
@@ -583,8 +580,7 @@ mod tests {
         let (addr, shutdown) = start_mock_auth(MockAuthSvc {
             error_code: None,
             auth_success: false,
-        })
-        .await;
+        });
         let ch = connect_retry(addr).await;
         let result = login(
             State(make_state_with_auth_ch(ch)),
@@ -607,8 +603,7 @@ mod tests {
         let (addr, shutdown) = start_mock_auth(MockAuthSvc {
             error_code: Some(tonic::Code::Unauthenticated),
             auth_success: false,
-        })
-        .await;
+        });
         let ch = connect_retry(addr).await;
         let result = login(
             State(make_state_with_auth_ch(ch)),
@@ -631,8 +626,7 @@ mod tests {
         let (addr, shutdown) = start_mock_auth(MockAuthSvc {
             error_code: Some(tonic::Code::InvalidArgument),
             auth_success: false,
-        })
-        .await;
+        });
         let ch = connect_retry(addr).await;
         let result = login(
             State(make_state_with_auth_ch(ch)),
@@ -652,7 +646,7 @@ mod tests {
 
     #[tokio::test]
     async fn create_user_returns_created_on_backend_success() {
-        let (addr, shutdown) = start_mock_admin(MockAdminSvc).await;
+        let (addr, shutdown) = start_mock_admin(MockAdminSvc);
         let ch = connect_retry(addr).await;
         let result = create_user(
             State(make_state_with_admin_ch(ch)),
@@ -671,7 +665,7 @@ mod tests {
 
     #[tokio::test]
     async fn get_ticket_returns_ticket_on_backend_success() {
-        let (addr, shutdown) = start_mock_custodian(MockCustodianSvc).await;
+        let (addr, shutdown) = start_mock_custodian(MockCustodianSvc);
         let ch = connect_retry(addr).await;
         let result = get_ticket(State(make_state_with_custodian_ch(ch)), Path(7_u64)).await;
         let _ = shutdown.send(());
@@ -680,7 +674,7 @@ mod tests {
 
     #[tokio::test]
     async fn create_ticket_returns_created_on_backend_success() {
-        let (addr, shutdown) = start_mock_custodian(MockCustodianSvc).await;
+        let (addr, shutdown) = start_mock_custodian(MockCustodianSvc);
         let ch = connect_retry(addr).await;
         let result = create_ticket(
             State(make_state_with_custodian_ch(ch)),
@@ -700,7 +694,7 @@ mod tests {
 
     #[tokio::test]
     async fn update_ticket_returns_ticket_on_backend_success() {
-        let (addr, shutdown) = start_mock_custodian(MockCustodianSvc).await;
+        let (addr, shutdown) = start_mock_custodian(MockCustodianSvc);
         let ch = connect_retry(addr).await;
         let result = update_ticket(
             State(make_state_with_custodian_ch(ch)),
@@ -896,8 +890,7 @@ mod tests {
         let (addr, shutdown) = start_mock_auth(MockAuthSvc {
             error_code: Some(tonic::Code::Internal),
             auth_success: false,
-        })
-        .await;
+        });
         let ch = connect_retry(addr).await;
         let result = login(
             State(make_state_with_auth_ch(ch)),

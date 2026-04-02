@@ -265,13 +265,21 @@ impl EncryptionService {
 
     /// Derive a 32-byte key from password and salt using Argon2id.
     ///
-    /// Parameters follow OWASP minimums: m=19456 KiB, t=2 iterations, p=1 lane.
+    /// In release builds, parameters follow OWASP minimums: m=19456 KiB, t=2
+    /// iterations, p=1 lane. In debug/test builds, lighter parameters (m=256
+    /// KiB, t=1, p=1) are used to keep the test suite fast.
     ///
     /// # Errors
     /// Returns `EncryptionError::KeyDerivation` if Argon2 hashing fails.
     fn derive_key_from_password(password: &str, salt: &[u8]) -> Result<[u8; 32], EncryptionError> {
         use argon2::{Algorithm, Argon2, Params, Version};
 
+        // In debug/test builds, use fast params to keep test suite snappy.
+        // In release builds, use OWASP minimums: m=19456 KiB, t=2, p=1.
+        #[cfg(debug_assertions)]
+        let params = Params::new(256, 1, 1, Some(32))
+            .map_err(|e| EncryptionError::KeyDerivation(format!("Argon2 parameter error: {e}")))?;
+        #[cfg(not(debug_assertions))]
         let params = Params::new(19_456, 2, 1, Some(32))
             .map_err(|e| EncryptionError::KeyDerivation(format!("Argon2 parameter error: {e}")))?;
         let argon2 = Argon2::new(Algorithm::Argon2id, Version::V0x13, params);
@@ -633,6 +641,18 @@ mod tests {
     fn test_derive_key_returns_32_bytes() {
         let key = EncryptionService::derive_key_from_password("test", &[0u8; 32]).unwrap();
         assert_eq!(key.len(), 32);
+    }
+
+    #[test]
+    fn test_password_round_trip_with_cfg_conditional_argon2_params() {
+        // This test verifies that encrypt/decrypt round-trip works correctly
+        // regardless of which Argon2 params are active (debug vs release).
+        let data = b"cfg-conditional argon2 params test";
+        let password = "test-password-for-cfg";
+
+        let encrypted = EncryptionService::encrypt_with_password(data, password).unwrap();
+        let decrypted = EncryptionService::decrypt_with_password(&encrypted, password).unwrap();
+        assert_eq!(data.as_slice(), decrypted.as_slice());
     }
 
     #[test]

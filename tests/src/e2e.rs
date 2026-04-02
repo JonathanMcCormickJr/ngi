@@ -5,16 +5,7 @@ use std::process::{Child, Command};
 use std::time::Duration;
 use tokio::time::sleep;
 
-// Include generated protos
-pub mod admin {
-    tonic::include_proto!("admin");
-}
-pub mod auth {
-    tonic::include_proto!("auth");
-}
-pub mod custodian {
-    tonic::include_proto!("custodian");
-}
+use proto::admin;
 
 struct ServiceProcess {
     name: String,
@@ -42,7 +33,7 @@ async fn wait_for_port(port: u16) -> Result<()> {
 
 fn build_service_binary(bin: &str) -> Result<()> {
     let status = Command::new("cargo")
-        .args(&[
+        .args([
             "build",
             "--package",
             bin,

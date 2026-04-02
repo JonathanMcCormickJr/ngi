@@ -76,6 +76,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[allow(clippy::too_many_lines, clippy::items_after_statements)]
     async fn test_network_install_snapshot_multi_chunk() {
         use crate::server::custodian::InstallSnapshotRequest;
         use std::sync::Mutex;
@@ -178,20 +179,20 @@ mod tests {
         };
 
         // Send chunks
-        let res1 = client
+        let first_chunk_result = client
             .install_snapshot(
                 req1,
                 openraft::network::RPCOption::new(std::time::Duration::from_secs(1)),
             )
             .await;
-        assert!(res1.is_ok());
-        let res2 = client
+        assert!(first_chunk_result.is_ok());
+        let second_chunk_result = client
             .install_snapshot(
                 req2,
                 openraft::network::RPCOption::new(std::time::Duration::from_secs(1)),
             )
             .await;
-        assert!(res2.is_ok());
+        assert!(second_chunk_result.is_ok());
 
         // Verify server received concatenated bytes
         let guard = received.lock().unwrap();

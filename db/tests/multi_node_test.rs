@@ -5,7 +5,7 @@
 
 use std::collections::HashMap;
 use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use tokio::sync::RwLock;
 
@@ -16,7 +16,7 @@ use db::storage::Storage;
 /// Note: This is infrastructure for future multi-node testing
 pub struct MultiNodeTestHarness {
     nodes: HashMap<u64, TestNode>,
-    network_factory: Arc<RwLock<DbNetworkFactory>>,
+    _network_factory: Arc<RwLock<DbNetworkFactory>>,
 }
 
 pub struct TestNode {
@@ -52,7 +52,7 @@ impl MultiNodeTestHarness {
 
         Self {
             nodes,
-            network_factory,
+            _network_factory: network_factory,
         }
     }
 
@@ -160,8 +160,7 @@ mod tests {
         // Test healing (currently no-op)
         harness.heal_network().await;
 
-        // Test should pass as placeholders
-        assert!(true);
+        // Placeholder assertion — partition/heal are no-ops for now.
     }
 
     #[tokio::test]

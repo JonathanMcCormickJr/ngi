@@ -11,15 +11,7 @@ use tokio::sync::Mutex;
 use tonic::{Request, Response, Status};
 use uuid::Uuid;
 
-pub mod admin {
-    #![allow(clippy::all, clippy::pedantic)]
-    tonic::include_proto!("admin");
-}
-
-pub mod db {
-    #![allow(clippy::all, clippy::pedantic)]
-    tonic::include_proto!("db");
-}
+pub use proto::{admin, db};
 
 use admin::{
     CreateUserRequest, CreateUserResponse, DeleteUserRequest, DeleteUserResponse, GetUserRequest,
@@ -265,9 +257,11 @@ mod tests {
 
     // ── Mock DB for integration tests ─────────────────────────────────────────
 
+    type MockStore = Arc<RwLock<HashMap<(String, Vec<u8>), Vec<u8>>>>;
+
     #[derive(Clone, Default)]
     struct MockDb {
-        values: Arc<RwLock<HashMap<(String, Vec<u8>), Vec<u8>>>>,
+        values: MockStore,
     }
 
     #[tonic::async_trait]
@@ -355,7 +349,7 @@ mod tests {
         }
     }
 
-    async fn start_mock_db(mock_db: MockDb) -> (SocketAddr, oneshot::Sender<()>) {
+    fn start_mock_db(mock_db: MockDb) -> (SocketAddr, oneshot::Sender<()>) {
         let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("bind listener");
         let addr = listener.local_addr().expect("local addr");
         drop(listener);
@@ -555,7 +549,7 @@ mod tests {
     #[tokio::test]
     async fn create_user_succeeds_with_real_db() {
         let keys = EncryptionService::generate_keypair().expect("keypair");
-        let (addr, shutdown) = start_mock_db(MockDb::default()).await;
+        let (addr, shutdown) = start_mock_db(MockDb::default());
         let db_client = connect_retry(addr).await;
         let svc = AdminServiceImpl::new(Arc::new(Mutex::new(db_client)), keys.clone());
 
@@ -605,8 +599,7 @@ mod tests {
 
         let (addr, shutdown) = start_mock_db(MockDb {
             values: Arc::new(RwLock::new(map)),
-        })
-        .await;
+        });
         let db_client = connect_retry(addr).await;
         let svc = AdminServiceImpl::new(Arc::new(Mutex::new(db_client)), keys);
 
@@ -627,7 +620,7 @@ mod tests {
     #[tokio::test]
     async fn get_user_returns_not_found_for_missing_id() {
         let keys = EncryptionService::generate_keypair().expect("keypair");
-        let (addr, shutdown) = start_mock_db(MockDb::default()).await;
+        let (addr, shutdown) = start_mock_db(MockDb::default());
         let db_client = connect_retry(addr).await;
         let svc = AdminServiceImpl::new(Arc::new(Mutex::new(db_client)), keys);
 
