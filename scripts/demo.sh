@@ -2,14 +2,15 @@
 # scripts/demo.sh — Start the NGI MVP services in single-node mode.
 #
 # Usage:
-#   ./scripts/demo.sh          # build & run
+#   ./scripts/demo.sh               # build & run
 #   ./scripts/demo.sh --skip-build  # run without rebuilding
 #
-# Ports:
-#   DB        127.0.0.1:50051
-#   Custodian 127.0.0.1:8081
-#   Auth      127.0.0.1:8082
-#   LBRP      127.0.0.1:8080
+# Services started:
+#   DB        127.0.0.1:50051  (gRPC — data persistence, Raft)
+#   Custodian 127.0.0.1:8081   (gRPC — ticket lifecycle, locks, Raft)
+#   Auth      127.0.0.1:8082   (gRPC — authentication, JWT)
+#   Admin     127.0.0.1:8083   (gRPC — user management)
+#   LBRP      127.0.0.1:8080   (HTTP — REST gateway, static files)
 #
 # Press Ctrl-C to stop all services and clean up.
 
@@ -31,11 +32,24 @@ cleanup() {
 }
 trap cleanup EXIT INT TERM
 
+wait_for_port() {
+    local port=$1 name=$2
+    for _ in $(seq 1 50); do
+        if bash -c "echo >/dev/tcp/127.0.0.1/$port" 2>/dev/null; then
+            echo "  $name ready on port $port."
+            return 0
+        fi
+        sleep 0.2
+    done
+    echo "  ERROR: $name failed to start on port $port."
+    exit 1
+}
+
 # --- Build -------------------------------------------------------------------
 if [[ "${1:-}" != "--skip-build" ]]; then
     echo "Building MVP services..."
     cargo build --manifest-path "$ROOT_DIR/Cargo.toml" \
-        -p db -p custodian -p auth -p lbrp
+        -p db -p custodian -p auth -p admin -p lbrp
     echo "Build complete."
 
     # Build the web frontend (WASM) if trunk is installed
@@ -44,9 +58,10 @@ if [[ "${1:-}" != "--skip-build" ]]; then
         (cd "$ROOT_DIR/web" && trunk build --release)
         echo "Frontend build complete."
     else
-        echo "WARNING: 'trunk' is not installed — skipping web frontend build."
+        echo ""
+        echo "NOTE: 'trunk' is not installed — skipping web frontend build."
         echo "  Install with: cargo install trunk"
-        echo "  Then re-run this script to build the UI."
+        echo "  The REST API still works; only the browser UI is unavailable."
         # Create a minimal placeholder so LBRP has something to serve
         mkdir -p "$ROOT_DIR/web/dist"
         if [[ ! -f "$ROOT_DIR/web/dist/index.html" ]]; then
@@ -60,11 +75,10 @@ if [[ "${1:-}" != "--skip-build" ]]; then
 <p>Install <code>trunk</code> and re-run the demo script:</p>
 <pre>cargo install trunk
 ./scripts/demo.sh</pre>
-<p>REST API is available at <code>/api/</code>.</p>
+<p>The REST API is available — see the terminal output for example curl commands.</p>
 </body>
 </html>
 PLACEHOLDER
-            echo "  Created placeholder at web/dist/index.html."
         fi
     fi
 else
@@ -78,86 +92,102 @@ JWT_SECRET="demo-jwt-secret-$(date +%s)"
 KEYS_DIR="$TEMP_DIR/keys"
 mkdir -p "$KEYS_DIR"
 
+echo ""
+echo "Starting services..."
+echo ""
+
 # --- DB Service (single-node Raft) -------------------------------------------
-echo "Starting DB service on 127.0.0.1:50051..."
 NODE_ID=1 \
 LISTEN_ADDR="127.0.0.1:50051" \
 STORAGE_PATH="$TEMP_DIR/db" \
 RAFT_PEERS="1:127.0.0.1:50051" \
-RUST_LOG=info \
+RUST_LOG=warn \
     "$TARGET_DIR/db" &
 PIDS+=($!)
-
-# Wait for DB
-for i in $(seq 1 30); do
-    if bash -c "echo >/dev/tcp/127.0.0.1/50051" 2>/dev/null; then break; fi
-    sleep 0.2
-done
-echo "  DB ready."
+wait_for_port 50051 "DB"
 
 # --- Custodian Service (single-node Raft) ------------------------------------
-echo "Starting Custodian service on 127.0.0.1:8081..."
 NODE_ID=1 \
 LISTEN_ADDR="127.0.0.1:8081" \
 STORAGE_PATH="$TEMP_DIR/custodian" \
 RAFT_PEERS="1:127.0.0.1:8081" \
 DB_LEADER_ADDR="http://127.0.0.1:50051" \
-RUST_LOG=info \
+RUST_LOG=warn \
     "$TARGET_DIR/custodian" &
 PIDS+=($!)
-
-for i in $(seq 1 30); do
-    if bash -c "echo >/dev/tcp/127.0.0.1/8081" 2>/dev/null; then break; fi
-    sleep 0.2
-done
-echo "  Custodian ready."
+wait_for_port 8081 "Custodian"
 
 # --- Auth Service -------------------------------------------------------------
-echo "Starting Auth service on 127.0.0.1:8082..."
 LISTEN_ADDR="127.0.0.1:8082" \
 DB_ADDR="http://127.0.0.1:50051" \
 STORAGE_PATH="$KEYS_DIR" \
 JWT_SECRET="$JWT_SECRET" \
-RUST_LOG=info \
+RUST_LOG=warn \
     "$TARGET_DIR/auth" &
 PIDS+=($!)
+wait_for_port 8082 "Auth"
 
-for i in $(seq 1 30); do
-    if bash -c "echo >/dev/tcp/127.0.0.1/8082" 2>/dev/null; then break; fi
-    sleep 0.2
-done
-echo "  Auth ready."
+# --- Admin Service ------------------------------------------------------------
+LISTEN_ADDR="127.0.0.1:8083" \
+DB_ADDR="http://127.0.0.1:50051" \
+STORAGE_PATH="$KEYS_DIR" \
+RUST_LOG=warn \
+    "$TARGET_DIR/admin" &
+PIDS+=($!)
+wait_for_port 8083 "Admin"
 
 # --- LBRP (REST gateway) -----------------------------------------------------
-echo "Starting LBRP on 127.0.0.1:8080..."
 LISTEN_ADDR="127.0.0.1:8080" \
 AUTH_ADDR="http://127.0.0.1:8082" \
 ADMIN_ADDR="http://127.0.0.1:8083" \
 CUSTODIAN_ADDR="http://127.0.0.1:8081" \
 JWT_SECRET="$JWT_SECRET" \
-RUST_LOG=info \
+RUST_LOG=warn \
     "$TARGET_DIR/lbrp" &
 PIDS+=($!)
-
-for i in $(seq 1 30); do
-    if bash -c "echo >/dev/tcp/127.0.0.1/8080" 2>/dev/null; then break; fi
-    sleep 0.2
-done
-echo "  LBRP ready."
+wait_for_port 8080 "LBRP"
 
 # --- Summary ------------------------------------------------------------------
-echo ""
-echo "=== NGI MVP Demo Running ==="
-echo ""
-echo "  REST API:   http://127.0.0.1:8080"
-echo "  DB gRPC:    127.0.0.1:50051"
-echo "  Custodian:  127.0.0.1:8081"
-echo "  Auth:       127.0.0.1:8082"
-echo "  JWT Secret: $JWT_SECRET"
-echo "  Temp dir:   $TEMP_DIR"
-echo ""
-echo "Press Ctrl-C to stop."
-echo ""
+cat <<EOF
+
+============================================================
+  NGI MVP Demo Running
+============================================================
+
+  Web UI:     http://127.0.0.1:8080
+  REST API:   http://127.0.0.1:8080/api/
+  Temp data:  $TEMP_DIR
+
+------------------------------------------------------------
+  Try it out — paste these commands in another terminal:
+------------------------------------------------------------
+
+  # 1. Create a user
+  curl -s -X POST http://127.0.0.1:8080/api/admin/users \\
+    -H 'Content-Type: application/json' \\
+    -d '{"username":"admin","password":"password123","email":"admin@ngi.local","display_name":"Admin User","role":0}'
+
+  # 2. Log in (saves token to \$TOKEN)
+  TOKEN=\$(curl -s -X POST http://127.0.0.1:8080/auth/login \\
+    -H 'Content-Type: application/json' \\
+    -d '{"username":"admin","password":"password123"}' | grep -o '"token":"[^"]*"' | cut -d'"' -f4)
+  echo "Token: \$TOKEN"
+
+  # 3. Create a ticket
+  curl -s -X POST http://127.0.0.1:8080/api/tickets \\
+    -H 'Content-Type: application/json' \\
+    -H "Authorization: Bearer \$TOKEN" \\
+    -d '{"title":"System Down","project":"Internal","account_uuid":"00000000-0000-0000-0000-000000000001","symptom":1,"priority":2}'
+
+  # 4. Get a ticket (replace TICKET_ID)
+  curl -s http://127.0.0.1:8080/api/tickets/TICKET_ID \\
+    -H "Authorization: Bearer \$TOKEN"
+
+============================================================
+
+Press Ctrl-C to stop all services.
+
+EOF
 
 # Keep running until interrupted
 wait

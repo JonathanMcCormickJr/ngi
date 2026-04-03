@@ -215,8 +215,11 @@ async fn update_ticket(
 pub fn app(state: AppState) -> Router {
     let auth_routes = Router::new().route("/login", post(login));
 
+    // User creation is outside the auth middleware so the first admin user
+    // can be bootstrapped before any JWT exists.
+    let admin_routes = Router::new().route("/admin/users", post(create_user));
+
     let api_routes = Router::new()
-        .route("/admin/users", post(create_user))
         .route("/tickets", post(create_ticket))
         .route("/tickets/{id}", get(get_ticket).put(update_ticket))
         .layer(middleware::from_fn_with_state(
@@ -226,6 +229,7 @@ pub fn app(state: AppState) -> Router {
 
     Router::new()
         .nest("/auth", auth_routes)
+        .nest("/api", admin_routes)
         .nest("/api", api_routes)
         .with_state(state)
 }
