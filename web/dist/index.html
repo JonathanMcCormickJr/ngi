@@ -1,12 +1,24 @@
 <!DOCTYPE html>
 <html>
-<head><meta charset="utf-8"><title>NGI</title></head>
-<body>
-<h1>NGI Ticketing System</h1>
-<p>The web frontend has not been built yet.</p>
-<p>Install <code>trunk</code> and re-run the demo script:</p>
-<pre>cargo install trunk
-./scripts/demo.sh</pre>
-<p>The REST API is available — see the terminal output for example curl commands.</p>
-</body>
+  <head>
+    <meta charset="utf-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1"/>
+    <title>NGI Ticketing</title>
+    <link rel="stylesheet" href="style.css"/>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="modulepreload" href="/web-8d2dca33d1e6931b.js" crossorigin="anonymous" integrity="sha384-debyasuPeCILyRce1HFPgt18grFcm8zLmSKK37BY2vVk19b0u574CKNZjOp1g9ph"><link rel="preload" href="/web-8d2dca33d1e6931b_bg.wasm" crossorigin="anonymous" integrity="sha384-cu7ffsKjHSz7MMvLLwdZF1yQUItjyM4Sni4gUUkLeUfwj48qCxbWzvIQtg9h9MRK" as="fetch" type="application/wasm"></head>
+  <body>
+<script type="module">
+import init, * as bindings from '/web-8d2dca33d1e6931b.js';
+const wasm = await init({ module_or_path: '/web-8d2dca33d1e6931b_bg.wasm' });
+
+
+window.wasmBindings = bindings;
+
+
+dispatchEvent(new CustomEvent("TrunkApplicationStarted", {detail: {wasm}}));
+
+</script></body>
 </html>

@@ -74,10 +74,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         auth_state: Arc::new(AuthState { jwt_secret }),
     };
 
+    let web_dist =
+        std::env::var("WEB_DIST_DIR").unwrap_or_else(|_| "../web/dist".to_string());
     let app = routes::app(app_state).fallback_service(
-        tower_http::services::ServeDir::new("../web/dist").fallback(
-            tower_http::services::ServeFile::new("../web/dist/index.html"),
-        ),
+        tower_http::services::ServeDir::new(&web_dist)
+            .fallback(tower_http::services::ServeFile::new(format!(
+                "{web_dist}/index.html"
+            ))),
     );
 
     let listener = tokio::net::TcpListener::bind(addr).await?;

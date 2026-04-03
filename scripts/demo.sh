@@ -142,6 +142,7 @@ AUTH_ADDR="http://127.0.0.1:8082" \
 ADMIN_ADDR="http://127.0.0.1:8083" \
 CUSTODIAN_ADDR="http://127.0.0.1:8081" \
 JWT_SECRET="$JWT_SECRET" \
+WEB_DIST_DIR="$ROOT_DIR/web/dist" \
 RUST_LOG=warn \
     "$TARGET_DIR/lbrp" &
 PIDS+=($!)
