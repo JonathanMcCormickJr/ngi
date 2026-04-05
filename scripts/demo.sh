@@ -137,7 +137,7 @@ PIDS+=($!)
 wait_for_port 8083 "Admin"
 
 # --- LBRP (REST gateway) -----------------------------------------------------
-LISTEN_ADDR="0.0.0.0:8080" \
+LISTEN_ADDR="[::]:8080" \
 AUTH_ADDR="http://127.0.0.1:8082" \
 ADMIN_ADDR="http://127.0.0.1:8083" \
 CUSTODIAN_ADDR="http://127.0.0.1:8081" \
