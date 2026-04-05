@@ -137,7 +137,7 @@ PIDS+=($!)
 wait_for_port 8083 "Admin"
 
 # --- LBRP (REST gateway) -----------------------------------------------------
-LISTEN_ADDR="127.0.0.1:8080" \
+LISTEN_ADDR="0.0.0.0:8080" \
 AUTH_ADDR="http://127.0.0.1:8082" \
 ADMIN_ADDR="http://127.0.0.1:8083" \
 CUSTODIAN_ADDR="http://127.0.0.1:8081" \
@@ -148,6 +148,10 @@ RUST_LOG=warn \
 PIDS+=($!)
 wait_for_port 8080 "LBRP"
 
+# Detect the primary non-loopback IP for the summary output
+LAN_IP=$(hostname -I 2>/dev/null | awk '{print $1}')
+LAN_IP=${LAN_IP:-127.0.0.1}
+
 # --- Summary ------------------------------------------------------------------
 cat <<EOF
 
@@ -155,7 +159,8 @@ cat <<EOF
   NGI MVP Demo Running
 ============================================================
 
-  Web UI:     http://127.0.0.1:8080
+  Web UI:     http://127.0.0.1:8080  (local)
+              http://$LAN_IP:8080  (network)
   REST API:   http://127.0.0.1:8080/api/
   Temp data:  $TEMP_DIR
 
