@@ -3,7 +3,7 @@
 **serde:** https://docs.rs/serde/  
 **bincode:** https://docs.rs/bincode/  
 
-## Versions in NGI
+## Versions in InfoVulcan
 ```toml
 serde = { version = "1.0", features = ["derive"] }
 bincode = "2"
@@ -11,7 +11,7 @@ bincode = "2"
 
 ## Overview
 
-NGI uses `serde` for serialization/deserialization and `bincode` for efficient binary encoding:
+InfoVulcan uses `serde` for serialization/deserialization and `bincode` for efficient binary encoding:
 - **serde:** Serialization framework with derive macros
 - **bincode:** Compact binary format for Sled storage and gRPC payloads
 
@@ -131,7 +131,7 @@ let config = bincode::config::standard();
 let bytes = bincode::encode_to_vec(&ticket, config)?;
 ```
 
-## Common Patterns in NGI
+## Common Patterns in InfoVulcan
 
 ### Sled Storage
 

@@ -20,7 +20,7 @@ version = "0.1.0-mvp.1"
 authors = ["Jonathan A. McCormick, Jr. <mccormick9[at]pm[dot]me>"]
 edition = "2024"
 license = "Proprietary"
-repository = "https://github.com/JonathanMcCormickJr/ngi"
+repository = "https://github.com/JonathanMcCormickJr/infovulcan"
 
 [workspace.metadata.deployment_stages]
 # Core operational path used by the MVP topology.

@@ -1,4 +1,4 @@
-//! Ticket types and enums for the NGI system.
+//! Ticket types and enums for the InfoVulcan system.
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -15,20 +15,20 @@ impl MacAddress {
     /// # Errors
     ///
     /// Returns an error if the MAC address format is invalid
-    pub fn new(mac: &str) -> Result<Self, crate::error::NgiError> {
+    pub fn new(mac: &str) -> Result<Self, crate::error::InfoVulcanError> {
         // Validate RFC-compliant MAC address format (XX:XX:XX:XX:XX:XX or XX-XX-XX-XX-XX-XX)
         let normalized = mac.replace('-', ":");
         let parts: Vec<&str> = normalized.split(':').collect();
 
         if parts.len() != 6 {
-            return Err(crate::error::NgiError::ValidationError(format!(
+            return Err(crate::error::InfoVulcanError::ValidationError(format!(
                 "Invalid MAC address format: {mac}"
             )));
         }
 
         for part in parts {
             if part.len() != 2 || !part.chars().all(|c| c.is_ascii_hexdigit()) {
-                return Err(crate::error::NgiError::ValidationError(format!(
+                return Err(crate::error::InfoVulcanError::ValidationError(format!(
                     "Invalid MAC address format: {mac}"
                 )));
             }
@@ -528,17 +528,17 @@ impl Ticket {
     /// # Errors
     ///
     /// Returns an error if the ticket state is inconsistent (e.g., closed without resolution)
-    pub fn validate(&self) -> Result<(), crate::error::NgiError> {
+    pub fn validate(&self) -> Result<(), crate::error::InfoVulcanError> {
         // Check status-specific requirements
         if self.status.requires_resolution() && self.resolution.is_none() {
-            return Err(crate::error::NgiError::ValidationError(format!(
+            return Err(crate::error::InfoVulcanError::ValidationError(format!(
                 "Status {:?} requires a resolution",
                 self.status
             )));
         }
 
         if self.status.requires_next_action() && matches!(self.next_action, NextAction::None) {
-            return Err(crate::error::NgiError::ValidationError(format!(
+            return Err(crate::error::InfoVulcanError::ValidationError(format!(
                 "Status {:?} requires a next action",
                 self.status
             )));

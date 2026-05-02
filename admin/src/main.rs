@@ -30,7 +30,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let addr: SocketAddr = parse_listen_addr(std::env::var("LISTEN_ADDR").ok())?;
     let db_addr = std::env::var("DB_ADDR").unwrap_or_else(|_| "http://db-leader:8080".to_string());
     let storage_path =
-        std::env::var("STORAGE_PATH").unwrap_or_else(|_| "/tmp/ngi-admin".to_string());
+        std::env::var("STORAGE_PATH").unwrap_or_else(|_| "/tmp/infovulcan-admin".to_string());
 
     info!("Admin Service starting on {}", addr);
 

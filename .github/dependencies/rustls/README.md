@@ -8,9 +8,9 @@
 
 ## Overview
 
-rustls provides NGI's Transport Layer Security (Layer 1) encryption for all inter-service communication via mTLS. It enables secure, authenticated channels between microservices without legacy SSL/TLS vulnerabilities.
+rustls provides InfoVulcan's Transport Layer Security (Layer 1) encryption for all inter-service communication via mTLS. It enables secure, authenticated channels between microservices without legacy SSL/TLS vulnerabilities.
 
-## Architecture in NGI
+## Architecture in InfoVulcan
 
 ### mTLS Chain for Services
 ```
@@ -26,7 +26,7 @@ Client Service                          Server Service
     (Both parties verified)
 ```
 
-### NGI Service Ports (All HTTPS)
+### InfoVulcan Service Ports (All HTTPS)
 - **DB:** `https://db:8080` (gRPC)
 - **Custodian:** `https://custodian:8081` (gRPC)
 - **Auth:** `https://auth:8082` (gRPC)
@@ -140,7 +140,7 @@ let config = ClientConfig::builder()
 
 let conn = rustls::client::ClientConnection::new(
     Arc::new(config),
-    ServerName::try_from("db.ngi.local")?,
+    ServerName::try_from("db.infovulcan.local")?,
 )?;
 ```
 
@@ -172,7 +172,7 @@ let ca = Certificate::from_pem(fs::read("ca.pem")?);
 
 let tls = ClientTlsConfig::new()
     .ca_certificate(ca)
-    .domain_name("db.ngi.local");
+    .domain_name("db.infovulcan.local");
 
 let channel = Channel::from_static("https://db:8080")
     .tls_config(tls)?
@@ -213,10 +213,10 @@ openssl x509 -req -days 365 -in client.csr \
     -out client_cert.pem
 ```
 
-## NGI Certificate Hierarchy
+## InfoVulcan Certificate Hierarchy
 
 ```
-NGI Root CA (ca_cert.pem)
+InfoVulcan Root CA (ca_cert.pem)
     ├─ DB Service (server_cert.pem, server_key.pem)
     ├─ Custodian Service (server_cert.pem, server_key.pem)
     ├─ Auth Service (server_cert.pem, server_key.pem)
@@ -267,7 +267,7 @@ impl rustls::client::danger::ServerCertVerifier for PinningVerifier {
 }
 ```
 
-## NGI Deployment
+## InfoVulcan Deployment
 
 ### Certificate Rotation
 ```rust
@@ -331,7 +331,7 @@ async fn test_mTLS_connection() {
   - [client](https://docs.rs/rustls/latest/rustls/client/) - Client configuration
   - [pki_types](https://docs.rs/rustls/latest/rustls/pki_types/) - Certificate types
 
-- **NGI Integration:**
+- **InfoVulcan Integration:**
   - All gRPC services use mTLS via Tonic
   - LBRP handles certificate rotation and client routing
 

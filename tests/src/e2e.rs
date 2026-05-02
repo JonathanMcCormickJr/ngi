@@ -164,7 +164,7 @@ async fn test_e2e_flow() -> Result<()> {
     let create_user_req = admin::CreateUserRequest {
         username: "admin".to_string(),
         password: "password123".to_string(),
-        email: "admin@ngi.local".to_string(),
+        email: "admin@infovulcan.local".to_string(),
         display_name: "Admin User".to_string(),
         role: 0, // Admin
     };

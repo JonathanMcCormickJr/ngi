@@ -1,4 +1,4 @@
-# cargo-deny configuration for NGI supply chain security
+# cargo-deny configuration for InfoVulcan supply chain security
 # https://embarkstudios.github.io/cargo-deny/
 
 [licenses]

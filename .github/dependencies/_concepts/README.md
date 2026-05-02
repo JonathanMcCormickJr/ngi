@@ -1,6 +1,6 @@
-# NGI Dependency Documentation - Concepts Index
+# InfoVulcan Dependency Documentation - Concepts Index
 
-Cross-cutting concerns shared across multiple dependencies in NGI:
+Cross-cutting concerns shared across multiple dependencies in InfoVulcan:
 
 ## Available Guides
 

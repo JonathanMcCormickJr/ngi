@@ -56,7 +56,7 @@ async fn main() -> Result<()> {
         .unwrap_or_else(|_| "[::1]:8082".to_string())
         .parse()?;
     let db_addr = env::var("DB_ADDR").unwrap_or_else(|_| "http://[::1]:8080".to_string());
-    let storage_path = env::var("STORAGE_PATH").unwrap_or_else(|_| "/tmp/ngi-auth".to_string());
+    let storage_path = env::var("STORAGE_PATH").unwrap_or_else(|_| "/tmp/infovulcan-auth".to_string());
 
     // Ensure storage path exists
     fs::create_dir_all(&storage_path)?;

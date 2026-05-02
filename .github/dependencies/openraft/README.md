@@ -1,4 +1,4 @@
-# OpenRaft - Distributed Consensus for NGI
+# OpenRaft - Distributed Consensus for InfoVulcan
 
 > A Rust implementation of Raft consensus algorithm for building fault-tolerant distributed systems.
 
@@ -8,9 +8,9 @@
 
 ## Overview
 
-OpenRaft provides distributed consensus for NGI's critical services (DB and Custodian). It ensures strong consistency across replicated instances, tolerates machine failures, and provides automatic leader election.
+OpenRaft provides distributed consensus for InfoVulcan's critical services (DB and Custodian). It ensures strong consistency across replicated instances, tolerates machine failures, and provides automatic leader election.
 
-## NGI Consensus Architecture
+## InfoVulcan Consensus Architecture
 
 ### Raft Topology
 ```
@@ -52,7 +52,7 @@ Election: Automatic on leader failure (<150ms)
   - Testing considerations
   - Official API documentation
 
-## NGI Consensus Architecture
+## InfoVulcan Consensus Architecture
 
 ### Raft Topology
 ```
@@ -243,7 +243,7 @@ if now_leader {
 Total time: ~200-500ms (bounded by election_timeout_max + jitter)
 ```
 
-## NGI Implementation Pattern
+## InfoVulcan Implementation Pattern
 
 ### gRPC Service Wrapper
 ```rust
@@ -321,14 +321,14 @@ pub async fn write_ticket(ticket: Ticket) -> Result<()> {
 3. **Liveness** - System makes progress if quorum available
 4. **Safety** - No data loss or corruption
 
-## Configuration for NGI
+## Configuration for InfoVulcan
 
 ```rust
 use openraft::Config;
 
-pub struct NgiBuildConfig;
+pub struct InfoVulcanBuildConfig;
 
-impl openraft::RaftTypeConfig for NgiBuildConfig {
+impl openraft::RaftTypeConfig for InfoVulcanBuildConfig {
     type D = LogEntry;  // Your log entry type
     type R = CommandResponse;  // Your response type
     type NodeId = NodeId;
@@ -434,7 +434,7 @@ pub async fn recover() -> Result<StateMachine> {
   - [TypeConfig](https://docs.rs/openraft/latest/openraft/type_config/) - Configuration trait
   - [Storage traits](https://docs.rs/openraft/latest/openraft/storage/) - Persistence layer
 
-- **NGI Services:**
+- **InfoVulcan Services:**
   - [db/src/raft.rs](../../../db/src/raft.rs) - DB service Raft implementation
   - [custodian/src/](../../../custodian/src/) - Custodian Raft service
 

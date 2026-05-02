@@ -4,15 +4,15 @@
 **Documentation:** https://docs.rs/sled/  
 **Crates.io:** https://crates.io/crates/sled
 
-## Version in NGI
+## Version in InfoVulcan
 ```toml
 sled = "0.34"
 ```
 
 ## Overview
-Sled is an embedded key-value database written in Rust with ACID transactions, lock-free reads, and high concurrent write throughput. It's the primary persistent storage backend for NGI services.
+Sled is an embedded key-value database written in Rust with ACID transactions, lock-free reads, and high concurrent write throughput. It's the primary persistent storage backend for InfoVulcan services.
 
-## Key Features Used in NGI
+## Key Features Used in InfoVulcan
 
 ### ACID Transactions
 ```rust
@@ -48,9 +48,9 @@ for result in db.scan_prefix(b"prefix:") {
 ### Atomicity
 Operations are fully ACID compliant - either all succeed or all fail.
 
-## NGI Storage Schema
+## InfoVulcan Storage Schema
 
-NGI uses prefixed keys to simulate table structures:
+InfoVulcan uses prefixed keys to simulate table structures:
 
 ```
 // Tickets

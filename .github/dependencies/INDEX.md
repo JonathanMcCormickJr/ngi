@@ -1,4 +1,4 @@
-# NGI Dependencies Documentation Index
+# InfoVulcan Dependencies Documentation Index
 
 > Complete index of all dependency documentation organized by folder structure.
 
@@ -86,7 +86,7 @@ TOTAL:                       5,500+ lines
 - **Source:** All documentation sourced from official docs.rs
 - **Accuracy:** Verified against latest versions (December 2025)
 - **Completeness:** Every major API covered with examples
-- **NGI Integration:** Real usage patterns from codebase
+- **InfoVulcan Integration:** Real usage patterns from codebase
 - **Organization:** Folder-based structure for easy navigation
 
 ## 🚀 Navigation Guide
@@ -96,7 +96,7 @@ TOTAL:                       5,500+ lines
 2. **Choose dependency:** Browse folder structure above
 3. **Read overview:** Each dependency has README.md with key concepts
 4. **Dive deep:** Follow links to detailed section files
-5. **See examples:** Check NGI-specific patterns and usage
+5. **See examples:** Check InfoVulcan-specific patterns and usage
 
 ### For Specific Tasks
 
@@ -161,7 +161,7 @@ TOTAL:                       5,500+ lines
 - ✅ **Official Sources:** All content from docs.rs latest versions
 - ✅ **Version Accuracy:** Verified against current releases
 - ✅ **Code Examples:** Tested and working
-- ✅ **NGI Patterns:** Real usage from codebase
+- ✅ **InfoVulcan Patterns:** Real usage from codebase
 - ✅ **Cross-References:** Links between related dependencies
 - ✅ **Complete Coverage:** All major APIs documented
 
@@ -184,7 +184,7 @@ TOTAL:                       5,500+ lines
 - [rustls](https://docs.rs/rustls/latest/rustls/) - TLS library
 - [pqc_kyber](https://docs.rs/pqc_kyber/latest/pqc_kyber/) - Post-quantum crypto
 
-### NGI Architecture
+### InfoVulcan Architecture
 - [ARCHITECTURE.md](../../ARCHITECTURE.md) - System design
 - [README.md](../../README.md) - Project overview
 - [Cargo.toml](../../Cargo.toml) - Dependency versions
@@ -231,7 +231,7 @@ TOTAL:                       5,500+ lines
 - **RUST_EXAMPLES_ADDED.md** - Comprehensive guide with:
   - Detailed example descriptions
   - Build instructions for each pattern
-  - NGI service mapping
+  - InfoVulcan service mapping
   - Deployment workflows
   - Library requirements
 
@@ -246,11 +246,11 @@ TOTAL:                       5,500+ lines
 ### For Status
 - **RUST_EXAMPLES_FINAL_STATUS.md** - Complete status summary with:
   - What was added
-  - NGI integration roadmap
+  - InfoVulcan integration roadmap
   - Production readiness checklist
   - Quality assurance verification
 
-## 🎯 NGI Service Deployment Recommendations
+## 🎯 InfoVulcan Service Deployment Recommendations
 
 ### By Service
 
@@ -272,7 +272,7 @@ TOTAL:                       5,500+ lines
 **Building Rust Apps**
 → [ops/README.md#rust-examples-from-ops-project](ops/README.md#rust-examples-from-ops-project)
 
-**NGI Service Examples**
+**InfoVulcan Service Examples**
 → [ops/README.md#02-http-hello-world-http-server](ops/README.md)
 
 **Database Integration**
@@ -294,7 +294,7 @@ TOTAL:                       5,500+ lines
 
 ### ops/README.md (612 lines)
 - **Purpose:** Comprehensive OPS unikernel tool documentation with Rust examples
-- **Audience:** Developers deploying NGI services to unikernels
+- **Audience:** Developers deploying InfoVulcan services to unikernels
 - **Key Sections:** 13 major sections including 4 Rust examples
 - **Updates:** +248 lines from Rust examples (was 364 lines)
 
@@ -305,8 +305,8 @@ TOTAL:                       5,500+ lines
 - **Coverage:** 100+ supported syscalls, data structures, threat model
 
 ### RUST_EXAMPLES_ADDED.md (257 lines)
-- **Purpose:** Deep dive into each Rust example with NGI patterns
-- **Audience:** Implementors building NGI services
+- **Purpose:** Deep dive into each Rust example with InfoVulcan patterns
+- **Audience:** Implementors building InfoVulcan services
 - **Coverage:** Build approaches, deployment patterns, library management
 - **Guidance:** Service-by-service recommendations
 
@@ -327,7 +327,7 @@ TOTAL:                       5,500+ lines
 - ✅ All 4 official Rust examples documented
 - ✅ Build instructions for Linux and macOS
 - ✅ Cross-compilation guidance (MUSL, dynamic)
-- ✅ NGI service-specific integration patterns
+- ✅ InfoVulcan service-specific integration patterns
 - ✅ Library requirements documented
 - ✅ Performance metrics provided
 - ✅ Cloud deployment workflows included
@@ -360,7 +360,7 @@ TOTAL:                       5,500+ lines
 ### Added in This Update
 - 🆕 248 lines of Rust deployment examples
 - 🆕 4 official OPS repository examples documented
-- 🆕 NGI service-specific integration patterns
+- 🆕 InfoVulcan service-specific integration patterns
 - 🆕 Build instructions for cross-compilation
 - 🆕 Library management guidance
 - 🆕 3 comprehensive implementation guides
@@ -386,7 +386,7 @@ https://docs.ops.city/ops/
 **Nanos Official Documentation**
 https://nanos.org/thebook
 
-**NGI Architecture**
+**InfoVulcan Architecture**
 [ARCHITECTURE.md](../../ARCHITECTURE.md)
 
 ---
@@ -396,4 +396,4 @@ https://nanos.org/thebook
 **Total Dependencies Documented:** 13
 **Total Documentation:** 5,500+ lines
 **Rust Examples:** 4 (all official OPS examples)
-**NGI Services Covered:** All 5 main services with recommendations
+**InfoVulcan Services Covered:** All 5 main services with recommendations

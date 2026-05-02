@@ -1,4 +1,4 @@
-# Tokio - Async Runtime for NGI
+# Tokio - Async Runtime for InfoVulcan
 
 > An event-driven, non-blocking I/O platform for writing asynchronous applications in Rust.
 
@@ -8,7 +8,7 @@
 
 ## Overview
 
-Tokio is the core async runtime for NGI, providing all the essential infrastructure for concurrent task execution, I/O operations, and timing utilities.
+Tokio is the core async runtime for InfoVulcan, providing all the essential infrastructure for concurrent task execution, I/O operations, and timing utilities.
 
 ## Documentation Index
 
@@ -18,15 +18,15 @@ Tokio is the core async runtime for NGI, providing all the essential infrastruct
   - Synchronization primitives (RwLock, Mutex, channels)
   - Channels for inter-task communication
   - Time utilities (sleep, timeout, interval)
-  - NGI integration patterns
+  - InfoVulcan integration patterns
   - Best practices and common issues
   - Official API documentation
 
-## Core Components for NGI
+## Core Components for InfoVulcan
 
 ### Task Management (`tokio::task`)
 - **Purpose:** Spawning and managing lightweight async tasks
-- **Usage in NGI:** All microservices use `tokio::spawn()` for concurrent operations
+- **Usage in InfoVulcan:** All microservices use `tokio::spawn()` for concurrent operations
 - **Key APIs:**
   - `spawn()` - Create new async task
   - `JoinHandle` - Await task completion
@@ -37,7 +37,7 @@ Tokio is the core async runtime for NGI, providing all the essential infrastruct
 - **Purpose:** Async-safe communication between tasks
 - **Channels:** oneshot, mpsc, broadcast, watch
 - **Primitives:** Mutex, RwLock, Barrier, Semaphore, Notify
-- **NGI Usage:** Inter-service message passing and state coordination
+- **InfoVulcan Usage:** Inter-service message passing and state coordination
 
 ### Runtime (`tokio::runtime`)
 - **Purpose:** Execution engine for async code
@@ -54,9 +54,9 @@ Tokio is the core async runtime for NGI, providing all the essential infrastruct
 ### Timing (`tokio::time`)
 - **Utilities:** `sleep()`, `timeout()`, `interval()`
 - **Types:** `Sleep`, `Timeout`, `Interval`
-- **NGI Usage:** Request timeouts, periodic cleanup tasks
+- **InfoVulcan Usage:** Request timeouts, periodic cleanup tasks
 
-## Feature Flags for NGI
+## Feature Flags for InfoVulcan
 
 ```toml
 tokio = { version = "1", features = [
@@ -73,7 +73,7 @@ tokio = { version = "1", features = [
 ] }
 ```
 
-## Common NGI Patterns
+## Common InfoVulcan Patterns
 
 ### Task Spawning
 ```rust
@@ -104,7 +104,7 @@ match tokio::time::timeout(Duration::from_secs(5), operation()).await {
 }
 ```
 
-## Key Modules by NGI Service
+## Key Modules by InfoVulcan Service
 
 | Service | Primary Tokio Modules |
 |---------|----------------------|
@@ -119,7 +119,7 @@ match tokio::time::timeout(Duration::from_secs(5), operation()).await {
 1. **Work-Stealing:** Multi-threaded runtime distributes tasks across CPU cores
 2. **Cooperative Scheduling:** Tasks yield at `.await` points (no preemption)
 3. **Blocking Operations:** Use `spawn_blocking()` to avoid blocking runtime threads
-4. **Memory:** Each task is ~64 bytes; NGI scales to hundreds of thousands of concurrent connections
+4. **Memory:** Each task is ~64 bytes; InfoVulcan scales to hundreds of thousands of concurrent connections
 
 ## Testing with Tokio
 
@@ -146,13 +146,13 @@ async fn test_with_multiple_threads() { }
   - [net](https://docs.rs/tokio/latest/tokio/net/) - Networking (TCP/UDP/Unix)
   - [time](https://docs.rs/tokio/latest/tokio/time/) - Timing and delays
 
-- **NGI Documentation:**
+- **InfoVulcan Documentation:**
   - [ARCHITECTURE.md](../../../ARCHITECTURE.md) - System design with Tokio usage
-  - [copilot-instructions.md](../copilot-instructions.md) - NGI coding standards
+  - [copilot-instructions.md](../copilot-instructions.md) - InfoVulcan coding standards
 
 ## Migration Notes
 
-NGI uses Tokio 1.x stable. No breaking changes expected between patch versions.
+InfoVulcan uses Tokio 1.x stable. No breaking changes expected between patch versions.
 
 ---
 

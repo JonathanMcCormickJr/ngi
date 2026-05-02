@@ -3,7 +3,7 @@
 ## Role
 
 The Operator Agent is responsible for:
-- Deploying and managing NGI services in production
+- Deploying and managing InfoVulcan services in production
 - Configuring service mesh and network communication
 - Monitoring system health and performance
 - Managing configuration and secrets
@@ -98,7 +98,7 @@ ops build -c config.json
   },
   "Env": {
     "RUST_LOG": "info",
-    "NGI_ENV": "production"
+    "INFOVULCAN_ENV": "production"
   }
 }
 ```
@@ -130,16 +130,16 @@ ops instance create lbrp -c lbrp-config.json -i lbrp-image
 ### Environment Variables
 ```bash
 # Core Configuration
-RUST_LOG=info,ngi=debug
-NGI_ENV=production
+RUST_LOG=info,infovulcan=debug
+INFOVULCAN_ENV=production
 
 # Service Discovery
-NGI_DB_ENDPOINTS=https://db1:8080,https://db2:8080,https://db3:8080
-NGI_CUSTODIAN_ENDPOINTS=https://custodian1:8081,https://custodian2:8081
+INFOVULCAN_DB_ENDPOINTS=https://db1:8080,https://db2:8080,https://db3:8080
+INFOVULCAN_CUSTODIAN_ENDPOINTS=https://custodian1:8081,https://custodian2:8081
 
 # TLS Configuration
-TLS_CERT_PATH=/etc/ssl/certs/ngi.crt
-TLS_KEY_PATH=/etc/ssl/private/ngi.key
+TLS_CERT_PATH=/etc/ssl/certs/infovulcan.crt
+TLS_KEY_PATH=/etc/ssl/private/infovulcan.key
 CA_CERT_PATH=/etc/ssl/certs/ca.crt
 
 # Security
@@ -230,20 +230,20 @@ async fn liveness_check() -> Result<(), Status> {
 // Core metrics to collect
 let metrics = Metrics {
     // Request metrics
-    requests_total: counter!("ngi_requests_total"),
-    request_duration: histogram!("ngi_request_duration_seconds"),
+    requests_total: counter!("infovulcan_requests_total"),
+    request_duration: histogram!("infovulcan_request_duration_seconds"),
 
     // System metrics
-    memory_usage: gauge!("ngi_memory_usage_bytes"),
-    cpu_usage: gauge!("ngi_cpu_usage_percent"),
+    memory_usage: gauge!("infovulcan_memory_usage_bytes"),
+    cpu_usage: gauge!("infovulcan_cpu_usage_percent"),
 
     // Business metrics
-    tickets_created: counter!("ngi_tickets_created_total"),
-    locks_acquired: counter!("ngi_locks_acquired_total"),
+    tickets_created: counter!("infovulcan_tickets_created_total"),
+    locks_acquired: counter!("infovulcan_locks_acquired_total"),
 
     // Raft metrics
-    raft_state: gauge!("ngi_raft_state"),
-    raft_commit_index: gauge!("ngi_raft_commit_index"),
+    raft_state: gauge!("infovulcan_raft_state"),
+    raft_commit_index: gauge!("infovulcan_raft_commit_index"),
 };
 ```
 
@@ -460,7 +460,7 @@ curl -k https://admin:8083/debug/pprof/profile
 #### Certificate Issues
 ```bash
 # Verify certificate validity
-openssl x509 -in /etc/ssl/certs/ngi.crt -text -noout
+openssl x509 -in /etc/ssl/certs/infovulcan.crt -text -noout
 
 # Test mTLS connection
 openssl s_client -connect service:808x -cert client.crt -key client.key
@@ -497,4 +497,4 @@ cargo test --test integration_test
 - [Nanos Unikernel](https://github.com/nanovms/nanos)
 - [Raft Consensus](https://raft.github.io/)
 - [mTLS Best Practices](https://tools.ietf.org/html/rfc8446)</content>
-<parameter name="filePath">/home/jonathan/projects/ngi/.github/agents/operator.agent.md
+<parameter name="filePath">/home/jonathan/projects/infovulcan/.github/agents/operator.agent.md

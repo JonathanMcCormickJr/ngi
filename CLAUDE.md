@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-NGI (Next-Gen Infoman) is a distributed, microservices-based tech support ticketing system built entirely in Rust. It prioritizes memory safety, strong consistency, and post-quantum security.
+InfoVulcan is a distributed, microservices-based tech support ticketing system built entirely in Rust. It prioritizes memory safety, strong consistency, and post-quantum security.
 
 ## Commands
 
@@ -69,7 +69,7 @@ Hardened-only additions:
 
 | Crate | Type | Purpose |
 |-------|------|---------|
-| `shared` | Library | Common types: `Ticket`, `User`, `NgiError`, `EncryptionService` |
+| `shared` | Library | Common types: `Ticket`, `User`, `InfoVulcanError`, `EncryptionService` |
 | `db` | Raft service | Data persistence; Sled KV + Raft consensus (3+ instances) |
 | `custodian` | Raft service | Ticket lifecycle; distributed ticket locks (3+ instances) |
 | `auth` | Stateless | Authentication, JWT issuance/validation |

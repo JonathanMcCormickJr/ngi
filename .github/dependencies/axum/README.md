@@ -1,4 +1,4 @@
-# Axum - Web Framework for NGI
+# Axum - Web Framework for InfoVulcan
 
 > Modular web framework built with Tokio, focused on ergonomics and modularity.
 
@@ -8,7 +8,7 @@
 
 ## Overview
 
-Axum provides NGI's REST/JSON API layer exclusively through the LBRP (Load Balancer & Reverse Proxy) service. It handles HTTP requests, routing, middleware, and response serialization.
+Axum provides InfoVulcan's REST/JSON API layer exclusively through the LBRP (Load Balancer & Reverse Proxy) service. It handles HTTP requests, routing, middleware, and response serialization.
 
 ## Documentation Index
 
@@ -20,11 +20,11 @@ Axum provides NGI's REST/JSON API layer exclusively through the LBRP (Load Balan
   - Content negotiation
   - CORS configuration
   - Health checks
-  - NGI LBRP service architecture
+  - InfoVulcan LBRP service architecture
   - Best practices for LBRP
   - Official API documentation
 
-## Architecture in NGI
+## Architecture in InfoVulcan
 
 ### Service Boundary
 ```
@@ -372,7 +372,7 @@ async fn test_get_ticket() {
 }
 ```
 
-## NGI REST API Endpoints
+## InfoVulcan REST API Endpoints
 
 | Endpoint | Method | Purpose |
 |----------|--------|---------|
@@ -405,7 +405,7 @@ tower-http = { version = "0.5", features = ["trace", "cors", "sse"] }
   - [response](https://docs.rs/axum/latest/axum/response/) - Response types
   - [middleware](https://docs.rs/axum/latest/axum/middleware/) - Middleware system
 
-- **NGI Service:**
+- **InfoVulcan Service:**
   - [lbrp/](../../../lbrp/) - Load Balancer implementation
 
 ---

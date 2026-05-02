@@ -37,7 +37,7 @@ pub fn Login() -> impl IntoView {
     view! {
         <div class="auth-container">
             <div class="auth-box">
-                <h2>"Sign in to NGI"</h2>
+                <h2>"Sign in to InfoVulcan"</h2>
                 <form on:submit=on_submit>
                     <div class="input-group">
                         <label for="username">"Username"</label>

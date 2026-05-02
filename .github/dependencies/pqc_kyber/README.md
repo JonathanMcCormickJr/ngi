@@ -8,7 +8,7 @@
 
 ## Overview
 
-pqc_kyber provides NGI's post-quantum security layer (Layer 2) for protecting sensitive payloads against future quantum computing threats. While rustls provides transport security (TLS 1.3), pqc_kyber provides application-level encryption resilient to quantum attacks.
+pqc_kyber provides InfoVulcan's post-quantum security layer (Layer 2) for protecting sensitive payloads against future quantum computing threats. While rustls provides transport security (TLS 1.3), pqc_kyber provides application-level encryption resilient to quantum attacks.
 
 ## Why Post-Quantum Cryptography?
 
@@ -21,7 +21,7 @@ pqc_kyber provides NGI's post-quantum security layer (Layer 2) for protecting se
 - **Security level:** Quantum-resistant (equivalent to AES-192)
 - **Key encapsulation:** Establishes shared secret securely
 - **Standardization:** NIST-standardized algorithm (2024)
-- **NGI usage:** Protects high-value data (audit logs, encryption keys)
+- **InfoVulcan usage:** Protects high-value data (audit logs, encryption keys)
 
 ## Kyber KEM Mechanism
 
@@ -78,13 +78,13 @@ let symmetric_cipher = aes_gcm::Aes256Gcm::new(&shared_secret);
 let sensitive_data = symmetric_cipher.decrypt(&nonce, encrypted_payload.as_ref())?;
 ```
 
-## NGI Integration Pattern
+## InfoVulcan Integration Pattern
 
 ### Two-Layer Encryption Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│ NGI Encryption Stack                                     │
+│ InfoVulcan Encryption Stack                                     │
 ├─────────────────────────────────────────────────────────┤
 │ Layer 2: Application-Level (Post-Quantum via Kyber)    │
 │   - High-value data: Audit logs, encryption keys       │
@@ -263,7 +263,7 @@ admin_service.register_kyber_key(user_id, &public_key).await?;
 | Encapsulate | ~100μs | ~960B (ciphertext) |
 | Decapsulate | ~100μs | Symmetric key material |
 
-For NGI:
+For InfoVulcan:
 - **Audit logs:** ~100μs per encryption acceptable (infrequent)
 - **Per-request:** Not recommended (use Layer 1 TLS instead)
 - **Batch operations:** Can amortize cost
@@ -304,7 +304,7 @@ fn test_kyber_security() {
 }
 ```
 
-## NGI High-Value Data Protection
+## InfoVulcan High-Value Data Protection
 
 | Data Type | Layer 1 (TLS) | Layer 2 (Kyber) | Duration | Rationale |
 |-----------|---------------|-----------------|----------|-----------|

@@ -1,4 +1,4 @@
-//! Encryption utilities for NGI.
+//! Encryption utilities for InfoVulcan.
 //!
 //! This module provides encryption capabilities for sensitive data.
 //! Currently implements symmetric encryption with AES-GCM and ChaCha20-Poly1305.

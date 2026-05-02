@@ -1,10 +1,10 @@
-//! Error types for NGI system operations.
+//! Error types for InfoVulcan system operations.
 
 use thiserror::Error;
 
-/// NGI system errors
+/// InfoVulcan system errors
 #[derive(Error, Debug)]
-pub enum NgiError {
+pub enum InfoVulcanError {
     #[error("Validation error: {0}")]
     ValidationError(String),
 
@@ -36,26 +36,26 @@ pub enum NgiError {
     ServiceUnavailable(String),
 }
 
-/// Result type alias for NGI operations
-pub type NgiResult<T> = Result<T, NgiError>;
+/// Result type alias for InfoVulcan operations
+pub type InfoVulcanResult<T> = Result<T, InfoVulcanError>;
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
-    fn test_ngi_error_display_all_variants() {
-        let errors: Vec<NgiError> = vec![
-            NgiError::ValidationError("bad input".to_string()),
-            NgiError::AuthenticationError("wrong password".to_string()),
-            NgiError::AuthorizationError,
-            NgiError::NotFound("ticket 42".to_string()),
-            NgiError::Conflict("duplicate".to_string()),
-            NgiError::DatabaseError("connection lost".to_string()),
-            NgiError::NetworkError("timeout".to_string()),
-            NgiError::InternalError("unexpected".to_string()),
-            NgiError::RateLimitExceeded,
-            NgiError::ServiceUnavailable("maintenance".to_string()),
+    fn test_infovulcan_error_display_all_variants() {
+        let errors: Vec<InfoVulcanError> = vec![
+            InfoVulcanError::ValidationError("bad input".to_string()),
+            InfoVulcanError::AuthenticationError("wrong password".to_string()),
+            InfoVulcanError::AuthorizationError,
+            InfoVulcanError::NotFound("ticket 42".to_string()),
+            InfoVulcanError::Conflict("duplicate".to_string()),
+            InfoVulcanError::DatabaseError("connection lost".to_string()),
+            InfoVulcanError::NetworkError("timeout".to_string()),
+            InfoVulcanError::InternalError("unexpected".to_string()),
+            InfoVulcanError::RateLimitExceeded,
+            InfoVulcanError::ServiceUnavailable("maintenance".to_string()),
         ];
 
         let expected_substrings = [
@@ -81,11 +81,11 @@ mod tests {
     }
 
     #[test]
-    fn test_ngi_result_type_alias() {
-        let ok: NgiResult<u32> = Ok(42);
+    fn test_infovulcan_result_type_alias() {
+        let ok: InfoVulcanResult<u32> = Ok(42);
         assert!(ok.is_ok());
 
-        let err: NgiResult<u32> = Err(NgiError::NotFound("x".to_string()));
+        let err: InfoVulcanResult<u32> = Err(InfoVulcanError::NotFound("x".to_string()));
         assert!(err.is_err());
     }
 }

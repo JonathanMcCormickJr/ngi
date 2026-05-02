@@ -1,6 +1,6 @@
 # DB Service
 
-Distributed, consistent data storage service for the NGI system.
+Distributed, consistent data storage service for the InfoVulcan system.
 
 ## Overview
 
@@ -119,7 +119,7 @@ Environment variables:
 
 - `NODE_ID` - Unique node identifier (default: 1)
 - `LISTEN_ADDR` - gRPC server address (default: [::1]:50051)
-- `STORAGE_PATH` - Data directory path (default: /tmp/ngi-db-{NODE_ID})
+- `STORAGE_PATH` - Data directory path (default: /tmp/infovulcan-db-{NODE_ID})
 
 ## Testing
 
@@ -168,13 +168,13 @@ NODE_ID=1 LISTEN_ADDR="127.0.0.1:50051" STORAGE_PATH="./data/node1" ./db
 
 ```bash
 # Node 1 (Leader candidate)
-NODE_ID=1 LISTEN_ADDR="10.0.0.1:50051" STORAGE_PATH="/var/lib/ngi-db/node1" ./db
+NODE_ID=1 LISTEN_ADDR="10.0.0.1:50051" STORAGE_PATH="/var/lib/infovulcan-db/node1" ./db
 
 # Node 2
-NODE_ID=2 LISTEN_ADDR="10.0.0.2:50051" STORAGE_PATH="/var/lib/ngi-db/node2" ./db
+NODE_ID=2 LISTEN_ADDR="10.0.0.2:50051" STORAGE_PATH="/var/lib/infovulcan-db/node2" ./db
 
 # Node 3
-NODE_ID=3 LISTEN_ADDR="10.0.0.3:50051" STORAGE_PATH="/var/lib/ngi-db/node3" ./db
+NODE_ID=3 LISTEN_ADDR="10.0.0.3:50051" STORAGE_PATH="/var/lib/infovulcan-db/node3" ./db
 ```
 
 ## Implementation Status

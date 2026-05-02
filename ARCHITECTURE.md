@@ -1,4 +1,4 @@
-# NGI Architecture Documentation
+# InfoVulcan Architecture Documentation
 
 ## Table of Contents
 
@@ -19,7 +19,7 @@
 
 ## Overview
 
-NGI (Next-Gen Infoman) is a distributed, microservices-based tech support ticketing system designed for high availability, strong consistency where needed, and quantum-resistant security. The system is built entirely 
+InfoVulcan is a distributed, microservices-based tech support ticketing system designed for high availability, strong consistency where needed, and quantum-resistant security. The system is built entirely 
 in Rust to leverage memory safety, fearless concurrency, and high performance.
 
 ### Core Principles
@@ -66,7 +66,7 @@ in Rust to leverage memory safety, fearless concurrency, and high performance.
 The physical repository remains flat at the workspace root. The structure below is the logical grouping by service introduction stage.
 
 ```
-ngi/
+infovulcan/
 ├── Cargo.toml              # Workspace definition
 ├── README.md               # User-facing documentation
 ├── ARCHITECTURE.md         # This file
@@ -291,7 +291,7 @@ Services only accept connections from other services with valid certificates.
 - `SoftDeleteTicket(TicketLookup)` → `DeleteAck`
 - `QueryTickets(QueryRequest)` → `stream Ticket`
 
-> **Soft Delete vs Hard Delete**: NGI uses **soft deletes** exclusively for tickets and users. Records are marked `deleted: true` with a `deleted_at` timestamp but remain in the database. This enables:
+> **Soft Delete vs Hard Delete**: InfoVulcan uses **soft deletes** exclusively for tickets and users. Records are marked `deleted: true` with a `deleted_at` timestamp but remain in the database. This enables:
 > - Audit trails (who deleted what, when)
 > - Accidental deletion recovery
 > - Regulatory compliance (data retention policies)
@@ -641,9 +641,9 @@ Each service reads:
 ```toml
 [server]
 bind_address = "0.0.0.0:8080"
-tls_cert = "/etc/ngi/certs/db.crt"
-tls_key = "/etc/ngi/certs/db.key"
-ca_cert = "/etc/ngi/certs/ca.crt"
+tls_cert = "/etc/infovulcan/certs/db.crt"
+tls_key = "/etc/infovulcan/certs/db.key"
+ca_cert = "/etc/infovulcan/certs/ca.crt"
 
 [raft]
 node_id = "550e8400-e29b-41d4-a716-446655440000"  # UUIDv4 for unique node identity
@@ -655,7 +655,7 @@ election_timeout_ms = 1000
 heartbeat_interval_ms = 300
 
 [storage]
-data_dir = "/var/lib/ngi/db"
+data_dir = "/var/lib/infovulcan/db"
 max_log_size_mb = 1024
 ```
 
@@ -664,8 +664,8 @@ max_log_size_mb = 1024
 Override config with environment variables:
 
 ```bash
-NGI_DB_BIND_ADDRESS=0.0.0.0:9999
-NGI_DB_NODE_ID=1
+INFOVULCAN_DB_BIND_ADDRESS=0.0.0.0:9999
+INFOVULCAN_DB_NODE_ID=1
 ```
 
 ---
@@ -1341,7 +1341,7 @@ Response 200:
 All internal RPCs are defined in protobuf files under `proto/` and compiled with `prost-build`. Services speak HTTP/2 with mutual TLS using `tonic::transport`. Unary calls are the default; streaming is used for long-lived operations (e.g., ticket update feeds, metrics streaming).
 
 Common conventions:
-- Metadata headers carry tracing IDs (`x-ngi-trace`), auth claims, and leadership hints.
+- Metadata headers carry tracing IDs (`x-infovulcan-trace`), auth claims, and leadership hints.
 - Every service implements `grpc.health.v1.Health` plus a `Version` unary RPC returning semantic version + git SHA.
 - Request/response types use snake_case field names to align with Rust struct naming via `prost` attributes.
 
@@ -1384,7 +1384,7 @@ Common conventions:
 
 ### Concurrency Strategy
 
-NGI leverages Rust's powerful concurrency primitives to maximize throughput and efficiency:
+InfoVulcan leverages Rust's powerful concurrency primitives to maximize throughput and efficiency:
 
 #### Asynchronous I/O with Tokio
 
@@ -1416,7 +1416,7 @@ tonic::transport::Server::builder()
   .await?;
 ```
 
-**Async Use Cases in NGI:**
+**Async Use Cases in InfoVulcan:**
 - HTTP request handling (Axum handlers for LBRP are async)
 - Database operations (Sled operations wrapped in async)
 - Inter-service communication (async gRPC clients via tonic)
@@ -1431,7 +1431,7 @@ tonic::transport::Server::builder()
 // Runtime configuration
 tokio::runtime::Builder::new_multi_thread()
     .worker_threads(num_cpus::get())  // One thread per CPU core
-    .thread_name("ngi-worker")
+    .thread_name("infovulcan-worker")
     .enable_all()
     .build()
     .unwrap()
@@ -1520,7 +1520,7 @@ thread_keep_alive = 10    # Seconds to keep idle threads alive
 
 ### Test-Driven Development (TDD)
 
-NGI follows a **strict Test-Driven Development** approach:
+InfoVulcan follows a **strict Test-Driven Development** approach:
 
 1. **Red**: Write a failing test first
 2. **Green**: Write minimal code to make the test pass
@@ -1594,7 +1594,7 @@ impl CustodianService {
 
 ### Minimalist Approach: Server-Side Rendered HTML
 
-Given NGI's focus on safety, performance, and minimal dependencies, the frontend adopts a **deliberately minimal** approach that leverages Rust's strengths rather than adding JavaScript complexity.
+Given InfoVulcan's focus on safety, performance, and minimal dependencies, the frontend adopts a **deliberately minimal** approach that leverages Rust's strengths rather than adding JavaScript complexity.
 
 ### Technology Stack
 
@@ -1725,11 +1725,11 @@ class FormAutosave {
 // Initialize autosave on ticket forms
 document.addEventListener('DOMContentLoaded', () => {
   if (document.getElementById('create-ticket-form')) {
-    new FormAutosave('create-ticket-form', 'ngi_ticket_draft');
+    new FormAutosave('create-ticket-form', 'infovulcan_ticket_draft');
   }
   if (document.getElementById('edit-ticket-form')) {
     const ticketId = document.querySelector('[data-ticket-id]')?.dataset.ticketId;
-    new FormAutosave('edit-ticket-form', `ngi_ticket_draft_${ticketId}`);
+    new FormAutosave('edit-ticket-form', `infovulcan_ticket_draft_${ticketId}`);
   }
 });
 ```
@@ -1935,7 +1935,7 @@ let template_source = include_str!("../templates/ticket/create.html");
 | **Caching** | Simple HTTP caching | Complex invalidation |
 | **Offline Support** | Cookie-based drafts | Requires service worker |
 
-This minimal approach aligns with NGI's core principles while providing a fast, accessible, and maintainable user interface with practical form autosave functionality.
+This minimal approach aligns with InfoVulcan's core principles while providing a fast, accessible, and maintainable user interface with practical form autosave functionality.
 
 ---
 

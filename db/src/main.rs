@@ -131,7 +131,7 @@ async fn main() -> Result<()> {
         .parse()?;
     let listen_addr = env::var("LISTEN_ADDR").unwrap_or_else(|_| "[::1]:50051".to_string());
     let storage_path =
-        env::var("STORAGE_PATH").unwrap_or_else(|_| format!("/tmp/ngi-db-{node_id}"));
+        env::var("STORAGE_PATH").unwrap_or_else(|_| format!("/tmp/infovulcan-db-{node_id}"));
 
     // Parse peer nodes configuration
     // Format: "1:http://127.0.0.1:50051,2:http://127.0.0.1:50052,3:http://127.0.0.1:50053"

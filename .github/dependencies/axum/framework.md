@@ -5,7 +5,7 @@
 **Crates.io:** https://crates.io/crates/axum
 
 ## Overview
-Axum is a modular web framework for building REST APIs. **NGI uses Axum exclusively in the LBRP (Load Balancer Reverse Proxy) service** for HTTP/REST endpoints that expose the system to clients. All inter-service communication uses gRPC via Tonic.
+Axum is a modular web framework for building REST APIs. **InfoVulcan uses Axum exclusively in the LBRP (Load Balancer Reverse Proxy) service** for HTTP/REST endpoints that expose the system to clients. All inter-service communication uses gRPC via Tonic.
 
 ## Architecture
 
@@ -113,7 +113,7 @@ let app = Router::new()
     .with_state(AppState::default());
 ```
 
-## NGI Integration Examples
+## InfoVulcan Integration Examples
 
 ### Authentication Service Endpoint
 
@@ -169,7 +169,7 @@ async fn release_ticket(
 }
 ```
 
-## Best Practices for NGI
+## Best Practices for InfoVulcan
 
 1. **Use extractors for type safety** - Avoid manual request parsing
 2. **Implement consistent error handling** - All errors should return proper HTTP status codes

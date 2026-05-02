@@ -1,4 +1,4 @@
-# Bincode - Binary Serialization for NGI
+# Bincode - Binary Serialization for InfoVulcan
 
 > A fast, compact binary encoding for Rust types, designed for efficiency and safety.
 
@@ -8,7 +8,7 @@
 
 ## Overview
 
-Bincode provides NGI's standard serialization format for:
+Bincode provides InfoVulcan's standard serialization format for:
 - Sled database values
 - gRPC message encoding (via prost)
 - Inter-service message passing
@@ -30,7 +30,7 @@ Bincode provides NGI's standard serialization format for:
 ```rust
 use bincode::config::{standard, legacy};
 
-// NGI default - efficient, cross-platform compatible
+// InfoVulcan default - efficient, cross-platform compatible
 let config = bincode::config::standard()
     .with_big_endian()
     .with_variable_int_encoding();
@@ -39,7 +39,7 @@ let config = bincode::config::standard()
 let config = bincode::config::legacy();
 ```
 
-## NGI Serialization Patterns
+## InfoVulcan Serialization Patterns
 
 ### Basic Ticket Serialization
 ```rust
@@ -159,7 +159,7 @@ let bytes = bincode::encode_to_vec(&value, standard())?;
 | Overhead | Minimal (structure of data only) |
 | Size | 10-30% of JSON equivalent |
 
-## NGI Recommended Configuration
+## InfoVulcan Recommended Configuration
 
 ```rust
 // Define in shared crate for consistency
@@ -171,7 +171,7 @@ pub const BINCODE_CONFIG: bincode::config::Configuration<
     .with_variable_int_encoding()
     .with_limit::<{ 10 * 1024 * 1024 }>();  // 10MB safety limit
 
-// Usage everywhere in NGI
+// Usage everywhere in InfoVulcan
 bincode::encode_to_vec(&ticket, BINCODE_CONFIG)?;
 ```
 
@@ -195,7 +195,7 @@ match bincode::decode_from_slice(&bytes, standard()) {
 
 ## Comparison: Bincode vs Alternatives
 
-| Format | Size | Speed | Schema | Use in NGI |
+| Format | Size | Speed | Schema | Use in InfoVulcan |
 |--------|------|-------|--------|-----------|
 | Bincode | Smallest | Fastest | Compile-time | ✅ Default |
 | JSON | Medium | Moderate | Runtime | Admin API (via serde) |
@@ -275,7 +275,7 @@ fn test_deterministic_encoding() {
 }
 ```
 
-## NGI Service Integration
+## InfoVulcan Service Integration
 
 | Service | Usage |
 |---------|-------|
@@ -291,7 +291,7 @@ fn test_deterministic_encoding() {
   - [config](https://docs.rs/bincode/latest/bincode/config/) - Encoding configuration
   - [encode/decode](https://docs.rs/bincode/latest/bincode/) - Core functions
   
-- **NGI Integration:**
+- **InfoVulcan Integration:**
   - [shared/src/ticket.rs](../../../shared/src/ticket.rs) - Serializable types
   - [db/src/storage.rs](../../../db/src/storage.rs) - Storage patterns
 

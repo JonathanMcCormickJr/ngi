@@ -8,9 +8,9 @@
 
 ## Overview
 
-thiserror provides `#[derive(Error)]` macro to reduce boilerplate when defining custom error types. NGI uses it for domain-specific errors (ticket, lock, storage, etc.).
+thiserror provides `#[derive(Error)]` macro to reduce boilerplate when defining custom error types. InfoVulcan uses it for domain-specific errors (ticket, lock, storage, etc.).
 
-## Usage in NGI
+## Usage in InfoVulcan
 
 ```rust
 use thiserror::Error;
@@ -97,7 +97,7 @@ enum AppError {
 }
 ```
 
-## NGI Error Hierarchy
+## InfoVulcan Error Hierarchy
 
 ```rust
 // shared/src/error.rs

@@ -4,7 +4,7 @@
 **Documentation:** https://docs.rs/tonic/  
 **Crates.io:** https://crates.io/crates/tonic
 
-## Related Packages in NGI
+## Related Packages in InfoVulcan
 ```toml
 tonic = "0.14"
 prost = "0.14"
@@ -15,7 +15,7 @@ tonic-prost-build = "0.14"
 ```
 
 ## Overview
-Tonic is a gRPC framework for Rust built on top of Hyper HTTP/2. It provides type-safe, high-performance service-to-service communication with streaming support. All inter-service communication in NGI uses tonic/gRPC.
+Tonic is a gRPC framework for Rust built on top of Hyper HTTP/2. It provides type-safe, high-performance service-to-service communication with streaming support. All inter-service communication in InfoVulcan uses tonic/gRPC.
 
 ## Key Concepts
 
@@ -227,7 +227,7 @@ let channel = Channel::from_static("http://db:8080")
 let mut client = DbClient::with_interceptor(channel, AuthInterceptor);
 ```
 
-## NGI Service Ports
+## InfoVulcan Service Ports
 - **DB:** `8080`
 - **Custodian:** `8081`
 - **Auth:** `8082`

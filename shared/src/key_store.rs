@@ -1,4 +1,4 @@
-//! Shared keypair persistence for NGI services.
+//! Shared keypair persistence for InfoVulcan services.
 //!
 //! Provides a single canonical function for loading or generating a Kyber-768
 //! keypair so that any two services sharing the same `STORAGE_PATH` will

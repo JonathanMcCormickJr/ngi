@@ -8,7 +8,7 @@
 
 ## Overview
 
-OPS is the tooling that enables NGI to (optionally) compile and deploy services as unikernels instead of traditional containers. A unikernel is a specialized single-process operating system that dramatically reduces attack surface, resource footprint, and operational complexity.
+OPS is the tooling that enables InfoVulcan to (optionally) compile and deploy services as unikernels instead of traditional containers. A unikernel is a specialized single-process operating system that dramatically reduces attack surface, resource footprint, and operational complexity.
 
 ## Unikernel Architecture
 
@@ -31,7 +31,7 @@ Result:
 - Better security isolation
 ```
 
-### Benefits for NGI
+### Benefits for InfoVulcan
 
 1. **Security:** Single-process model eliminates process privilege separation vulnerabilities
 2. **Performance:** Direct kernel pairing with application, optimized scheduling
@@ -39,11 +39,11 @@ Result:
 4. **Boot Speed:** 72-195ms from boot to application ready
 5. **Simplicity:** No SSH, shells, or orchestration needed
 
-## NGI Integration
+## InfoVulcan Integration
 
 ### When to Use Unikernels
 
-**Good fit for NGI services:**
+**Good fit for InfoVulcan services:**
 - Stateless services (Auth, Admin, LBRP)
 - I/O-bound services (DB, Custodian with careful design)
 - Services with fixed dependencies
@@ -181,7 +181,7 @@ ops instance create my-app-image -c azure
 }
 ```
 
-## NGI Service Deployment Example
+## InfoVulcan Service Deployment Example
 
 ### Auth Service as Unikernel
 ```json
@@ -216,7 +216,7 @@ ops instance create auth-service-image -c aws -i t3.micro
 
 ## Syscall Support
 
-### Supported (NGI Relevant)
+### Supported (InfoVulcan Relevant)
 - Socket operations (TCP/UDP)
 - File I/O (read/write/open/close)
 - Timers and async I/O
@@ -258,7 +258,7 @@ ops instance create auth-service-image -c aws -i t3.micro
 - Read-only rodata
 - Non-writable code sections
 
-### NGI-Specific Security
+### InfoVulcan-Specific Security
 ```json
 {
   "ManifestPassthrough": {
@@ -302,7 +302,7 @@ ops image tree ./auth-service.img
 ops image dump ./auth-service.img -d ./extracted
 ```
 
-## NGI Deployment Scenarios
+## InfoVulcan Deployment Scenarios
 
 ### Scenario 1: Hybrid Deployment
 ```
@@ -313,7 +313,7 @@ LBRP (Load Balancer) - Container (complex routing)
 ```
 
 ### Scenario 2: Full Unikernel Stack
-All NGI services as unikernels with:
+All InfoVulcan services as unikernels with:
 - Custom DNS for service discovery
 - Shared security boundary (still more secure than containers)
 - Unified deployment via OPS
@@ -321,7 +321,7 @@ All NGI services as unikernels with:
 
 ## Limitations & Workarounds
 
-| Limitation | Impact on NGI | Workaround |
+| Limitation | Impact on InfoVulcan | Workaround |
 |-----------|---------------|-----------|
 | No fork/exec | Cannot spawn child processes | Design as single-threaded process |
 | No shell/SSH | Cannot debug interactively | Use OPS strace/ftrace tools |
@@ -411,10 +411,10 @@ ldd main  # Shows all dependencies
 LD_LIBRARY_PATH=lib64 ops run -c config.json main
 ```
 
-**NGI Integration:** Use this pattern for stateless services that require minimal dependencies. The static MUSL approach is preferred for unikernel deployment as it eliminates the need to manage library dependencies.
+**InfoVulcan Integration:** Use this pattern for stateless services that require minimal dependencies. The static MUSL approach is preferred for unikernel deployment as it eliminates the need to manage library dependencies.
 
 ### 02-HTTP-Hello-World (HTTP Server)
-**Use Case:** REST API and network services (core for NGI services)
+**Use Case:** REST API and network services (core for InfoVulcan services)
 
 **Simple Build and Run:**
 ```bash
@@ -422,11 +422,11 @@ rustc http_server.rs -o http
 ops run -p 8080 http
 ```
 
-**NGI Integration Pattern:**
-This demonstrates how to deploy NGI services (Auth, Admin, LBRP) as HTTP servers:
+**InfoVulcan Integration Pattern:**
+This demonstrates how to deploy InfoVulcan services (Auth, Admin, LBRP) as HTTP servers:
 
 ```bash
-# Build NGI service
+# Build InfoVulcan service
 GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o auth-service ./cmd/auth
 
 # Build Rust equivalent (if porting to Rust)
@@ -474,10 +474,10 @@ cp /etc/nsswitch.conf etc/.
 **config.json:**
 ```json
 {
-  "Args": ["-c", "postgres://user:pass@db.internal/ngi"],
+  "Args": ["-c", "postgres://user:pass@db.internal/infovulcan"],
   "Dirs": ["lib/x86_64-linux-gnu", "etc"],
   "Env": {
-    "DATABASE_URL": "postgres://user:pass@db.internal/ngi"
+    "DATABASE_URL": "postgres://user:pass@db.internal/infovulcan"
   }
 }
 ```
@@ -491,7 +491,7 @@ ops image create sqlx-app -c config.json
 ops instance create sqlx-app-image -c aws -i t3.small
 ```
 
-**NGI Integration:** This pattern is essential for:
+**InfoVulcan Integration:** This pattern is essential for:
 - Admin service (user management queries)
 - Custodian service (distributed locking state)
 - Any service that needs persistent state
@@ -552,7 +552,7 @@ ops run --trace -c config.json -p 8080 roapi-http 2>&1 | grep "not found"
 }
 ```
 
-**NGI Integration:** This pattern applies to LBRP reverse proxy which needs:
+**InfoVulcan Integration:** This pattern applies to LBRP reverse proxy which needs:
 - SSL/TLS support (OpenSSL libraries)
 - Environment variables for upstream service discovery
 - Data source configuration (routing rules)
@@ -589,7 +589,7 @@ ops run ./service --http-dump
 # Show all HTTP traffic
 ```
 
-## NGI Best Practices
+## InfoVulcan Best Practices
 
 1. **Use Static Binaries:** Compile with `-fPIC` and static linking
 2. **Minimize Mounts:** Only mount what's necessary
@@ -609,4 +609,4 @@ ops run ./service --http-dump
 
 **Last Updated:** December 2025
 **Documentation Version:** OPS 0.1.27+
-**Status:** Optional alternative deployment platform for NGI
+**Status:** Optional alternative deployment platform for InfoVulcan

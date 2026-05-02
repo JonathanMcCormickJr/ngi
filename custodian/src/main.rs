@@ -173,7 +173,7 @@ async fn main() -> Result<()> {
         .parse()?;
     let listen_addr = env::var("LISTEN_ADDR").unwrap_or_else(|_| "[::1]:8081".to_string());
     let storage_path =
-        env::var("STORAGE_PATH").unwrap_or_else(|_| format!("/tmp/ngi-custodian-{node_id}"));
+        env::var("STORAGE_PATH").unwrap_or_else(|_| format!("/tmp/infovulcan-custodian-{node_id}"));
 
     // Parse peer nodes configuration
     // Format: "1:http://127.0.0.1:8081,2:http://127.0.0.1:8082,3:http://127.0.0.1:8083"

@@ -411,7 +411,7 @@ mod tests {
             Ok(tonic::Response::new(crate::clients::custodian::Ticket {
                 ticket_id: 1,
                 title: "Updated".to_string(),
-                project: "NGI".to_string(),
+                project: "InfoVulcan".to_string(),
                 ..Default::default()
             }))
         }
@@ -423,7 +423,7 @@ mod tests {
             Ok(tonic::Response::new(crate::clients::custodian::Ticket {
                 ticket_id: req.into_inner().ticket_id,
                 title: "Test Ticket".to_string(),
-                project: "NGI".to_string(),
+                project: "InfoVulcan".to_string(),
                 ..Default::default()
             }))
         }
@@ -685,7 +685,7 @@ mod tests {
             Extension(test_claims()),
             Json(CreateTicketRequest {
                 title: "Test".into(),
-                project: "NGI".into(),
+                project: "InfoVulcan".into(),
                 account_uuid: "00000000-0000-0000-0000-000000000001".into(),
                 symptom: 0,
                 priority: 0,
@@ -766,7 +766,7 @@ mod tests {
         let source = crate::clients::custodian::Ticket {
             ticket_id: 42,
             title: "Demo".to_string(),
-            project: "NGI".to_string(),
+            project: "InfoVulcan".to_string(),
             priority: 3,
             status: 1,
             ..Default::default()
@@ -775,7 +775,7 @@ mod tests {
         let mapped = map_ticket(source);
         assert_eq!(mapped.ticket_id, 42);
         assert_eq!(mapped.title, "Demo");
-        assert_eq!(mapped.project, "NGI");
+        assert_eq!(mapped.project, "InfoVulcan");
         assert_eq!(mapped.priority, 3);
         assert_eq!(mapped.status, 1);
     }
@@ -842,7 +842,7 @@ mod tests {
                     .header("authorization", test_bearer_token())
                     .header("content-type", "application/json")
                     .body(Body::from(
-                        r#"{"title":"Demo","project":"NGI","account_uuid":"00000000-0000-0000-0000-000000000001","symptom":0,"priority":0}"#,
+                        r#"{"title":"Demo","project":"InfoVulcan","account_uuid":"00000000-0000-0000-0000-000000000001","symptom":0,"priority":0}"#,
                     ))
                     .expect("request build"),
             )
@@ -894,7 +894,7 @@ mod tests {
     #[tokio::test]
     async fn test_static_file_serving_when_root_requested_returns_index_html() {
         let tmp = tempfile::tempdir().expect("create temp dir");
-        let index_content = "<html><body>NGI Test App</body></html>";
+        let index_content = "<html><body>InfoVulcan Test App</body></html>";
         std::fs::write(tmp.path().join("index.html"), index_content).expect("write index.html");
 
         let app = app(test_state()).fallback_service(
@@ -919,7 +919,7 @@ mod tests {
             .expect("read body");
         let body_str = String::from_utf8(body.to_vec()).expect("utf8 body");
         assert!(
-            body_str.contains("NGI Test App"),
+            body_str.contains("InfoVulcan Test App"),
             "expected body to contain test content, got: {body_str}"
         );
     }

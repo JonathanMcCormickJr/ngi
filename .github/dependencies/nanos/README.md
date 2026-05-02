@@ -8,7 +8,7 @@
 
 ## Overview
 
-Nanos is the lightweight operating system kernel that powers NGI's optional unikernel deployment model. It replaces the Linux kernel for cloud applications while providing only the syscalls and features your application actually needs.
+Nanos is the lightweight operating system kernel that powers InfoVulcan's optional unikernel deployment model. It replaces the Linux kernel for cloud applications while providing only the syscalls and features your application actually needs.
 
 ## Architecture
 
@@ -91,7 +91,7 @@ Direct hardware access (no context switching overhead)
 - Linear-Backed Heap - Continuous mapping for fast access
 - Priority Queue - Resource scheduling
 
-**NGI Relevant Characteristics:**
+**InfoVulcan Relevant Characteristics:**
 - Minimum 24-26MB for C applications
 - Minimum 37-40MB for Go applications
 - No memory overprovisioning (every byte counted)
@@ -107,7 +107,7 @@ Direct hardware access (no context switching overhead)
 
 ### 4. Syscall Support
 
-#### Networking (NGI Critical)
+#### Networking (InfoVulcan Critical)
 ```
 socket, bind, listen, accept, accept4, connect
 sendto, sendmsg, sendmmsg, recvfrom, recvmsg
@@ -240,7 +240,7 @@ SSH, shells → Not supported
 - Read-only globals after init
 - Stack cookies/canaries
 
-#### NGI Optional: Exec Protection
+#### InfoVulcan Optional: Exec Protection
 ```
 ManifestPassthrough: {
   "exec_protection": "t"
@@ -267,7 +267,7 @@ void* heap_alloc = malloc(1000);
 // Address randomized at each boot
 ```
 
-**NGI Service Deployment:**
+**InfoVulcan Service Deployment:**
 ```json
 {
   "ManifestPassthrough": {
@@ -302,7 +302,7 @@ io_uring_queue_init(queue_depth, &ring, flags);
 io_uring_enter(fd, to_submit, to_wait, flags);
 ```
 
-## NGI Integration Pattern
+## InfoVulcan Integration Pattern
 
 ### Auth Service on Nanos
 ```
@@ -415,7 +415,7 @@ Nanos uses optimized internal data structures:
 | Deployment | Bare metal or hypervisor | Containerized |
 | Debugging | Limited (design constraint) | Full SSH access |
 
-## NGI Use Cases
+## InfoVulcan Use Cases
 
 ### ✅ Good Fit
 - Stateless services (Auth, Admin, LBRP)
@@ -447,5 +447,5 @@ Nanos uses optimized internal data structures:
 
 **Last Updated:** December 2025
 **Documentation Version:** Nanos Latest
-**Status:** Optional deployment platform for NGI services
+**Status:** Optional deployment platform for InfoVulcan services
 **Architecture:** Optimized single-process unikernel

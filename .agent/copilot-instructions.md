@@ -1,8 +1,8 @@
-# GitHub Copilot Instructions for NGI
+# GitHub Copilot Instructions for InfoVulcan
 
 ## Project Overview
 
-NGI (Next-Gen Infoman) is a distributed, microservices-based tech support ticketing system built entirely in Rust. The system prioritizes memory safety, strong consistency where needed, and post-quantum security. All code must be idiomatic Rust with zero unsafe code in business logic.
+InfoVulcan is a distributed, microservices-based tech support ticketing system built entirely in Rust. The system prioritizes memory safety, strong consistency where needed, and post-quantum security. All code must be idiomatic Rust with zero unsafe code in business logic.
 
 **Core Principles:**
 - Audit everything critical (ticket locks, user actions, permission changes)
@@ -11,7 +11,7 @@ NGI (Next-Gen Infoman) is a distributed, microservices-based tech support ticket
 - Correctness over cleverness - prioritize clear, maintainable code over "clever" solutions
 - Distributed consensus (Raft) for critical services
 - Don't panic - handle errors gracefully and provide meaningful error messages. The only acceptable use of panic-causing uses like `assert!`, `panic!`, `unwrap`, or `expect` is in unrecoverable situations during initialization (e.g., configuration errors), in which case the panic-able conditions must be clearly and exhaustively documented, or within tests.
-  - **Rationale**: In a distributed system like NGI, panics can crash services, disrupt consensus (e.g., Raft leader election), or cause cascading failures. Graceful error handling enables the system to degrade rather than fail completely, aligning with the Rugged Manifesto.
+  - **Rationale**: In a distributed system like InfoVulcan, panics can crash services, disrupt consensus (e.g., Raft leader election), or cause cascading failures. Graceful error handling enables the system to degrade rather than fail completely, aligning with the Rugged Manifesto.
   - **Unrecoverable Situations**: Limited to startup failures where the service cannot safely operate (e.g., invalid TLS certificates, missing critical dependencies, or corrupted Raft state that prevents initialization). These must be documented with clear failure modes and recovery steps.
   - **Testing Exceptions**: Panics are acceptable in tests to assert invariants and fail fast on unexpected conditions. Use `assert!`, `panic!`, or `unwrap()` in test code, but ensure error paths are also tested via `Result` handling.
   - **Alternatives**: Always prefer `Result<T, E>` with proper error propagation using `?`. Use `anyhow::Context` for debugging context. For fallible operations, return errors to callers rather than panicking.
@@ -67,7 +67,7 @@ NGI (Next-Gen Infoman) is a distributed, microservices-based tech support ticket
 Physical directories remain at the repository root. The grouping below is logical by service introduction stage.
 
 ```
-ngi/
+infovulcan/
 ├── shared/              # Shared library crate (error types, data models)
 ├── db/                  # MVP: Database service (Raft + Sled)
 ├── custodian/           # MVP: Ticket management (Raft-based locking)

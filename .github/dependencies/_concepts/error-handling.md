@@ -3,7 +3,7 @@
 **thiserror:** https://docs.rs/thiserror/  
 **anyhow:** https://docs.rs/anyhow/
 
-## Versions in NGI
+## Versions in InfoVulcan
 ```toml
 thiserror = "2.0"
 anyhow = "1.0"
@@ -11,7 +11,7 @@ anyhow = "1.0"
 
 ## Architecture
 
-NGI uses a two-layer error handling strategy:
+InfoVulcan uses a two-layer error handling strategy:
 1. **thiserror** for typed, domain-specific errors (production code)
 2. **anyhow** for contextual debugging and error chains (error handling)
 

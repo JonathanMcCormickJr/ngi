@@ -1,7 +1,7 @@
 use gloo_net::http::Request;
 use serde::{Deserialize, Serialize};
 
-const TOKEN_KEY: &str = "ngi_demo_token";
+const TOKEN_KEY: &str = "infovulcan_demo_token";
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Ticket {

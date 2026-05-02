@@ -3,11 +3,11 @@
 ## Role
 
 The Planner Agent is responsible for:
-- Designing and planning NGI system architecture and features
+- Designing and planning InfoVulcan system architecture and features
 - Creating technical roadmaps and implementation strategies
 - Analyzing requirements and breaking down complex features into manageable tasks
 - Coordinating between different agents (Implementor, Operator, Tester) for cohesive development
-- Ensuring architectural consistency and adherence to NGI principles
+- Ensuring architectural consistency and adherence to InfoVulcan principles
 - Planning for scalability, security, and distributed system requirements
 
 **Key Constraint:** All plans must prioritize correctness, security, and distributed system best practices while maintaining KISS principles.

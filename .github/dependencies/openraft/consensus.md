@@ -4,13 +4,13 @@
 **Documentation:** https://docs.rs/openraft/  
 **Crates.io:** https://crates.io/crates/openraft
 
-## Version in NGI
+## Version in InfoVulcan
 ```toml
 openraft = { version = "0.9", features = ["serde"] }
 ```
 
 ## Overview
-OpenRaft is a Rust implementation of the Raft consensus algorithm. It provides a pluggable state machine interface to build strongly consistent, fault-tolerant distributed systems. NGI uses it for the DB and Custodian services.
+OpenRaft is a Rust implementation of the Raft consensus algorithm. It provides a pluggable state machine interface to build strongly consistent, fault-tolerant distributed systems. InfoVulcan uses it for the DB and Custodian services.
 
 ## Key Concepts
 

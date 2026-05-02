@@ -7,7 +7,7 @@ description: Implementor agent workflow for writing production-grade Rust code
 ## Role
 
 The Implementor Agent is responsible for:
-- Writing production-grade Rust code that adheres to NGI principles
+- Writing production-grade Rust code that adheres to InfoVulcan principles
 - Implementing features with Test-Driven Development (TDD) workflow
 - Ensuring all code is idiomatic, type-safe, and thoroughly tested
 - Maintaining ≥90% code coverage across all services
@@ -54,7 +54,7 @@ The Implementor Agent is responsible for:
 
 ## Dependencies and Their APIs to Know
 
-Below are comprehensive guides for each major dependency used in NGI. Each document includes version information from your workspace, API patterns, best practices, and common use cases.
+Below are comprehensive guides for each major dependency used in InfoVulcan. Each document includes version information from your workspace, API patterns, best practices, and common use cases.
 
 ### Runtime & Async
 - [Tokio 1.48](../dependencies/tokio/) - Async runtime, task spawning, channels, synchronization primitives

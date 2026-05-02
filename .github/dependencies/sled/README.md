@@ -1,4 +1,4 @@
-# Sled - Embedded ACID Database for NGI
+# Sled - Embedded ACID Database for InfoVulcan
 
 > A high-performance embedded database with ACID transactions, written in Rust.
 
@@ -8,9 +8,9 @@
 
 ## Overview
 
-Sled is the persistent storage foundation for NGI's consensus and data layers. It provides ACID-compliant transactions with a key-value interface suitable for state machines and log storage.
+Sled is the persistent storage foundation for InfoVulcan's consensus and data layers. It provides ACID-compliant transactions with a key-value interface suitable for state machines and log storage.
 
-## Key Features for NGI
+## Key Features for InfoVulcan
 
 ### ACID Transactions
 ```rust
@@ -38,11 +38,11 @@ let index = db.open_tree("ticket:index:status:open")?;
 - **[architecture.md](architecture.md)** - Complete Sled implementation guide
   - ACID transactions
   - Storage schema patterns
-  - NGI storage layer implementation
+  - InfoVulcan storage layer implementation
   - Best practices and performance tuning
   - Official API documentation
 
-## NGI Core Patterns
+## InfoVulcan Core Patterns
 
 ### Table-Like Structure with Prefixes
 ```
@@ -116,7 +116,7 @@ let db = sled::Config::default()
     .open()?;
 ```
 
-### Performance Tuning for NGI
+### Performance Tuning for InfoVulcan
 - **Large datasets:** Increase `cache_capacity`
 - **High write volume:** Adjust `flush_every_ms`
 - **High concurrency:** Sled handles 1000s of concurrent readers/writers safely
@@ -162,7 +162,7 @@ let result = db.transaction(|txn| {
 
 ## Serialization Integration
 
-### With Bincode (NGI Standard)
+### With Bincode (InfoVulcan Standard)
 ```rust
 let ticket = Ticket { id: 1, status: Open, ... };
 let encoded = bincode::serialize(&ticket)?;
@@ -199,7 +199,7 @@ fn test_transaction_rollback() {
 }
 ```
 
-## Common NGI Use Cases
+## Common InfoVulcan Use Cases
 
 | Use Case | Sled Pattern |
 |----------|--------------|
@@ -210,7 +210,7 @@ fn test_transaction_rollback() {
 
 ## Limitations & Workarounds
 
-1. **No distributed consensus** - NGI adds Raft on top
+1. **No distributed consensus** - InfoVulcan adds Raft on top
 2. **Single machine** - Design for local persistence; cluster coordination via gRPC
 3. **No SQL** - Use prefix indexing and range queries instead
 
@@ -221,8 +221,8 @@ fn test_transaction_rollback() {
   - [Tree](https://docs.rs/sled/latest/sled/struct.Tree.html) - Key-value store
   - [transaction](https://docs.rs/sled/latest/sled/transaction/) - ACID transactions
 
-- **NGI Documentation:**
-  - [db service](../../../db/) - NGI's database microservice
+- **InfoVulcan Documentation:**
+  - [db service](../../../db/) - InfoVulcan's database microservice
   - [ARCHITECTURE.md](../../../ARCHITECTURE.md) - Storage layer design
 
 ---

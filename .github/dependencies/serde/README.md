@@ -1,4 +1,4 @@
-# Serde - Serialization Framework for NGI
+# Serde - Serialization Framework for InfoVulcan
 
 > A generic serialization/deserialization framework for Rust data structures.
 
@@ -8,7 +8,7 @@
 
 ## Overview
 
-Serde is NGI's universal serialization abstraction layer. It enables seamless conversion between Rust types and various formats (Bincode, JSON, Protocol Buffers) without format-specific code.
+Serde is InfoVulcan's universal serialization abstraction layer. It enables seamless conversion between Rust types and various formats (Bincode, JSON, Protocol Buffers) without format-specific code.
 
 ## Core Concept
 
@@ -42,7 +42,7 @@ let ticket: Ticket = bincode::decode_from_slice(&bytes, standard())?.0;
 let ticket: Ticket = serde_json::from_str(&json)?;
 ```
 
-## NGI Serialization Stack
+## InfoVulcan Serialization Stack
 
 ```
 Rust Type (with #[derive(Serialize, Deserialize)])
@@ -142,7 +142,7 @@ pub struct Config {
 }
 ```
 
-## NGI Common Patterns
+## InfoVulcan Common Patterns
 
 ### Enums with Numeric Representation
 ```rust
@@ -251,7 +251,7 @@ pub trait Deserializer<'de>: Sized {
 }
 ```
 
-## Format Integration in NGI
+## Format Integration in InfoVulcan
 
 ### Bincode (Storage)
 ```rust
@@ -343,7 +343,7 @@ mod tests {
   - [ser](https://docs.rs/serde/latest/serde/ser/) - Serialization traits
   - [de](https://docs.rs/serde/latest/serde/de/) - Deserialization traits
 
-- **NGI Types:**
+- **InfoVulcan Types:**
   - [shared/src/ticket.rs](../../../shared/src/ticket.rs) - Serializable ticket types
   - [shared/src/user.rs](../../../shared/src/user.rs) - Serializable user types
 

@@ -1,6 +1,6 @@
-# NGI Dependencies Reference
+# InfoVulcan Dependencies Reference
 
-> Comprehensive documentation for all 13 major dependencies used in NGI, organized by dependency with cross-cutting concepts.
+> Comprehensive documentation for all 13 major dependencies used in InfoVulcan, organized by dependency with cross-cutting concepts.
 
 **Last Updated:** December 2025
 **Quality:** Production-ready for implementor agent training
@@ -68,11 +68,11 @@ This directory contains **~5,100+ lines** of high-quality, official dependency d
 
 ### Each Dependency Folder Includes
 
-1. **README.md** - Overview, NGI integration, and documentation index
+1. **README.md** - Overview, InfoVulcan integration, and documentation index
 2. **Detailed section files** - Complete implementation guides
 3. **Official API documentation** - Links and examples
-4. **NGI-specific patterns** - Real usage from the codebase
-5. **Best practices** - Do's and don'ts for NGI
+4. **InfoVulcan-specific patterns** - Real usage from the codebase
+5. **Best practices** - Do's and don'ts for InfoVulcan
 
 ## Quick Navigation
 
@@ -108,7 +108,7 @@ This directory contains **~5,100+ lines** of high-quality, official dependency d
 - [OPS](ops/) - Unikernel build and deployment tool
 - [Nanos](nanos/) - Unikernel operating system
 
-## NGI-Specific Patterns
+## InfoVulcan-Specific Patterns
 
 ### Architecture
 - **Consensus Services** (DB, Custodian): Use OpenRaft + Sled
@@ -237,7 +237,7 @@ All versions are from the workspace defined in `/Cargo.toml`:
 1. Pick a dependency from above
 2. Read its README.md for overview
 3. Follow links to detailed section files
-4. Review NGI-specific patterns
+4. Review InfoVulcan-specific patterns
 5. Check example code in the services
 6. Implement with tests
 7. Verify coverage with `cargo tarpaulin`

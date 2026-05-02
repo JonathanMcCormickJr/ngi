@@ -5,7 +5,7 @@
 
 ## Overview
 
-NGI implements two-layer encryption:
+InfoVulcan implements two-layer encryption:
 1. **Transport Layer:** TLS 1.3 via `rustls` for all inter-service and client communication
 2. **Application Layer:** Post-quantum cryptography via `pqc_kyber` for sensitive payloads
 
@@ -275,7 +275,7 @@ fn decrypt_aes_gcm(data: &[u8], key: &[u8; 32]) -> Result<Vec<u8>> {
 }
 ```
 
-## NGI Deployment Architecture
+## InfoVulcan Deployment Architecture
 
 ### Certificate Management
 - CA certificate stored securely and distributed to all services

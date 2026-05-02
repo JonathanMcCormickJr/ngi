@@ -8,7 +8,7 @@
 
 ## Overview
 
-anyhow provides `Result<T>` (shorthand for `Result<T, anyhow::Error>`) for functions where the specific error type isn't important. NGI uses it for operations where errors are operational/contextual rather than domain-specific.
+anyhow provides `Result<T>` (shorthand for `Result<T, anyhow::Error>`) for functions where the specific error type isn't important. InfoVulcan uses it for operations where errors are operational/contextual rather than domain-specific.
 
 ## Quick Start
 
@@ -37,7 +37,7 @@ fn fetch_ticket(id: u64) -> Result<Ticket> {
 }
 ```
 
-## NGI Usage Patterns
+## InfoVulcan Usage Patterns
 
 ### Adding Context to Errors
 ```rust
@@ -201,7 +201,7 @@ fn check_preconditions(input: &str) -> anyhow::Result<()> {
 | Parse/decode with context needed | anyhow |
 | Business logic with specific failures | thiserror |
 
-## NGI Best Practices
+## InfoVulcan Best Practices
 
 ### Library Crates (shared, db, custodian)
 ```rust
@@ -269,7 +269,7 @@ async fn test_operation_fails() {
 }
 ```
 
-## NGI Service Integration Example
+## InfoVulcan Service Integration Example
 
 ```rust
 // auth/src/main.rs - Application code

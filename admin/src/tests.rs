@@ -26,7 +26,7 @@ mod tests {
         let user = User {
             user_id: Uuid::new_v4(),
             username: "testadmin".to_string(),
-            email: "admin@ngi.local".to_string(),
+            email: "admin@infovulcan.local".to_string(),
             display_name: "Test Admin".to_string(),
             role: Role::Admin,
             is_active: true,

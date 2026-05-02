@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# scripts/demo.sh — Start the NGI MVP services in single-node mode.
+# scripts/demo.sh — Start the InfoVulcan MVP services in single-node mode.
 #
 # Usage:
 #   ./scripts/demo.sh               # build & run
@@ -17,7 +17,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-TEMP_DIR=$(mktemp -d -t ngi-demo-XXXXXX)
+TEMP_DIR=$(mktemp -d -t infovulcan-demo-XXXXXX)
 PIDS=()
 
 cleanup() {
@@ -68,9 +68,9 @@ if [[ "${1:-}" != "--skip-build" ]]; then
             cat > "$ROOT_DIR/web/dist/index.html" <<'PLACEHOLDER'
 <!DOCTYPE html>
 <html>
-<head><meta charset="utf-8"><title>NGI</title></head>
+<head><meta charset="utf-8"><title>InfoVulcan</title></head>
 <body>
-<h1>NGI Ticketing System</h1>
+<h1>InfoVulcan Ticketing System</h1>
 <p>The web frontend has not been built yet.</p>
 <p>Install <code>trunk</code> and re-run the demo script:</p>
 <pre>cargo install trunk
@@ -156,7 +156,7 @@ LAN_IP=${LAN_IP:-127.0.0.1}
 cat <<EOF
 
 ============================================================
-  NGI MVP Demo Running
+  InfoVulcan MVP Demo Running
 ============================================================
 
   Web UI:     http://127.0.0.1:8080  (local)
@@ -171,7 +171,7 @@ cat <<EOF
   # 1. Create a user
   curl -s -X POST http://127.0.0.1:8080/api/admin/users \\
     -H 'Content-Type: application/json' \\
-    -d '{"username":"admin","password":"password123","email":"admin@ngi.local","display_name":"Admin User","role":0}'
+    -d '{"username":"admin","password":"password123","email":"admin@infovulcan.local","display_name":"Admin User","role":0}'
 
   # 2. Log in (saves token to \$TOKEN)
   TOKEN=\$(curl -s -X POST http://127.0.0.1:8080/auth/login \\

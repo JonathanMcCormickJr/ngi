@@ -4,7 +4,7 @@
 **Documentation:** https://docs.rs/tokio/  
 **Crates.io:** https://crates.io/crates/tokio
 
-## Version in NGI
+## Version in InfoVulcan
 ```toml
 tokio = { version = "1.48", features = ["full"] }
 ```
@@ -12,7 +12,7 @@ tokio = { version = "1.48", features = ["full"] }
 ## Overview
 Tokio is an asynchronous runtime for Rust built with Rust. It provides the foundations needed to build I/O-bound asynchronous applications. It's used for task scheduling, multi-threaded execution, and synchronization primitives.
 
-## Key Features Used in NGI
+## Key Features Used in InfoVulcan
 
 ### Multi-threaded Async Runtime
 ```rust
@@ -55,7 +55,7 @@ let (tx, rx) = tokio::sync::watch::channel(initial_value);
 - `tokio::join!()` - Join multiple futures
 - `tokio::select!()` - Racing multiple futures
 
-## NGI Usage Patterns
+## InfoVulcan Usage Patterns
 
 ### Task Coordination
 Used in DB service for Raft log replication and state machine application.

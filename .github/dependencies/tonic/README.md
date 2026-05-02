@@ -1,4 +1,4 @@
-# Tonic - gRPC Framework for NGI
+# Tonic - gRPC Framework for InfoVulcan
 
 > A native Rust gRPC implementation with async/await and HTTP/2.
 
@@ -8,9 +8,9 @@
 
 ## Overview
 
-Tonic powers all inter-service communication in NGI using gRPC with protocol buffers and mTLS for security. It provides efficient, strongly-typed RPC interfaces across microservices.
+Tonic powers all inter-service communication in InfoVulcan using gRPC with protocol buffers and mTLS for security. It provides efficient, strongly-typed RPC interfaces across microservices.
 
-## Architecture in NGI
+## Architecture in InfoVulcan
 
 ### gRPC Services
 ```
@@ -21,7 +21,7 @@ client (HTTP/2 + mTLS) ──→ server
    request/response streaming (async)
 ```
 
-### NGI Services Using Tonic
+### InfoVulcan Services Using Tonic
 - **DB Service** - Raft log operations, state queries
 - **Custodian Service** - Lock acquire/release RPCs
 - **Auth Service** - Session validation
@@ -37,10 +37,10 @@ client (HTTP/2 + mTLS) ──→ server
   - Error handling with Status codes
   - Metadata and headers
   - Interceptors (middleware)
-  - NGI service ports and best practices
+  - InfoVulcan service ports and best practices
   - Official API documentation
 
-## Architecture in NGI
+## Architecture in InfoVulcan
 
 ### gRPC Services
 ```
@@ -51,7 +51,7 @@ client (HTTP/2 + mTLS) ──→ server
    request/response streaming (async)
 ```
 
-### NGI Services Using Tonic
+### InfoVulcan Services Using Tonic
 - **DB Service** - Raft log operations, state queries
 - **Custodian Service** - Lock acquire/release RPCs
 - **Auth Service** - Session validation
@@ -252,7 +252,7 @@ match db.get_ticket(id).await {
 }
 ```
 
-## NGI-Specific Patterns
+## InfoVulcan-Specific Patterns
 
 ### Leader-Aware Routing (LBRP)
 ```rust
@@ -348,7 +348,7 @@ async fn test_get_ticket_rpc() {
   - [client](https://docs.rs/tonic/latest/tonic/client/) - Client creation
   - [metadata](https://docs.rs/tonic/latest/tonic/metadata/) - Headers/metadata
 
-- **NGI Services:**
+- **InfoVulcan Services:**
   - [db/proto/db.proto](../../../db/proto/db.proto) - Database service RPC
   - [custodian](../../../custodian/) - Lock service RPC
 
