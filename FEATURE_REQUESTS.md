@@ -7,9 +7,9 @@ NOT ALL REQUESTS WILL BE IMPLEMENTED. Each request will be evaluated based on it
 ## Feature Requests
 Core product capabilities:
 - **Advanced Search and Filtering** - InfoVulcan must provide powerful search and filtering options, allowing users to quickly locate tickets based on various criteria such as status, priority, assignee, tags, and custom fields.
-- **Broader Organizational Use** - InfoVulcan must be adaptable for use beyond just DSR's Tech Support Department, allowing other departments to utilize the system for their ticketing needs.
+- **Broader Organizational Use** - InfoVulcan must be adaptable for use beyond just the company's Tech Support Department, allowing other departments to utilize the system for their ticketing needs.
 - **Extensibility** - InfoVulcan must be easily extensible to accommodate future requirements and integrations. Enums should be designed to allow new variants without breaking existing data.
-- **Faster** - InfoVulcan must be faster than DSR's existing ticketing system.
+- **Faster** - InfoVulcan must be faster than the company's existing ticketing system.
 - **Highly Responsive** - InfoVulcan must provide a highly responsive user experience, with minimal latency for all operations, even under heavy load. The GUI should feel snappy and fluid, with easy use across a variety of devices and screen sizes.
 - **Logical Inconsistencies Blocking** - InfoVulcan must prevent users from creating tickets with logical inconsistencies.
     - Closing a ticket before it is opened.

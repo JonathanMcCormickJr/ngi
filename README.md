@@ -1,10 +1,10 @@
-# InfoVulcan: *InfoVulcan* 🎫
+# InfoVulcan 🎫
 
 (c) 2025-Present **Jonathan A. McCormick, Jr.** All rights reserved. If you are interested in using this software, please contact the author for licensing information.
 
-InfoVulcan aims to solve the pain points experienced by users of the current generation of DSR's internal ticketing system, InfoVulcan3. InfoVulcan is designed to be modular, extensible, scalable, fault-tolerant, user-friendly, blazingly fast, ultra secure, and easily maintainable. This is a system built from the ground up to support DSR's tech support capabilities through the next 40 years and beyond.
+InfoVulcan aims to solve the pain points experienced by users of the current generation of a corporate internal ticketing system. InfoVulcan is designed to be modular, extensible, scalable, fault-tolerant, user-friendly, blazingly fast, ultra secure, and easily maintainable. This is a system built from the ground up to support tech support capabilities through the next 40 years and beyond.
 
-DISCLAIMER: This project is neither endorsed nor sponsored by DSR, and is just a grassroots effort at innovation on the author's own personal time. 
+DISCLAIMER: This project is neither endorsed nor sponsored by any company and is just a grassroots effort at innovation on the author's own personal time. 
 
 ## Features
 User-facing capabilities:
@@ -56,8 +56,8 @@ Each ticket in InfoVulcan contains the following fields:
 - Updated At: timestamp of last ticket update
 - History: a log of all changes made to the ticket, including timestamps and user information
 - Ebond: optional field for ebonding information
-- Tracking URL: optional URL for DSR Broadband Provisioning portal tracking record (auto-updated with ticket summaries)
-- Network Devices: collection of DSR-supported equipment at the site (modems, ONTs, routers, switches, firewalls, VPN gateways, antennas) with make, model, MAC address, and serial number
+- Tracking URL: optional URL for the company's Broadband Provisioning portal tracking record (auto-updated with ticket summaries)
+- Network Devices: collection of company-supported equipment at the site (modems, ONTs, routers, switches, firewalls, VPN gateways, antennas) with make, model, MAC address, and serial number
 
 ## Design Goals
 - **Modular**: InfoVulcan is built using a collection of smaller components, allowing for easy addition and removal of features as needed.
@@ -65,7 +65,7 @@ Each ticket in InfoVulcan contains the following fields:
 - **Scalable**: InfoVulcan can handle increasing loads and user demands without compromising performance.
 - **Fault-Tolerant**: The system is resilient to failures, ensuring continuous operation and minimal downtime. In the Hardened deployment stage, it includes its own fault-injection system (inspired by Netflix's Chaos Monkey) to help identify and fix potential points of failure.
 - **User-Friendly**: InfoVulcan features an intuitive interface that simplifies ticket management for users of all technical levels. The frontend automatically saves drafts to browser cookies, so users never lose their work due to interruptions, crashes, or accidental navigation.
-- **Blazingly Fast**: Optimized for speed, InfoVulcan ensures quick response times and efficient ticket processing. It takes advantage of the Rust programming language's support for both parallelism and asynchronous programming in order to push performance to the limit. With DSR's ambitions for growth, this system is designed to handle thousands of concurrent users without breaking a sweat.
+- **Blazingly Fast**: Optimized for speed, InfoVulcan ensures quick response times and efficient ticket processing. It takes advantage of the Rust programming language's support for both parallelism and asynchronous programming in order to push performance to the limit. With the company's ambitions for growth, this system is designed to handle thousands of concurrent users without breaking a sweat.
 - **Ultra Secure**: InfoVulcan incorporates robust security measures to protect sensitive information and maintain user privacy. All network communications are doubly-encrypted: first using TLS 1.3 and secondly with a NIST-vetted postquantum algorithm named CRYSTALS-Kyber. User authentication is handled with mandatory MFA using several methods, including password-based authentication, WebAuthn, U2F, TOTP, and Active Directory (where the user's underlying OS login status counts toward authentication).
 - **Easily Maintainable**: The system is designed for straightforward maintenance and updates, reducing the burden on IT and development teams. Strict **Test-Driven Development (TDD)** ensures high code quality from day one—tests are written before implementation, documenting intended behavior and catching regressions early. Automated checks for dependencies (`cargo audit`), code quality (`cargo clippy` & `cargo fmt`), test coverage, documentation, and security vulnerabilities are integrated into the development workflow to ensure the system remains robust and up-to-date.
 
@@ -231,6 +231,7 @@ cargo audit
 ```
 
 ### IDE Setup
+- **Helix** LSP support via rust-analyzer
 - **VS Code:** Install Rust Analyzer extension
 - **IntelliJ/CLion:** Built-in Rust support
 - **Vim/Neovim:** rust.vim or coc-rust-analyzer

@@ -50,7 +50,7 @@ impl fmt::Display for MacAddress {
     }
 }
 
-/// Network device types supported by DSR
+/// Network device types supported by the company
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[repr(u8)]
 #[non_exhaustive]
@@ -426,7 +426,7 @@ pub struct Ticket {
     /// Optional ebonding data
     pub ebond: Option<String>,
 
-    /// Tracking URL for DSR Broadband Provisioning portal
+    /// Tracking URL for the company's Broadband Provisioning portal
     pub tracking_url: Option<String>,
 
     /// Network devices supported at this site
@@ -479,7 +479,7 @@ impl Ticket {
         }
     }
 
-    /// Format ticket update for posting to DSR Broadband Provisioning portal
+    /// Format ticket update for posting to the company's Broadband Provisioning portal
     #[must_use]
     pub fn format_tracking_update(
         &self,
@@ -488,7 +488,7 @@ impl Ticket {
         address: &str,
         tech_notes: &str,
     ) -> String {
-        let dsr_ticket = self.ticket_id;
+        let infovulcan_ticket = self.ticket_id;
         let customer_ticket = self.customer_ticket_number.as_deref().unwrap_or("N/A");
         let third_party = self.other_ticket_number.as_deref().unwrap_or("N/A");
 
@@ -519,7 +519,7 @@ impl Ticket {
         };
 
         format!(
-            "DSR: {dsr_ticket}\nCUSTOMER: {customer_ticket}\n3RD_PARTY: {third_party}\n\n{device_info}\n\n{customer_name}\n{site_id}\n{address}\n\n***\n\n{tech_notes}"
+            "INFOVULCAN: {infovulcan_ticket}\nCUSTOMER: {customer_ticket}\n3RD_PARTY: {third_party}\n\n{device_info}\n\n{customer_name}\n{site_id}\n{address}\n\n***\n\n{tech_notes}"
         )
     }
 
@@ -687,7 +687,7 @@ mod tests {
         );
 
         // Verify format
-        assert!(update.contains("DSR: 12345"));
+        assert!(update.contains("INFOVULCAN: 12345"));
         assert!(update.contains("CUSTOMER: CUST-999"));
         assert!(update.contains("3RD_PARTY: ISP-777"));
         assert!(update.contains("Arris SB8200"));
@@ -718,7 +718,7 @@ mod tests {
         );
 
         // Should handle missing optional fields gracefully
-        assert!(update.contains("DSR: 999"));
+        assert!(update.contains("INFOVULCAN: 999"));
         assert!(update.contains("CUSTOMER: N/A"));
         assert!(update.contains("3RD_PARTY: N/A"));
         assert!(update.contains("N/A\nN/A")); // No devices

@@ -1125,7 +1125,7 @@ impl MacAddress {
     pub fn as_str(&self) -> &str;
 }
 
-/// Network equipment supported by DSR at customer sites
+/// Network equipment supported by the company at customer sites
 #[non_exhaustive]
 pub enum NetworkDevice {
     DslModem {
@@ -1186,8 +1186,8 @@ impl NetworkDevice {
 ```
 
 **Tracking Update Integration**:
-When ticket updates occur, the system automatically posts formatted summaries to the DSR Broadband Provisioning portal via the `tracking_url`. The format includes:
-- DSR ticket number
+When ticket updates occur, the system automatically posts formatted summaries to the company's Broadband Provisioning portal via the `tracking_url`. The format includes:
+- InfoVulcan ticket number
 - Customer and 3rd-party ticket references
 - Modem/ONT equipment details (make, model, MAC address)
 - Customer name, site ID, and address
@@ -1195,7 +1195,7 @@ When ticket updates occur, the system automatically posts formatted summaries to
 
 Example output:
 ```text
-DSR: 12345
+INFOVULCAN: 12345
 CUSTOMER: CUST-999
 3RD_PARTY: ISP-777
 
@@ -2262,7 +2262,7 @@ let workflow = WorkflowDefinition {
 For questions or clarifications, contact:
 
 **Jonathan A. McCormick, Jr.**  
-Email: jamccormick[at]dsrglobal[dot]com  
+Email: mccormick9[at]pm[dot]me  
 GitHub: JonathanMcCormickJr
 X: Jonathan_M_Jr
 
